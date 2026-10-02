@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Cross-server failover on interrupted live streams (SettingsVideoPlayerPage). -->
+    <string name="settings_server_hop">Switch server on interruption</string>
+    <string name="settings_server_hop_description">When a live channel keeps failing, try the same channel on your other servers.</string>
+    <string name="settings_server_hop_retries">Retries before switching server</string>
+    <string name="settings_server_hop_retries_description">Failed attempts on the same stream before the same channel is tried on the next server.</string>
     <!-- Next/previous channel in the player (touch controls, same category). -->
     <string name="player_next_channel">Next channel</string>
     <string name="player_previous_channel_list">Previous channel</string>
