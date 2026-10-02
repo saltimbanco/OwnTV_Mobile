@@ -7,6 +7,17 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.0.4 — 2026-10-02
+
+### New features
+- **⏭️ Previous and next channel buttons in the player**
+- **🔀 Failing live channels switch to your other servers**
+- **📥 Import many servers from one text file**
+
+### Fixes
+- **📱 Smoother player, lists and home rotation**
+- **🔋 Less background work when nothing is playing**
+
 ## v1.0.3 — 2026-09-26
 
 ### New features
