@@ -3,6 +3,11 @@ package tv.own.owntv.mobile
 import android.app.Application
 import android.content.Context
 import android.content.res.Configuration
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
+import okio.Path.Companion.toOkioPath
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.startKoin
@@ -89,6 +94,21 @@ class OwnTVMobileApp : Application(), androidx.work.Configuration.Provider {
         // of dying with the process, with the playback ring attached.
         CrashRecorder.diagnostics = { tv.own.owntv.player.LiveDiagnosticsLog.snapshot() }
         CrashRecorder.install(this)
+        // One tuned image pipeline for the whole app, before the first AsyncImage asks: a quarter
+        // of memory for posters/logos and 256 MB of disk, so a scrolled-past grid is still warm.
+        // Per-request sizes stay with the call sites (PlaybackService's 256 px notification art,
+        // the hero precache); decode sampling for views comes from their measured constraints.
+        SingletonImageLoader.setSafe { ctx ->
+            ImageLoader.Builder(ctx)
+                .memoryCache {
+                    MemoryCache.Builder().maxSizePercent(ctx, 0.25).build()
+                }
+                .diskCache {
+                    DiskCache.Builder().directory(ctx.cacheDir.resolve("image_cache").toOkioPath())
+                        .maxSizeBytes(256L * 1024 * 1024).build()
+                }
+                .build()
+        }
         // Core learns a panel's session limit while syncing; the engine is what acts on it. Registered
         // before Koin so the very first source flow already reaches the player.
         tv.own.owntv.core.player.LiveSessionLimit.report =
