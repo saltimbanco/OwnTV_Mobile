@@ -26,7 +26,6 @@ import kotlinx.coroutines.launch
 import tv.own.owntv.core.content.AdultCategoryClassifier
 import tv.own.owntv.core.customize.CustomizationStore
 import tv.own.owntv.core.customize.CustomizeKeys
-import tv.own.owntv.core.customize.SectionCustomizations
 import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.DownloadDao
 import tv.own.owntv.core.database.dao.MovieDao
@@ -86,31 +85,43 @@ class DownloadsViewModel(
                     ) {
                         list
                     } else {
-                        list.filterNot { isHidden(it, custMovie, custSeries, profile?.isKids == true) }
+                        // One bulk read per table instead of one query per row: every emission
+                        // re-ran the whole chain. Episodes have no bulk lookup in core, so those
+                        // stay per-row; movies and series are prefetched (empty lists guarded —
+                        // Room rejects `IN ()`).
+                        val movieIds = list
+                            .filter { it.mediaType == MediaType.MOVIE }
+                            .map { it.itemId }.distinct()
+                        val movies = if (movieIds.isEmpty()) emptyMap()
+                        else movieDao.getByIds(movieIds).associateBy { it.id }
+                        val episodes = list
+                            .filter { it.mediaType == MediaType.EPISODE }
+                            .associate { it.itemId to seriesDao.getEpisodeById(it.itemId) }
+                        val seriesIds = episodes.values.filterNotNull()
+                            .map { it.seriesId }.distinct()
+                        val series = if (seriesIds.isEmpty()) emptyMap()
+                        else seriesDao.getSeriesByIds(seriesIds).associateBy { it.id }
+                        val isKids = profile?.isKids == true
+                        list.filterNot { d ->
+                            when (d.mediaType) {
+                                MediaType.MOVIE -> movies[d.itemId]?.let { movie ->
+                                    CustomizeKeys.movie(movie) in custMovie.hiddenItems ||
+                                        (isKids && AdultCategoryClassifier.isAdult(movie.categoryId?.let { categoryDao.getById(it)?.name }))
+                                } ?: isKids
+                                MediaType.EPISODE -> episodes[d.itemId]
+                                    ?.let { series[it.seriesId] }
+                                    ?.let { s ->
+                                        CustomizeKeys.series(s) in custSeries.hiddenItems ||
+                                            (isKids && AdultCategoryClassifier.isAdult(s.categoryId?.let { categoryDao.getById(it)?.name }))
+                                    } ?: isKids
+                                else -> false
+                            }
+                        }
                     }
                 }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    private suspend fun isHidden(
-        d: DownloadEntity,
-        custMovie: SectionCustomizations,
-        custSeries: SectionCustomizations,
-        isKidsProfile: Boolean,
-    ): Boolean = when (d.mediaType) {
-        MediaType.MOVIE -> movieDao.getById(d.itemId)?.let { movie ->
-            CustomizeKeys.movie(movie) in custMovie.hiddenItems ||
-                (isKidsProfile && AdultCategoryClassifier.isAdult(movie.categoryId?.let { categoryDao.getById(it)?.name }))
-        } ?: isKidsProfile
-        MediaType.EPISODE -> seriesDao.getEpisodeById(d.itemId)
-            ?.let { ep -> seriesDao.getSeriesById(ep.seriesId) }
-            ?.let { series ->
-                CustomizeKeys.series(series) in custSeries.hiddenItems ||
-                    (isKidsProfile && AdultCategoryClassifier.isAdult(series.categoryId?.let { categoryDao.getById(it)?.name }))
-            } ?: isKidsProfile
-        else -> false
-    }
 
     /**
      * Free and total space on whichever volume the downloads are being written to.

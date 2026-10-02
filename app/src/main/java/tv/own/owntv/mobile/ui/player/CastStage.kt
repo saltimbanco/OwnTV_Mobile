@@ -18,6 +18,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,8 +75,10 @@ fun CastStage(
     val isPlaying by engine.isPlaying.collectAsStateWithLifecycle()
     val buffering by engine.buffering.collectAsStateWithLifecycle()
     val error by engine.error.collectAsStateWithLifecycle()
-    val position by engine.position.collectAsStateWithLifecycle()
-    val duration by engine.duration.collectAsStateWithLifecycle()
+    // Held as States: the position ticks while casting, and only the progress bar reads it — values
+    // here would recompose the whole stage, artwork included, on every tick.
+    val positionState = engine.position.collectAsStateWithLifecycle()
+    val durationState = engine.duration.collectAsStateWithLifecycle()
     val live = engine.isLiveContent
 
     Box(modifier.fillMaxSize().background(Color.Black)) {
@@ -159,11 +162,12 @@ fun CastStage(
 
             // A recording has a length to scrub through; a live channel has neither an end nor an
             // archive the receiver can reach, so it gets no bar rather than a bar that lies.
-            if (!live && duration > 0L) {
-                CastProgress(position = position, duration = duration, onSeekTo = { target ->
-                    engine.seekBy(target - engine.position.value)
-                })
-            }
+            CastProgressHost(
+                live = live,
+                position = positionState,
+                duration = durationState,
+                onSeekTo = { target -> engine.seekBy(target - engine.position.value) },
+            )
 
             Row(
                 Modifier.padding(top = MobileDimens.GapMedium),
@@ -208,6 +212,20 @@ fun CastStage(
 
 /** Fixed, as the notification's and the floating window's are: this is not where a step is chosen. */
 private const val SKIP_MS = 10_000L
+
+/** Where the recording is up to on the other screen, and a way to move it. */
+@Composable
+private fun CastProgressHost(
+    live: Boolean,
+    position: State<Long>,
+    duration: State<Long>,
+    onSeekTo: (Long) -> Unit,
+) {
+    // Gated here, so the ticking position below recomposes only this host, not the stage.
+    if (!live && duration.value > 0L) {
+        CastProgress(position = position.value, duration = duration.value, onSeekTo = onSeekTo)
+    }
+}
 
 /** Where the recording is up to on the other screen, and a way to move it. */
 @Composable

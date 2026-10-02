@@ -180,6 +180,12 @@ private fun GuidePanel(nowNext: tv.own.owntv.core.live.EpgNowNext?) {
         return
     }
     val separator = stringResource(R.string.content_metadata_separator)
+    // "Up next" and everything after it — the same list the TV app's guide column shows.
+    // Built once per guide update, up here where remember is allowed: inside the LazyColumn scope
+    // below it would rebuild on every recomposition and re-run every row with it.
+    val upcoming = remember(nowNext) {
+        listOfNotNull(nowNext.next) + nowNext.upcoming.filter { it != nowNext.next }
+    }
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(MobileDimens.ScreenPaddingH)) {
@@ -210,7 +216,6 @@ private fun GuidePanel(nowNext: tv.own.owntv.core.live.EpgNowNext?) {
             HorizontalDivider()
         }
         // "Up next" and everything after it — the same list the TV app's guide column shows.
-        val upcoming = listOfNotNull(nowNext.next) + nowNext.upcoming.filter { it != nowNext.next }
         val first = upcoming.firstOrNull()
         if (first != null) {
             item {
@@ -229,7 +234,9 @@ private fun GuidePanel(nowNext: tv.own.owntv.core.live.EpgNowNext?) {
         }
         // Each upcoming programme gets its synopsis beside the start time, the same way the
         // television's preview pane shows one — a title alone rarely says which episode this is.
-        items(upcoming) { entry ->
+        // Keyed by start time — programmes on one channel never share one, and these entries
+        // carry no id — so a guide refresh rebinds rows in place instead of rebuilding the list.
+        items(upcoming, key = { it.startMs }) { entry ->
             val time = times.format(Date(entry.startMs))
             val synopsis = entry.description?.takeIf { it.isNotBlank() }
             MobileListRow(

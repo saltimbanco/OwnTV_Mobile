@@ -288,19 +288,19 @@ class GuideViewModel(
             cal.set(Calendar.MINUTE, 0)
             GuideWindow(start, cal.timeInMillis)
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, GuideWindow(0, 0))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), GuideWindow(0, 0))
 
     /** Grid, on-now list or one channel's schedule. Null until the user picks: the screen then
      *  decides from its own width, which is the only thing that knows whether a grid fits. */
     val viewMode: StateFlow<SettingsRepository.GuideView?> = settings.guideView
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setViewMode(view: SettingsRepository.GuideView) {
         viewModelScope.launch { settings.setGuideView(view) }
     }
 
     val densityPct: StateFlow<Int> = settings.guideDensityPct
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 100)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 100)
 
     fun setDensityPct(pct: Int) {
         viewModelScope.launch { settings.setGuideDensityPct(pct) }
@@ -330,7 +330,7 @@ class GuideViewModel(
             } else {
                 sort
             }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.GuideSort.LIVE_TV)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsRepository.GuideSort.LIVE_TV)
 
     fun setSortGuide(sort: SettingsRepository.GuideSort) {
         viewModelScope.launch { settings.setSortGuide(sort) }
@@ -471,7 +471,10 @@ class GuideViewModel(
                 lookAheadMs = ON_NOW_LOOK_AHEAD_MS,
             )
             // Channels with no guide are recorded as empty, or every scroll re-asks for them.
-            _onNow.value = _onNow.value + missing.associate { it.id to (found[it.id] ?: GuideSlot(null, null)) }
+            // Capped like rowCache above: a revisit after eviction simply re-reads through the
+            // `missing` check, so memory follows the screen, not the catalogue.
+            _onNow.value = (_onNow.value + missing.associate { it.id to (found[it.id] ?: GuideSlot(null, null)) })
+                .toList().takeLast(MAX_ON_NOW).toMap()
         }
     }
 
@@ -891,6 +894,8 @@ class GuideViewModel(
         // that scrolling back never re-reads, and small enough that the guide's memory does not grow
         // with the catalogue.
         const val MAX_CACHED_ROWS = 240
+        // "On now" slots, one small object per answered channel. Capped — see loadOnNow.
+        const val MAX_ON_NOW = 500
         const val SEARCH_DEBOUNCE_MS = 300L
         // A sync writes the guide in batches, so every batch is reported. This must be longer than
         // the gap between two batch writes, or it coalesces nothing and the guide redraws per batch.
