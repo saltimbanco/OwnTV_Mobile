@@ -128,6 +128,13 @@ fun PlayerControls(
     onCatchup: (() -> Unit)?,
     /** N2 — back to the channel watched before this one; null hides the button. */
     onPreviousChannel: (() -> Unit)? = null,
+    /**
+     * Step to the previous/next channel of the same category, wrapping at both ends; null
+     * hides the button. Distinct from [onPreviousChannel], which returns to the channel
+     * watched before this one rather than moving within the list.
+     */
+    onChannelPrevious: (() -> Unit)? = null,
+    onChannelNext: (() -> Unit)? = null,
     // Live only, and only once Multiview is switched on in Settings. Null hides the button.
     onMultiview: (() -> Unit)? = null,
     /** Files a diagnostic report about the stream on screen. */
@@ -188,6 +195,8 @@ fun PlayerControls(
                 onSkipLive = onSkipLive,
                 // Forward only while behind live, as on the television: at the edge there is nothing ahead.
                 behindLive = (offsetSec ?: 0) > 1,
+                onChannelPrevious = onChannelPrevious,
+                onChannelNext = onChannelNext,
                 modifier = Modifier.align(Alignment.Center),
             )
 
@@ -296,6 +305,9 @@ private fun TransportRow(
     isLive: Boolean,
     onSkipLive: ((forward: Boolean) -> Unit)?,
     behindLive: Boolean,
+    /** Step within the channel list; null hides the button (live only). */
+    onChannelPrevious: (() -> Unit)? = null,
+    onChannelNext: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val playing by player.isPlaying.collectAsStateWithLifecycle()
@@ -310,6 +322,13 @@ private fun TransportRow(
         if (nav.hasPrev) {
             RoundControl(MobileIcons.SkipPrevious, R.string.settings_remote_button_previous) {
                 player.previous()
+            }
+        }
+        // Live: the previous/next channel of the same category at the capsule's outer ends, so a
+        // thumb can zap without opening the channel list. Hidden with a single-channel list.
+        if (isLive && onChannelPrevious != null) {
+            RoundControl(MobileIcons.SkipPrevious, R.string.player_previous_channel_list) {
+                onChannelPrevious()
             }
         }
         if (!isLive) {
@@ -331,6 +350,9 @@ private fun TransportRow(
         }
         if (nav.hasNext) {
             RoundControl(MobileIcons.SkipNext, R.string.settings_remote_button_next) { player.next() }
+        }
+        if (isLive && onChannelNext != null) {
+            RoundControl(MobileIcons.SkipNext, R.string.player_next_channel) { onChannelNext() }
         }
     }
 }
