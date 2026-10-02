@@ -118,8 +118,21 @@ class LiveViewModel(
     epgDao: EpgDao,
     /** The app-wide reader the Guide uses too — one now/next cache, not two. */
     private val epgReader: LiveEpgReader,
+    /** The session tuner. A successful cross-playlist hop registers its context adoption here. */
+    private val tuner: LiveTuner,
 ) : ViewModel() {
 
+    init {
+        // A hop that stuck moves this screen's category strip to the working playlist's category —
+        // see [adoptHoppedPlaylist]. Registered here rather than wired in Koin: the tuner outlives
+        // this view model, so the registration is dropped when this screen dies.
+        tuner.onHopEstablished = ::adoptHoppedPlaylist
+    }
+
+    override fun onCleared() {
+        tuner.onHopEstablished = null
+        super.onCleared()
+    }
 
     /** The same candidate set the Guide's picker uses — filtered by no source. */
     private val guideCandidates = tv.own.owntv.core.epg.GuideCandidates(epgDao)
@@ -438,9 +451,27 @@ class LiveViewModel(
         }.map { ch -> cust.itemNames[CustomizeKeys.channel(ch)]?.let { ch.copy(name = it) } ?: ch }
     }
 
+    /**
+     * Whether this visit to Live TV began with a channel opened elsewhere — Search's channel result.
+     *
+     * Read once, at construction, because it only decides what this visit opens on: while it is
+     * true the remembered folder and the launch's "Start on" channel both stand aside, since the
+     * user has already said which channel they want and its category is where Back should land.
+     */
+    private val openedOnChannel: Boolean = tuner.revealCategoryFor.value != null
+
     init {
+        // A channel picked in Search: the browse section moves to the channel's own category, so
+        // Back from the player lands on that folder. The search field's filter goes with it.
         viewModelScope.launch {
-            if (settings.rememberCategoryLive.first()) {
+            tuner.revealCategoryFor.filterNotNull().collect { channelId ->
+                tuner.clearRevealCategory(channelId)
+                val channel = channelDao.getById(channelId) ?: return@collect
+                select(categoryKeyOf(channel))
+            }
+        }
+        viewModelScope.launch {
+            if (!openedOnChannel && settings.rememberCategoryLive.first()) {
                 parseLiveKey(settings.lastLiveCategory.first())?.let {
                     val ids = ctx.first { c -> c.profileId >= 0L }.liveSourceIds
                     if (!startupApplied && !folderGone(it, ids)) _selected.value = it
@@ -469,6 +500,9 @@ class LiveViewModel(
      * to preview, already on its category.
      */
     suspend fun applyStartupSelection(): ChannelEntity? {
+        // Opened on a channel from Search: previewing the start-on channel here would replace the
+        // one the user picked, and its category is already the right one.
+        if (openedOnChannel) return null
         if (startupSelection.consumeFavorites()) {
             startupApplied = true
             _selected.value = LiveKey.Favorites
@@ -492,6 +526,28 @@ class LiveViewModel(
         _selected.value = key
         _query.value = ""
         viewModelScope.launch { settings.setLastLiveCategory(key.serialize()) }
+    }
+
+    /**
+     * A cross-playlist hop just landed on [channel] and is playing: the browse section moves with
+     * it. The channel's own category folder belongs to the playlist that actually plays, so
+     * selecting it puts the user on the working playlist, inside the working category, and they
+     * keep navigating from there instead of back on the dead one. A folder that never reaches the
+     * strip (hidden, or the playlist was re-synced) falls back to All channels — the same rule the
+     * Guide's reveal applies.
+     */
+    fun adoptHoppedPlaylist(channel: ChannelEntity) {
+        val folder = channel.categoryId?.let { LiveKey.Folder(it) }
+        if (folder == null) {
+            select(LiveKey.All)
+            return
+        }
+        viewModelScope.launch {
+            val inStrip = kotlinx.coroutines.withTimeoutOrNull(2_000) {
+                categories.first { list -> list.any { it.key == folder } }
+            } != null
+            select(if (inStrip) folder else LiveKey.All)
+        }
     }
 
     /**
