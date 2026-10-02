@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -134,8 +135,11 @@ fun PlayerScreen(
     val film by vodTuner.playing.collectAsStateWithLifecycle()
     val nowNext by tuner.nowNext.collectAsStateWithLifecycle()
     val siblings by tuner.siblings.collectAsStateWithLifecycle()
-    val offsetSec by tuner.offsetSec.collectAsStateWithLifecycle()
-    val watchingWallMs by tuner.watchingWallMs.collectAsStateWithLifecycle()
+    // Held as States, not values: both tick about once a second while an archive plays, and only
+    // the dock's clock, the Now/Next card and the live bar read them — values here would recompose
+    // this whole screen on every tick.
+    val offsetSecState = tuner.offsetSec.collectAsStateWithLifecycle()
+    val watchingWallMsState = tuner.watchingWallMs.collectAsStateWithLifecycle()
     val timelineProgrammes by tuner.timelineProgrammes.collectAsStateWithLifecycle()
     // The same switch the Live TV list reads: off hides every number in the app, this one included.
     val showChannelNumbers by settings.directTune.collectAsStateWithLifecycle(true)
@@ -313,6 +317,10 @@ fun PlayerScreen(
         secondsToAdvance != null && !autoNextDismissed
 
     var controlsVisible by remember { mutableStateOf(true) }
+    // Derived, so the screen recomposes only when the live edge is crossed, not on every tick.
+    val atLiveEdge by remember { derivedStateOf { (offsetSecState.value ?: 0) <= 1 } }
+    // Pure except for the channel (and the cast route) it reads: recompute on those, not on ticks.
+    val archiveWindowSec = remember(isLive, channel?.id, castDevice) { tuner.archiveWindowSec() }
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
     // Closing the sheet forgets which category was open, so the next press starts at the categories.
     LaunchedEffect(sheet) { if (sheet != PlayerSheet.CHANNELS) playerCategory = null }
@@ -622,10 +630,10 @@ fun PlayerScreen(
             // system draws its own buttons on top of it.
             visible = controlsVisible && !inPip,
             isLive = isLive,
-            offsetSec = offsetSec,
-            archiveWindowSec = tuner.archiveWindowSec(),
+            offsetSec = offsetSecState,
+            archiveWindowSec = archiveWindowSec,
             epg = nowNext,
-            watchingWallMs = watchingWallMs,
+            watchingWallMs = watchingWallMsState,
             timelineProgrammes = timelineProgrammes,
             channelNumber = channel?.number?.takeIf { showChannelNumbers },
             liveOnExo = liveOnExo,
@@ -634,12 +642,12 @@ fun PlayerScreen(
             // channel has only one engine that can obtain its key, so swapping would trade a playing
             // picture for a guaranteed failure. `isLive` already excludes a replay.
             onToggleLiveEngine = tuner::toggleLiveEngine.takeIf {
-                isLive && ((offsetSec ?: 0) <= 1 || hasLocalCopy) && channel?.drmConfig == null
+                isLive && (atLiveEdge || hasLocalCopy) && channel?.drmConfig == null
             },
             onBack = stopAndExit,
             onGoLive = tuner::goToLive,
             onScrubLive = tuner::scrubLive,
-            onSkipLive = tuner::skipLive.takeIf { tuner.archiveWindowSec() > 0 },
+            onSkipLive = tuner::skipLive.takeIf { archiveWindowSec > 0 },
             liveGaps = tuner::timeshiftGaps,
             onOpenSheet = { sheet = it },
             // Shrink the picture without stopping it: the stream carries on in the mini player, docked
