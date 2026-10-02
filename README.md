@@ -30,6 +30,14 @@
 
 ---
 
+> **A friendly fork.** This repository is a fork of [OwnTV_Mobile by ahXN00](https://github.com/ahXN00/OwnTV_Mobile) — all credit and thanks to the original developers for this app, the TV app and the shared core library. Everything here builds on their work.
+>
+> Main differences from upstream:
+> - **⏭️ Previous/next channel buttons** in the player (same category, wrapping at both ends) — offered back upstream as [PR #60](https://github.com/ahXN00/OwnTV_Mobile/pull/60).
+> - **🔀 Cross-server failover**: a live channel that keeps failing is retried on your other servers.
+> - **📥 Bulk server import**: add many Xtream/Stalker servers from one plain-text file.
+> - **⚡ Performance pass** (v1.0.4): less background work, tighter recomposition, a tuned image pipeline, and cheaper lists and search.
+
 OwnTV Mobile is the phone and tablet member of the OwnTV family: a native Android IPTV **player**
 built with Kotlin and Jetpack Compose (Material 3), sharing its **entire engine** with
 [OwnTV for Android TV](https://github.com/ahXN00/OwnTV) through the
