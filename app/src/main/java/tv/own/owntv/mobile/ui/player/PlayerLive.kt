@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
@@ -111,12 +112,15 @@ private fun landscape(orientation: Int) = orientation == android.content.res.Con
  * has to fit.
  */
 @Composable
-internal fun MobilePlayerClock(watchingMs: Long?, modifier: Modifier = Modifier) {
+internal fun MobilePlayerClock(watchingMs: State<Long?>, modifier: Modifier = Modifier) {
     val wide = landscape(LocalConfiguration.current.orientation)
     val formatTime = rememberGuideTimeFormat()
     val formatDate = rememberPlayerDateFormat()
     val nowMs = rememberWallClock(CLOCK_TICK_MS)
     val accent = LocalAccentOnVideo.current
+    // Read once here, so the once-a-second archive tick recomposes only this clock, not the row
+    // above it.
+    val watching = watchingMs.value
 
     Row(
         modifier
@@ -127,11 +131,11 @@ internal fun MobilePlayerClock(watchingMs: Long?, modifier: Modifier = Modifier)
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (watchingMs != null) {
+        if (watching != null) {
             ClockColumn(
                 label = stringResource(R.string.content_clock_programme),
-                time = formatTime.format(Date(watchingMs)),
-                date = formatDate.format(Date(watchingMs)).takeIf { wide },
+                time = formatTime.format(Date(watching)),
+                date = formatDate.format(Date(watching)).takeIf { wide },
                 labelColor = accent,
                 timeColor = accent,
                 dateColor = accent.copy(alpha = 0.7f),
@@ -189,16 +193,16 @@ private fun ClockColumn(
  *
  * @param atMs the instant being replayed out of the archive, or null while at the live edge. Every
  *   "how far through are we" question is asked about *that* moment: a programme from yesterday would
- *   otherwise always read as finished.
+ *   otherwise always read as finished. Held as State so the archive tick recomposes only this card.
  */
 @Composable
-internal fun MobileNowNextCard(epg: EpgNowNext?, atMs: Long?, modifier: Modifier = Modifier) {
+internal fun MobileNowNextCard(epg: EpgNowNext?, atMs: State<Long?>, modifier: Modifier = Modifier) {
     if (epg == null || (epg.now == null && epg.next == null)) return
-    val archive = atMs != null
+    val archive = atMs.value != null
     val wide = landscape(LocalConfiguration.current.orientation)
     val formatTime = rememberGuideTimeFormat()
     val wallNow = rememberWallClock(CARD_TICK_MS)
-    val nowMs = atMs ?: wallNow
+    val nowMs = atMs.value ?: wallNow
     val accent = LocalAccentOnVideo.current
     val showNext = wide && epg.next != null
 

@@ -118,8 +118,18 @@ fun DetailScreen(
             .sortedBy { it.episodeNumber }
             .let { if (order.episodesDescending) it.reversed() else it }
     }
-    val shown = if (hideWatched) seasonEpisodes.filterNot { it.id in completedIds } else seasonEpisodes
-    val nextUp = episodes.firstOrNull { it.id == nextUpId }
+    val shown = remember(seasonEpisodes, hideWatched, completedIds) {
+        if (hideWatched) seasonEpisodes.filterNot { it.id in completedIds } else seasonEpisodes
+    }
+    // Per-season watched counts for the chips below: O(seasons × episodes) if recomputed, so done
+    // once per episodes/completedIds change rather than per recomposition.
+    val seasonCounts = remember(seasons, episodes, completedIds) {
+        seasons.associateWith { number ->
+            episodes.count { it.seasonNumber == number } to
+                episodes.count { it.seasonNumber == number && it.id in completedIds }
+        }
+    }
+    val nextUp = remember(episodes, nextUpId) { episodes.firstOrNull { it.id == nextUpId } }
     val resumeMs = progress?.takeIf { it.durationMs > 1L }?.positionMs ?: 0L
 
     // An episode is one tap with one meaning, so a part-watched one goes through the Resume playback
@@ -265,8 +275,7 @@ fun DetailScreen(
                 if (seasons.size > 1) {
                     FilterChipRow(
                         labels = seasons.map { number ->
-                            val total = episodes.count { it.seasonNumber == number }
-                            val done = episodes.count { it.seasonNumber == number && it.id in completedIds }
+                            val (total, done) = seasonCounts[number] ?: (0 to 0)
                             if (total > 0) {
                                 stringResource(R.string.content_season_progress, number, done, total)
                             } else {

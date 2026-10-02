@@ -22,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -86,12 +87,15 @@ fun PlayerControls(
     logoUrl: String?,
     visible: Boolean,
     isLive: Boolean,
-    offsetSec: Int?,
+    // Held as States, not values: both tick about once a second while an archive plays, and only
+    // the clock, the Now/Next card and the live bar read them — values here would recompose this
+    // whole column on every tick.
+    offsetSec: State<Int?>,
     archiveWindowSec: Int,
     /** Now and Next for the channel playing, or null when its guide has nothing. */
     epg: EpgNowNext?,
     /** The wall-clock instant on screen while an archive plays; null at the live edge. */
-    watchingWallMs: Long?,
+    watchingWallMs: State<Long?>,
     /** The channel's guide window, as the live timeline's boundary ticks. */
     timelineProgrammes: List<LiveProgramme>,
     /** The provider's own number for the channel, or null when the user has numbers turned off. */
@@ -150,6 +154,10 @@ fun PlayerControls(
     recordingThis: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    // Derived, so the ticking archive state above moves only its readers: the edge is crossed
+    // rarely, and the clock's null-ness only on entering/leaving the archive.
+    val behindLive by remember { derivedStateOf { (offsetSec.value ?: 0) > 1 } }
+    val showClock by remember { derivedStateOf { isLive || watchingWallMs.value != null } }
     // The app's own effects spring, not Material's default: with animations off it snaps, so the
     // chrome is simply there or not there.
     val fade = LocalMobileMotion.current.fast<Float>()
@@ -175,7 +183,7 @@ fun PlayerControls(
                         subtitle = subtitle,
                         logoUrl = logoUrl,
                         channelNumber = channelNumber,
-                        showClock = isLive || watchingWallMs != null,
+                        showClock = showClock,
                         watchingWallMs = watchingWallMs,
                         onBack = onBack,
                     )
@@ -194,7 +202,7 @@ fun PlayerControls(
                 isLive = isLive,
                 onSkipLive = onSkipLive,
                 // Forward only while behind live, as on the television: at the edge there is nothing ahead.
-                behindLive = (offsetSec ?: 0) > 1,
+                behindLive = behindLive,
                 onChannelPrevious = onChannelPrevious,
                 onChannelNext = onChannelNext,
                 modifier = Modifier.align(Alignment.Center),
@@ -224,7 +232,7 @@ fun PlayerControls(
                         player = player,
                         engine = engine,
                         isLive = isLive,
-                        goLive = if (isLive && (offsetSec ?: 0) > 1) onGoLive else null,
+                        goLive = if (isLive && behindLive) onGoLive else null,
                         onOpenSheet = onOpenSheet,
                         onMini = onMini,
                         audioOnly = audioOnly,
@@ -256,7 +264,7 @@ private fun TopRow(
     logoUrl: String?,
     channelNumber: Int?,
     showClock: Boolean,
-    watchingWallMs: Long?,
+    watchingWallMs: State<Long?>,
     onBack: () -> Unit,
 ) {
     val engine by player.engineChip.collectAsStateWithLifecycle()
@@ -428,17 +436,20 @@ private fun SeekBar(player: OwnTVPlayer, gestureDeltaMs: Long?) {
  */
 @Composable
 private fun LiveBar(
-    offsetSec: Int?,
+    offsetSec: State<Int?>,
     archiveWindowSec: Int,
     programmes: List<LiveProgramme>,
     onScrubLive: (Int) -> Unit,
     gaps: () -> List<LongRange>,
 ) {
     val liveEdgeMs by rememberClockTick()
+    // Read once here: this bar already ticks on its own clock, so the archive tick costs it
+    // nothing extra, and nobody above has to hear about it.
+    val offset = offsetSec.value
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         if (archiveWindowSec > 0) {
             MobileLiveTimeline(
-                offsetSec = offsetSec ?: 0,
+                offsetSec = offset ?: 0,
                 programmes = programmes,
                 // Now, and it keeps being now. Read once per composition this stood still, so a
                 // player left open drew its programme ticks against the moment the controls last
@@ -452,7 +463,7 @@ private fun LiveBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
-        LiveStateBadge(offsetSec)
+        LiveStateBadge(offset)
     }
 }
 

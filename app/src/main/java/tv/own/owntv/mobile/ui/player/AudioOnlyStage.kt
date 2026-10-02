@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,7 +90,9 @@ fun AudioOnlyBackdrop(
     programmeEndMs: Long? = null,
     sleepTimer: SleepTimer = koinInject(),
 ) {
-    val remaining by sleepTimer.remainingMs.collectAsStateWithLifecycle()
+    // Held as State: it ticks every second while a timer runs, and only the button below reads
+    // it — a value here would recompose the artwork, texts and waveform with it.
+    val remainingState = sleepTimer.remainingMs.collectAsStateWithLifecycle()
     var timerSheet by remember { mutableStateOf(false) }
 
     Box(
@@ -153,21 +156,28 @@ fun AudioOnlyBackdrop(
             // The one thing the player's own bar does not already offer, and the reason most people
             // drop the picture in the first place. The bar itself covers this spot, so it waits for
             // the controls to go away — which they do on their own after a few seconds.
-            if (!compact) TextButton(onClick = { timerSheet = true }) {
-                Icon(MobileIcons.Bedtime, contentDescription = null, tint = Color.White)
-                Text(
-                    text = remaining?.let {
-                        stringResource(R.string.player_sleep_timer_remaining, minutesLabel(it))
-                    } ?: stringResource(R.string.player_sleep_timer),
-                    color = Color.White,
-                    modifier = Modifier.padding(start = MobileDimens.GapSmall),
-                )
-            }
+            if (!compact) SleepTimerButton(remaining = remainingState, onClick = { timerSheet = true })
         }
     }
 
     if (timerSheet) {
         SleepTimerSheet(programmeEndMs = programmeEndMs, onDismiss = { timerSheet = false })
+    }
+}
+
+/** The sleep-timer entry point, alone in its own composable so the per-second countdown
+ *  recomposes only this button, not the backdrop above it. */
+@Composable
+private fun SleepTimerButton(remaining: State<Long?>, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Icon(MobileIcons.Bedtime, contentDescription = null, tint = Color.White)
+        Text(
+            text = remaining.value?.let {
+                stringResource(R.string.player_sleep_timer_remaining, minutesLabel(it))
+            } ?: stringResource(R.string.player_sleep_timer),
+            color = Color.White,
+            modifier = Modifier.padding(start = MobileDimens.GapSmall),
+        )
     }
 }
 
