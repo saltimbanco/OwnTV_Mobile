@@ -21,6 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.debounce
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -240,7 +243,11 @@ private fun StartupChannelSheet(
 ) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<ChannelEntity>>(emptyList()) }
-    LaunchedEffect(query) { results = vm.searchChannels(query) }
+    // Debounced like the guide's own search: every keystroke otherwise costs an FTS query over
+    // the whole live catalogue for a prefix the user has already moved past.
+    val debouncedQuery by snapshotFlow { query }.debounce(SEARCH_DEBOUNCE_MS)
+        .collectAsStateWithLifecycle(initialValue = query)
+    LaunchedEffect(debouncedQuery) { results = vm.searchChannels(debouncedQuery) }
 
     MobileBottomSheet(
         onDismissRequest = onDismiss,
@@ -458,3 +465,6 @@ private fun String.engineName(): String = when (trim().lowercase()) {
     "exoplayer", "exo" -> stringResource(R.string.settings_player_exoplayer)
     else -> this
 }
+
+/** Keystroke settle before the startup-channel picker queries — the guide uses the same 300 ms. */
+private const val SEARCH_DEBOUNCE_MS = 300L

@@ -84,8 +84,14 @@ class SearchViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** Playlist names, so a row can say which provider it came from when there is more than one. */
-    val sourceNames: StateFlow<Map<Long, String>> = sourceDao.observeAll()
-        .map { list -> list.associate { it.id to it.name } }
+    val sourceNames: StateFlow<Map<Long, String>> = ctx
+        // This screen only ever shows the active profile's rows; other profiles' sources are
+        // none of its business.
+        .flatMapLatest { c ->
+            if (c.profileId < 0) flowOf(emptyMap())
+            else sourceDao.observeForProfile(c.profileId)
+                .map { list -> list.associate { it.id to it.name } }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     val favoriteChannels: StateFlow<Set<Long>> = favoriteIds(MediaType.LIVE)
@@ -159,6 +165,10 @@ class SearchViewModel(
         const val DEBOUNCE_MS = 300L
         const val MIN_QUERY = 2
         const val PAGE = 40
-        const val MAX_LIMIT = 1_000
+        // Core's search takes a limit, not an offset, so every page re-reads from the top; the cap
+        // is what bounds that worst case (10 pages of 40 per kind instead of 25). Lowered from
+        // 1,000: nothing that matches that widely is found by scrolling, and each re-query maps
+        // every row it returns.
+        const val MAX_LIMIT = 400
     }
 }
