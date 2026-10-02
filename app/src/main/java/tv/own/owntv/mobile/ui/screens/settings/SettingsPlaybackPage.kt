@@ -9,9 +9,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -37,6 +39,7 @@ import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileListRow
 import tv.own.owntv.mobile.ui.components.SettingRow
+import tv.own.owntv.mobile.ui.screens.live.FailoverPrefs
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import tv.own.owntv.player.ZoomMode
 import tv.own.owntv.mobile.ui.theme.glassDialogWindow
@@ -45,7 +48,7 @@ import tv.own.owntv.mobile.ui.theme.glassDialogWindow
 private enum class PlaybackSheet {
     LIVE_ENGINE, VOD_ENGINE, ZOOM, SURROUND, AUDIO_LANG, SUB_LANG,
     RESUME, LATENCY, SEEK_STEP, REWIND_STEP, EXTERNAL_PLAYER, MULTIVIEW_TILES,
-    VOD_BUFFER, VOD_TIMEOUT, VOD_RECONNECTS, MAX_QUALITY, MOBILE_QUALITY, TIMESHIFT_WINDOW, TIMESHIFT_RESUME,
+<    VOD_BUFFER, VOD_TIMEOUT, VOD_RECONNECTS, SERVER_HOP_RETRIES, MAX_QUALITY, MOBILE_QUALITY, TIMESHIFT_WINDOW, TIMESHIFT_RESUME,
 
     /**
      * The per-playlist overrides, two levels each: pick the playlist, then pick its value. The second
@@ -160,6 +163,12 @@ fun SettingsVideoPlayerPage(
     val externalOn = externalLive || externalMovies || externalSeries
     val multiviewEnabled = s.multiviewEnabled.pref(false)
     val multiviewTiles = s.multiviewTiles.pref(DEFAULT_MULTIVIEW_TILES)
+
+    // Cross-server failover prefs live in app-local SharedPreferences (see FailoverPrefs), not in
+    // core's settings store, so this screen owns their state directly.
+    val failoverContext = LocalContext.current
+    var hopEnabled by remember { mutableStateOf(FailoverPrefs.isEnabled(failoverContext)) }
+    var hopRetries by remember { mutableIntStateOf(FailoverPrefs.getRetries(failoverContext)) }
 
     SettingsPage(modifier) {
         // Playback settings open on this list of categories; each opens a page of its own.
@@ -341,6 +350,23 @@ fun SettingsVideoPlayerPage(
                         subtitle = stringResource(R.string.settings_vod_reconnects_description),
                         value = stringResource(R.string.settings_vod_reconnects_value, vodReconnects),
                         onClick = { sheet = PlaybackSheet.VOD_RECONNECTS },
+                    )
+
+                    SettingRow(
+                        title = stringResource(R.string.settings_server_hop),
+                        subtitle = stringResource(R.string.settings_server_hop_description),
+                        checked = hopEnabled,
+                        onCheckedChange = { on ->
+                            FailoverPrefs.setEnabled(failoverContext, on)
+                            hopEnabled = on
+                        },
+                    )
+
+                    if (hopEnabled) SettingRow(
+                        title = stringResource(R.string.settings_server_hop_retries),
+                        subtitle = stringResource(R.string.settings_server_hop_retries_description),
+                        value = hopRetries.toString(),
+                        onClick = { sheet = PlaybackSheet.SERVER_HOP_RETRIES },
                     )
                 }
             }
@@ -783,6 +809,16 @@ fun SettingsVideoPlayerPage(
             choices = s.vodReconnectChoices.map { SettingsChoice(it, stringResource(R.string.settings_vod_reconnects_value, it)) },
             selected = vodReconnects,
             onSelect = { count -> vm.edit { setVodReconnects(count) } },
+            onDismiss = dismiss,
+        )
+        PlaybackSheet.SERVER_HOP_RETRIES -> SettingsChoiceSheet(
+            title = stringResource(R.string.settings_server_hop_retries),
+            choices = FailoverPrefs.RETRY_CHOICES.map { SettingsChoice(it, it.toString()) },
+            selected = hopRetries,
+            onSelect = { count ->
+                FailoverPrefs.setRetries(failoverContext, count)
+                hopRetries = FailoverPrefs.getRetries(failoverContext)
+            },
             onDismiss = dismiss,
         )
         // --- Per-playlist Live TV engine: pick the playlist, then its value ---
