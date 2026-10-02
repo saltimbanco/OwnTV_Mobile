@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +38,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import coil3.SingletonImageLoader
+import coil3.request.ImageRequest
+import coil3.size.Size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -95,7 +99,10 @@ fun TrendingHero(
     var touching by remember { mutableStateOf(false) }
     var whyExpanded by remember { mutableStateOf(false) }
     var resetClock by remember { mutableIntStateOf(0) }
-    var progress by remember { mutableFloatStateOf(0f) }
+    // Held as State, not a value: the rotation driver below rewrites it ~12 times a second, and
+    // only the thin progress bar at the bottom reads it — a `by` here would recompose the whole
+    // hero (both pictures, gradients, badges, buttons) on every tick.
+    val progressState = remember { mutableFloatStateOf(0f) }
     var unavailable by remember { mutableStateOf(false) }
     var detailsFor by remember { mutableStateOf<TrendingHomeItem?>(null) }
     val item = items.getOrNull(activeIndex) ?: return
@@ -104,7 +111,7 @@ fun TrendingHero(
 
     fun navigate(delta: Int) {
         activeIndex = (activeIndex + delta + items.size) % items.size
-        progress = 0f
+        progressState.floatValue = 0f
         resetClock++
     }
 
@@ -116,33 +123,43 @@ fun TrendingHero(
 
     LaunchedEffect(activeIndex, manuallyPaused, touching, resetClock, items.size) {
         if (manuallyPaused || touching || items.size < 2) return@LaunchedEffect
-        val startProgress = progress.coerceIn(0f, 1f)
+        val startProgress = progressState.floatValue.coerceIn(0f, 1f)
         val duration = (INTERVAL_MS * (1f - startProgress)).toLong().coerceAtLeast(1L)
         val startedAt = System.nanoTime()
         while (true) {
             val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
-            progress = (startProgress + (1f - startProgress) * elapsedMs.toFloat() / duration).coerceIn(0f, 1f)
+            progressState.floatValue = (startProgress + (1f - startProgress) * elapsedMs.toFloat() / duration).coerceIn(0f, 1f)
             if (elapsedMs >= duration) break
             delay(TICK_MS)
         }
-        progress = 0f
+        progressState.floatValue = 0f
         activeIndex = (activeIndex + 1) % items.size
+    }
+
+    // The rotation shows the next item in ten seconds: warm its two pictures now, so the
+    // advance swaps memory-cache hits instead of firing two network loads mid-animation. Decode
+    // sizes match the w1280/w500 URLs the card draws; playlist fallbacks are capped the same way.
+    val appContext = context.applicationContext
+    LaunchedEffect(activeIndex, items) {
+        if (items.size < 2) return@LaunchedEffect
+        val loader = SingletonImageLoader.get(appContext)
+        val next = items[(activeIndex + 1) % items.size]
+        listOfNotNull(
+            heroBackdrop(next)?.let { it to Size(1280, 720) },
+            heroPoster(next)?.let { it to Size(500, 750) },
+        ).forEach { (url, size) ->
+            loader.enqueue(
+                ImageRequest.Builder(appContext).data(url).size(size.width, size.height).build(),
+            )
+        }
     }
 
     val movieLabel = stringResource(R.string.home_trending_movie)
     val seriesLabel = stringResource(R.string.home_trending_series)
     val isMovie = item is TrendingHomeItem.Movie
     val typeLabel = if (isMovie) movieLabel else seriesLabel
-    val backdrop = MetadataImages.backdrop(snapshot.backdropPath, size = "w1280")
-        ?: when (item) {
-            is TrendingHomeItem.Movie -> item.movie.backdropUrl ?: item.movie.posterUrl
-            is TrendingHomeItem.Series -> item.series.backdropUrl ?: item.series.posterUrl
-        }
-    val poster = MetadataImages.poster(snapshot.posterPath, size = "w500")
-        ?: when (item) {
-            is TrendingHomeItem.Movie -> item.movie.posterUrl
-            is TrendingHomeItem.Series -> item.series.posterUrl
-        }
+    val backdrop = heroBackdrop(item)
+    val poster = heroPoster(item)
     val displaySignals = ProviderVariantParser.displaySignals(snapshot.providerRawName)
     val providerLanguage = snapshot.providerLanguage
     val languageBadge = when {
@@ -445,7 +462,7 @@ fun TrendingHero(
                 onClick = {
                     manuallyPaused = !manuallyPaused
                     if (!manuallyPaused) {
-                        progress = 0f
+                        progressState.floatValue = 0f
                         resetClock++
                     }
                 },
@@ -457,19 +474,44 @@ fun TrendingHero(
                 onClick = { navigate(1) },
             )
         }
-        Box(
-            modifier = Modifier.fillMaxWidth().height(ProgressHeight)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        ) {
-            Box(
-                modifier = Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).height(ProgressHeight)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
+        HeroProgressBar(progress = progressState)
     }
 
     detailsFor?.let { target ->
         TrendingDetailsSheet(target, resolveDetails, onDismiss = { detailsFor = null })
+    }
+}
+
+/** Backdrop + poster URLs for a hero item: the same fallback chain the card draws. */
+private fun heroBackdrop(item: TrendingHomeItem): String? {
+    val snapshot = item.snapshot
+    return MetadataImages.backdrop(snapshot.backdropPath, size = "w1280")
+        ?: when (item) {
+            is TrendingHomeItem.Movie -> item.movie.backdropUrl ?: item.movie.posterUrl
+            is TrendingHomeItem.Series -> item.series.backdropUrl ?: item.series.posterUrl
+        }
+}
+
+private fun heroPoster(item: TrendingHomeItem): String? {
+    val snapshot = item.snapshot
+    return MetadataImages.poster(snapshot.posterPath, size = "w500")
+        ?: when (item) {
+            is TrendingHomeItem.Movie -> item.movie.posterUrl
+            is TrendingHomeItem.Series -> item.series.posterUrl
+        }
+}
+
+/** The rotation countdown, alone in its own composable so its ~12 fps ticks move only this bar. */
+@Composable
+private fun HeroProgressBar(progress: MutableFloatState) {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(ProgressHeight)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(progress.floatValue.coerceIn(0f, 1f)).height(ProgressHeight)
+                .background(MaterialTheme.colorScheme.primary),
+        )
     }
 }
 

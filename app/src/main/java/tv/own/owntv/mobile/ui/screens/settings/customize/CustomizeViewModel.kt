@@ -83,7 +83,7 @@ class CustomizeViewModel(
     private val ctx: StateFlow<Ctx> = activeProfileSources(settings, sourceDao)
         .map { aps -> Ctx(aps.profileId, aps.sources) }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Ctx(-1L, emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Ctx(-1L, emptyList()))
 
     /** Optional PIN lock on this screen (per profile). [loaded]=false while DataStore is still read,
      *  so the screen never flashes unlocked content before the lock state is known. */
