@@ -79,7 +79,7 @@ class CustomizeItemsViewModel(
     private val ctx: StateFlow<Ctx> = activeProfileSources(settings, sourceDao)
         .map { aps -> Ctx(aps.profileId, aps.sources) }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Ctx(-1L, emptyList()))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Ctx(-1L, emptyList()))
 
     /** The category whose items are shown. Set via [open], cleared via [close]. [categoryId] is null
      *  for a user's custom combined category (issue #87) — its items live in the membership table. */
@@ -162,7 +162,7 @@ class CustomizeItemsViewModel(
     private val loadedRows: StateFlow<List<CustomizeItemRow>> = items
         .asItemSnapshotListFlow()
         .map { it.items }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // --- Span selection (shared machinery, see SpanSelector.kt) ---
 

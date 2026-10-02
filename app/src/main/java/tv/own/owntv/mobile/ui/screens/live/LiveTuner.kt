@@ -302,7 +302,10 @@ class LiveTuner(
     /** N2 — the channel watched before the one on screen; null hides the player's "previous channel". */
     val previousChannel: StateFlow<ChannelEntity?> = combine(live.previousChannel, ctx) { p, c ->
         p?.takeIf { it.sourceId in c.sourceIds }
-    }.stateIn(scope, SharingStarted.Eagerly, null)
+    // UI-only (the player's back button), so it sleeps with the screen. ctx/custom/activeEngine
+    // below stay Eagerly on purpose: background entry points (headset/media-session buttons,
+    // failover hops) read their .value with no UI subscribed.
+    }.stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
      * Go back to [previousChannel] — the player's button, and "previous" from a headset or the media
@@ -513,7 +516,8 @@ class LiveTuner(
     /** N4 — the user came back to a channel whose copy was kept: where they were, for "Resume from
      *  buffer / Go live". Null when there is nothing to offer. */
     val timeshiftResumeAt: StateFlow<Long?> = live.localTimeshift.map { it?.resumeAtWallMs }
-        .stateIn(scope, SharingStarted.Eagerly, null)
+        // UI-only (the resume offer); sleeps with the screen.
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun resumeTimeshift() {
         val at = timeshiftResumeAt.value ?: return
@@ -528,7 +532,8 @@ class LiveTuner(
 
     /** N4 — the channel on screen is playing from its saved copy, so it can be rewound. */
     val hasLocalCopy: StateFlow<Boolean> = live.localTimeshift.map { it != null }
-        .stateIn(scope, SharingStarted.Eagerly, false)
+        // Read by the engine-flip button and the live bar, both on screen together with this flow.
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** Seconds behind the live edge; null at the edge — what the red bar and the pill read. */
     val offsetSec: StateFlow<Int?> = timeshift.offsetSec

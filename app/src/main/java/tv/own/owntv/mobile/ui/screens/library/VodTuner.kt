@@ -3,6 +3,7 @@ package tv.own.owntv.mobile.ui.screens.library
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -176,10 +177,22 @@ class VodTuner(
                 recordHistory(q.profileId, MediaType.EPISODE, episode.id)
             }
         }
+        // The five-second resume-position saver, alive only while something is playing. It used
+        // to tick forever from here, waking every 5 s for the life of the process even with
+        // nothing on screen; saveProgress() itself already no-ops on null, this just stops the
+        // wakeups too.
+        var saver: Job? = null
         scope.launch {
-            while (true) {
-                delay(PROGRESS_INTERVAL_MS)
-                saveProgress()
+            playing.collect { item ->
+                saver?.cancel()
+                saver = item?.let {
+                    scope.launch {
+                        while (true) {
+                            delay(PROGRESS_INTERVAL_MS)
+                            saveProgress()
+                        }
+                    }
+                }
             }
         }
     }

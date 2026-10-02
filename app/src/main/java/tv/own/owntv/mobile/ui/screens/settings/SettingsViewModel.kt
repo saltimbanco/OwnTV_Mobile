@@ -171,7 +171,7 @@ class SettingsViewModel(
 
     /** The playlist the rest of the app is filtered to, or -1 when every playlist is shown. */
     val defaultSourceId: StateFlow<Long> = settings.defaultSourceId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, -1L)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), -1L)
 
     fun setDefaultSource(id: Long) {
         viewModelScope.launch { settings.setDefaultSource(id) }
