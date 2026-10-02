@@ -63,7 +63,7 @@ class HomeViewModel(
     private val profileId: StateFlow<Long> = settings.activeProfileId
         .map { stored -> if (stored >= 0) profileDao.resolveExistingProfileId(stored) ?: -1L else -1L }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, -1L)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), -1L)
 
     /**
      * One conflated request to rebuild. The screen asks on every entry, because coming back from a
