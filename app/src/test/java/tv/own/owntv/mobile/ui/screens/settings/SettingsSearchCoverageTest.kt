@@ -129,7 +129,7 @@ class SettingsSearchCoverageTest {
             "settings_metadata_clear_advanced_title", "player_subtitles_connected_as", "player_subtitles_delete_action",
             "player_subtitles_downloads", "player_subtitles_resets", "player_subtitles_sign_in", "player_subtitles_sign_out",
             "settings_sources_add", "settings_sources_cancel", "settings_sources_info", "settings_sources_resync_now_full",
-            "settings_sources_resync_remove_full", "settings_sources_test_title", "setup_auto_refresh",
+            "settings_sources_resync_remove_full", "settings_sources_test_title", "settings_sources_import_file", "setup_auto_refresh",
             "setup_auto_refresh_title", "setup_default_playlist", "profiles_add_button", "profiles_delete_title",
             "settings_catchup_timezone_device", "settings_subtitle_color", "settings_subtitle_default",
         ) + notRows

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +41,7 @@ import tv.own.owntv.core.database.entity.SourceEntity
 import tv.own.owntv.core.model.SourceType
 import tv.own.owntv.core.repository.SourceTestResult
 import tv.own.owntv.core.setup.detailLines
+import tv.own.owntv.core.setup.displayText
 import tv.own.owntv.core.setup.headline
 import tv.own.owntv.core.settings.PlaylistAutoRefresh
 import tv.own.owntv.core.settings.PlaylistRefresh
@@ -58,6 +61,7 @@ import tv.own.owntv.mobile.ui.setup.AddSourceForm
 import tv.own.owntv.mobile.ui.setup.SourceFormValues
 import tv.own.owntv.mobile.ui.setup.SourceKind
 import tv.own.owntv.mobile.ui.setup.labelRes
+import tv.own.owntv.mobile.ui.setup.rememberServerListPicker
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import tv.own.owntv.mobile.ui.theme.glassDialogWindow
 
@@ -80,6 +84,7 @@ fun SettingsPlaylistsPage(
     val expiry by vm.sourceExpiry.collectAsStateWithLifecycle()
     val deleting by vm.deletingSourceIds.collectAsStateWithLifecycle()
     val test by vm.sourceTest.collectAsStateWithLifecycle()
+    val bulkImport by vm.bulkImport.collectAsStateWithLifecycle()
     val playlistRefresh = vm.settings.playlistAutoRefresh.pref(emptyMap())
 
     var menuSource by remember { mutableStateOf<SourceEntity?>(null) }
@@ -88,6 +93,10 @@ fun SettingsPlaylistsPage(
     var confirmDelete by remember { mutableStateOf<SourceEntity?>(null) }
     // Set while the "this will stop playback and take a while" confirmation is on screen.
     var confirmRetest by remember { mutableStateOf<SourceEntity?>(null) }
+
+    // Bulk server-list import: a plain-text file with one Xtream/Stalker server per line,
+    // picked through the system document picker and parsed by SettingsViewModel.
+    val pickServerList = rememberServerListPicker { uri -> vm.importServerList(uri) }
 
     SettingsPage(modifier) {
         settingsNote(R.string.settings_sources_description)
@@ -112,6 +121,11 @@ fun SettingsPlaylistsPage(
                 title = stringResource(R.string.settings_sources_add),
                 leading = { Icon(MobileIcons.Add, contentDescription = null) },
                 onClick = onAddSource,
+            )
+            MobileListRow(
+                title = stringResource(R.string.settings_sources_import_file),
+                leading = { Icon(MobileIcons.PlaylistAdd, contentDescription = null) },
+                onClick = pickServerList,
             )
         }
     }
@@ -306,6 +320,96 @@ fun SettingsPlaylistsPage(
             dismissButton = {
                 TextButton(onClick = { confirmRetest = null }) {
                     Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    // Bulk server-list import progress and result. A bulk run keeps going behind this page,
+    // so leaving mid-run strands it with no way back to its result — the dialog cannot be
+    // dismissed, only cancelled.
+    when (val bulk = bulkImport) {
+        is SettingsViewModel.BulkImportUi.Idle -> Unit
+        is SettingsViewModel.BulkImportUi.Running -> AlertDialog(
+            modifier = Modifier.glassDialogWindow(),
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.settings_bulk_import_title, bulk.done + 1, bulk.total)) },
+            text = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
+                ) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Text(bulk.currentName)
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = vm::cancelBulkImport) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+        is SettingsViewModel.BulkImportUi.Done -> AlertDialog(
+            modifier = Modifier.glassDialogWindow(),
+            onDismissRequest = vm::dismissBulkImport,
+            title = { Text(stringResource(R.string.settings_bulk_import_done)) },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
+                ) {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.settings_bulk_import_added,
+                            bulk.succeeded.size,
+                            bulk.succeeded.size,
+                        ),
+                    )
+                    Text(
+                        pluralStringResource(
+                            R.plurals.settings_bulk_import_failed,
+                            bulk.failed.size,
+                            bulk.failed.size,
+                        ),
+                    )
+                    if (bulk.failed.isNotEmpty()) {
+                        val res = LocalContext.current.resources
+                        bulk.failed.forEach { failure ->
+                            val reason = failure.failure?.displayText(res) ?: failure.detail.orEmpty()
+                            Text(
+                                text = if (reason.isBlank()) failure.name
+                                else stringResource(
+                                    R.string.settings_bulk_import_failure_line,
+                                    failure.name,
+                                    reason,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = vm::dismissBulkImport) {
+                    Text(stringResource(R.string.common_ok))
+                }
+            },
+        )
+        is SettingsViewModel.BulkImportUi.ParseError -> AlertDialog(
+            modifier = Modifier.glassDialogWindow(),
+            onDismissRequest = vm::dismissBulkImport,
+            title = { Text(stringResource(R.string.settings_bulk_import_parse_error)) },
+            text = {
+                Text(
+                    stringResource(R.string.settings_bulk_import_parse_error_detail, bulk.message) + "\n\n" +
+                        stringResource(R.string.settings_bulk_import_format_hint),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = vm::dismissBulkImport) {
+                    Text(stringResource(R.string.common_ok))
                 }
             },
         )
