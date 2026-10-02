@@ -150,7 +150,7 @@ fun ThemeGalleryScreen(modifier: Modifier = Modifier) {
                 ),
                 horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
             ) {
-                items(categories) { name ->
+                items(categories, key = { it }) { name ->
                     PosterCard(
                         title = name,
                         subtitle = stringResource(R.string.common_nav_movies),
