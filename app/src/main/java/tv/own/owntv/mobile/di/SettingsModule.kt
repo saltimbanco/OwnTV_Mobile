@@ -42,6 +42,7 @@ val settingsModule = module {
             stalkerAuth = get(),
             sourceTester = get(),
             importFinalizer = get(),
+            importer = get(),
             trendingDao = get(),
             trendingActivity = get(),
             connectionLimits = get(),
