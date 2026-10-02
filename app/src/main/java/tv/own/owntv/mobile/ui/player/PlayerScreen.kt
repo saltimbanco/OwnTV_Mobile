@@ -652,6 +652,10 @@ fun PlayerScreen(
             // Only a live channel whose provider keeps an archive has anything to go back into.
             onCatchup = if (catchup != null) ({ sheet = PlayerSheet.CATCHUP }) else null,
             onPreviousChannel = if (isLive && previousChannel != null) tuner::tunePrevious else null,
+            // The previous/next channel of the same category, wrapping at both ends. Offered only
+            // with a list worth stepping through — a lone channel has nowhere to go.
+            onChannelPrevious = if (isLive && siblings.size >= 2) ({ tuner.step(-1) }) else null,
+            onChannelNext = if (isLive && siblings.size >= 2) ({ tuner.step(1) }) else null,
             // Live channels only, and only once Multiview is switched on. The channel on screen
             // becomes tile 1 and the grid takes over from this player.
             onMultiview = if (multiviewEnabled && isLive && channel != null) {
