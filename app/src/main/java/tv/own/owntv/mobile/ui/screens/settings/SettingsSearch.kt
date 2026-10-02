@@ -109,6 +109,8 @@ fun rememberSettingsSearchEntries(): List<SettingsSearchEntry> {
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_STREAMING, R.string.settings_vod_buffer, R.string.settings_search_keywords_video),
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_STREAMING, R.string.settings_vod_network_timeout, R.string.settings_search_keywords_video),
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_STREAMING, R.string.settings_vod_reconnects, R.string.settings_search_keywords_video),
+        SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_STREAMING, R.string.settings_server_hop, R.string.settings_search_keywords_video),
+        SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_STREAMING, R.string.settings_server_hop_retries, R.string.settings_search_keywords_video),
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_CONTROLS, R.string.settings_live_rewind_step, R.string.settings_search_keywords_video),
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_LIVE, R.string.settings_timeshift, R.string.settings_search_keywords_video),
         SettingsRowEntry(SettingsGroup.PLAYBACK, SettingsLeaf.VP_LIVE, R.string.settings_timeshift_window, R.string.settings_search_keywords_video),
