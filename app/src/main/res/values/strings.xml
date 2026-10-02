@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Next/previous channel in the player (touch controls, same category). -->
+    <string name="player_next_channel">Next channel</string>
+    <string name="player_previous_channel_list">Previous channel</string>
+</resources>
