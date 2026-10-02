@@ -25,4 +25,12 @@
     <string name="settings_bulk_import_default_portal">Portal %1$d</string>
     <string name="settings_bulk_import_failure_line">%1$s — %2$s</string>
     <string name="settings_bulk_import_format_hint">Expected one server per line, e.g. “xtream;Name;http://host:port;user;pass” or “stalker;Name;http://portal;00:1A:79:AA:BB:CC”.</string>
+    <!-- Cross-server failover on interrupted live streams (SettingsVideoPlayerPage). -->
+    <string name="settings_server_hop">Switch server on interruption</string>
+    <string name="settings_server_hop_description">When a live channel keeps failing, try the same channel on your other servers.</string>
+    <string name="settings_server_hop_retries">Retries before switching server</string>
+    <string name="settings_server_hop_retries_description">Failed attempts on the same stream before the same channel is tried on the next server.</string>
+    <!-- Next/previous channel in the player (touch controls, same category). -->
+    <string name="player_next_channel">Next channel</string>
+    <string name="player_previous_channel_list">Previous channel</string>
 </resources>

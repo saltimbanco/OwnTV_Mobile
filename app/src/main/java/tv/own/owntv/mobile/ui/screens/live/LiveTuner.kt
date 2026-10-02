@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -313,6 +314,87 @@ class LiveTuner(
 
     init {
         session.livePrevious = ::tunePrevious
+    }
+
+    // ---- Cross-server failover: hop to the same channel on the next playlist ----
+    //
+    // Core's ladder (ExoPlayer ⇄ mpv, reconnects, watchdogs) retries the SAME stream; this watches
+    // for the point where that has failed and tries the same channel ELSEWHERE. After more
+    // consecutive errors on one channel than the FailoverPrefs retries (default 3, set under
+    // Video player settings), the profile's other live sources are searched for a fuzzy name
+    // match ("nova sports prime" also matches "NOVA SPORTS PRIME HD") and the best match is
+    // tuned. Hopping continues across failures until every live source has been tried, then it
+    // stops and leaves the error on screen. Tuning a dissimilar channel starts a fresh incident.
+    private var failoverIncidentName: String? = null
+    private var failoverChannelId: Long? = null
+    private var failoverTriedSourceIds = mutableSetOf<Long>()
+    private var failoverStreak = 0
+    private var failoverHopJob: Job? = null
+
+    init {
+        scope.launch {
+            combine(player.error, exo.error, live.liveOnExo, _channel) { mpvError, exoError, onExo, channel ->
+                Triple((if (onExo) exoError else mpvError), channel, onExo)
+            }.collect { (error, channel, onExo) ->
+                // Only live playback qualifies: a film/episode failing on mpv must never hop a
+                // stale live channel, and the engine flag picks the fullscreen engine.
+                val liveContent = if (onExo) exo.isLiveContent else player.isLiveContent
+                onFailoverSignal(error != null && liveContent, channel)
+            }
+        }
+    }
+
+    private fun onFailoverSignal(hasError: Boolean, channel: ChannelEntity?) {
+        if (!hasError || channel == null) return
+        val incident = failoverIncidentName
+        if (incident == null || (channel.id != failoverChannelId && matchScore(incident, channel.name) < FAILOVER_MIN_SCORE)) {
+            // First error, or the user moved to a different channel: fresh incident.
+            failoverIncidentName = channel.name
+            failoverChannelId = channel.id
+            failoverTriedSourceIds.clear()
+            failoverStreak = 0
+        } else if (channel.id != failoverChannelId) {
+            // Same incident on a hopped-to channel: keep the tried set, count anew.
+            failoverChannelId = channel.id
+            failoverStreak = 0
+        }
+        failoverStreak++
+        if (!FailoverPrefs.isEnabled(context)) return
+        if (failoverStreak <= FailoverPrefs.getRetries(context)) return
+        failoverStreak = 0
+        attemptServerHop(channel)
+    }
+
+    private fun attemptServerHop(channel: ChannelEntity) {
+        if (failoverHopJob?.isActive == true) return
+        failoverHopJob = scope.launch(Dispatchers.IO) {
+            val pid = settings.activeProfileId.first().takeIf { it >= 0 } ?: return@launch
+            failoverTriedSourceIds.add(channel.sourceId)
+            val liveSourceIds = sourceDao.observeForProfile(pid).first()
+                .filter { it.syncLive }.map { it.id }
+            val remaining = liveSourceIds.filter { it !in failoverTriedSourceIds }
+            if (remaining.isEmpty()) {
+                // Every source tried: allow a fresh cycle next time instead of going quiet forever.
+                failoverTriedSourceIds.clear()
+                return@launch
+            }
+            // FTS needs a concrete token; the longest one recalls candidates per source and the
+            // fuzzy scorer picks the real match (single-token names fall back to the full name).
+            val probe = channelTokens(channel.name).maxByOrNull { it.length } ?: channel.name
+            val candidates = remaining.flatMap { sourceId ->
+                runCatching { channelDao.searchList(probe, listOf(sourceId), 25) }.getOrDefault(emptyList())
+            }.filter { it.id != channel.id }
+            val best = bestChannelMatch(channel.name, candidates)
+            if (best == null) {
+                failoverTriedSourceIds.addAll(remaining)
+                return@launch
+            }
+            failoverTriedSourceIds.add(best.sourceId)
+            // Engine calls belong on Main (switchTo runs there everywhere else).
+            withContext(Dispatchers.Main) {
+                switchTo(best)
+            }
+        }
     }
 
     init {
