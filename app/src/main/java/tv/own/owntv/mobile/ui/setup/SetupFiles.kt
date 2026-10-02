@@ -28,6 +28,14 @@ fun rememberPlaylistFilePicker(onPicked: (Uri) -> Unit): () -> Unit = rememberPi
 @Composable
 fun rememberBackupFilePicker(onPicked: (Uri) -> Unit): () -> Unit = rememberPicker(onPicked)
 
+/**
+ * The picker for a bulk server list — a plain-text `.txt`/`.csv` with one Xtream or Stalker
+ * server per line. Unfiltered like the playlist picker: providers serve text under invented
+ * MIME types, and filtering by them hides real lists.
+ */
+@Composable
+fun rememberServerListPicker(onPicked: (Uri) -> Unit): () -> Unit = rememberPicker(onPicked)
+
 @Composable
 private fun rememberPicker(onPicked: (Uri) -> Unit): () -> Unit {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
