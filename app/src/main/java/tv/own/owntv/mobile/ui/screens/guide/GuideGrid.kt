@@ -83,6 +83,17 @@ internal fun GuideGrid(
     val minuteWidth = (BASE_MINUTE_DP * densityPct / 100f).dp
     val minutePx = with(LocalDensity.current) { minuteWidth.toPx() }
     val times = rememberGuideTimeFormat()
+    // The ruler only moves when the window or the density does — not on scroll or revision — so
+    // its ticks are built once instead of on every recomposition.
+    val rulerTicks = remember(window.start, window.end, minuteWidth) {
+        buildList {
+            var tick = window.start
+            while (tick < window.end) {
+                add(tick)
+                tick += TICK_MINUTES * MINUTE_MS
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -102,8 +113,7 @@ internal fun GuideGrid(
                 }
             }
             Row(Modifier.horizontalScroll(timeScroll)) {
-                var tick = window.start
-                while (tick < window.end) {
+                rulerTicks.forEach { tick ->
                     Text(
                         text = times.format(Date(tick)),
                         style = MaterialTheme.typography.labelSmall,
@@ -114,7 +124,6 @@ internal fun GuideGrid(
                             .width(minuteWidth * TICK_MINUTES)
                             .padding(start = MobileDimens.GapTiny),
                     )
-                    tick += TICK_MINUTES * MINUTE_MS
                 }
             }
         }

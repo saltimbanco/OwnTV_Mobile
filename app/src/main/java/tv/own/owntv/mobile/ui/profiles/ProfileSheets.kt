@@ -216,7 +216,10 @@ fun ProfileEditorSheet(
             }
             // -1 is "no picture", and it is offered first so a profile can be left plain.
             LazyRow(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                items((-1 until PROFILE_AVATAR_COUNT).toList()) { id ->
+                // Count + key instead of a materialized range: no list per recomposition, and an
+                // avatar keeps its composition (and its ripple) across avatar-count changes.
+                items(count = PROFILE_AVATAR_COUNT + 1, key = { it - 1 }) { index ->
+                    val id = index - 1
                     val selected = id == avatarId
                     Box(
                         modifier = Modifier
