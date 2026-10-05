@@ -107,8 +107,8 @@ jobs:
           # 'tools' is obsolete and Google removed it from the SDK repository; the
           # action still asks for it by default, which fails the whole setup step.
           packages: 'platform-tools'
-      - name: Assemble standard debug + release APKs
-        run: ./gradlew :app:assembleStandardDebug :app:assembleStandardRelease --console=plain
+      - name: Assemble debug + release APKs
+        run: ./gradlew :app:assembleDebug :app:assembleRelease --console=plain
       - name: Verify pseudolocale packaging
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
