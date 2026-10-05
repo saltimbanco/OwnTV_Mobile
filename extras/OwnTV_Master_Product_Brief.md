@@ -339,7 +339,7 @@ starts.
 
 ### 10.4 Build & release
 
-ABI flavours (`standard` for real devices, `x86_64` for emulators), R8 with keep rules on release,
+A single arm APK (arm64-v8a + armeabi-v7a, no emulator flavor), R8 with keep rules on release,
 locale filtering driven by a catalogue file that is deliberately duplicated from core because Gradle
 reads it at configure time, a baseline-profile module, and CI that builds, lints, runs the string
 gates and publishes a signed release from a tag.

@@ -82,21 +82,10 @@ android {
         buildConfigField("String", "TMDB_EDGE_KEY", "\"${edgeKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-
-    // ABI split via product flavors, mirroring the TV app: `standard` is what real phones and tablets
-    // run, `x86_64` exists for the emulator. The player engine ships large prebuilt .so files, so a
-    // universal APK would be roughly double the size for no one's benefit.
-    flavorDimensions += "abi"
-    productFlavors {
-        create("standard") {
-            dimension = "abi"
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
-        }
-        create("x86_64") {
-            dimension = "abi"
-            ndk { abiFilters += listOf("x86_64") }
-        }
+        // The player engine ships large prebuilt .so files, so only the arm ABIs ship: one APK for
+        // real phones and tablets (arm64-v8a + armeabi-v7a). No x86_64 flavor, no ABI dimension —
+        // one build type axis, two variants (debug/release).
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     // The SAME keystore and the same property names as the TV app. A signing certificate must be
@@ -204,10 +193,9 @@ androidComponents {
     }
 }
 
-// A baseline profile is a list of code paths, not machine code, so one recording serves both ABI
-// flavors. `mergeIntoMain` writes it to `src/main/generated/baselineProfiles/` rather than the
-// recording flavor's own source set, so a profile recorded on an arm phone also ships in the
-// x86_64 APK — and so there is one file to review in a diff instead of two.
+// A baseline profile is a list of code paths, not machine code. `mergeIntoMain` writes it to
+// `src/main/generated/baselineProfiles/` rather than a variant source set, so there is one file
+// to review in a diff instead of one per variant.
 baselineProfile {
     mergeIntoMain = true
 }

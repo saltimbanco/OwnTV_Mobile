@@ -107,17 +107,16 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # One variant, not `test`/`lint` across every flavor: standard+debug is the variant the JVM
-      # tests are written against, and the ABI flavors differ only in the packaged native libs.
+      # One variant: debug is what the JVM tests are written against.
       - name: Unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew testStandardDebugUnitTest --stacktrace
+          ./gradlew testDebugUnitTest --stacktrace
 
       # abortOnError = true in app/build.gradle.kts, so this fails the job on a lint error.
       - name: Lint
         if: always()   # report both verdicts in one run instead of one failure at a time
-        run: ./gradlew lintStandardDebug --stacktrace
+        run: ./gradlew lintDebug --stacktrace
 
       - name: Upload test and lint reports
         if: always()   # the reports matter most when the step above failed
@@ -233,21 +232,15 @@ jobs:
         run: |
           chmod +x ./gradlew
           if [ -n "$KEYSTORE_FILE" ]; then
-            echo "Building signed release APKs (both ABI flavors)"
+            echo "Building signed release APK (arm: arm64-v8a + armeabi-v7a)"
             ./gradlew assembleRelease --stacktrace
-            # Product flavors split the output by flavor subfolder:
-            #   standard/release  -> arm (arm64-v8a + armeabi-v7a) — real phones and tablets
-            #   x86_64/release    -> x86_64 — the emulator
-            ARM_SRC=$(ls app/build/outputs/apk/standard/release/*.apk | head -n1)
-            X86_SRC=$(ls app/build/outputs/apk/x86_64/release/*.apk | head -n1)
-            echo "Built arm:    $ARM_SRC"
-            echo "Built x86_64: $X86_SRC"
+            ARM_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n1)
+            echo "Built: $ARM_SRC"
             echo "ARM_SRC=$ARM_SRC" >> "$GITHUB_ENV"
-            echo "X86_SRC=$X86_SRC" >> "$GITHUB_ENV"
           else
             echo "Building debug APK"
             ./gradlew assembleDebug
-            SRC=$(ls app/build/outputs/apk/standard/debug/*.apk | head -n1)
+            SRC=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
             echo "Built: $SRC"
             echo "ARM_SRC=$SRC" >> "$GITHUB_ENV"
           fi
@@ -272,18 +265,13 @@ jobs:
           cp "$ARM_SRC" "dist/$OUT"
           echo "APK_OUT=$OUT" >> "$GITHUB_ENV"
           echo "Packaged dist/$OUT (arm: arm64-v8a + armeabi-v7a)"
-          # The x86_64 APK is for the emulator, so it is only published on a tag and only under its
-          # version name. There is no always-latest copy of either: this app has no in-app updater
-          # and no Downloader-style sideload audience, which is what that fixed URL exists for on TV.
-          if [ "$IS_TAG" = "true" ] && [ -n "$X86_SRC" ]; then
-            cp "$X86_SRC" "dist/OwnTV-Mobile-x86_64-v${{ steps.ver.outputs.name }}.apk"
-            echo "Packaged dist/OwnTV-Mobile-x86_64-v${{ steps.ver.outputs.name }}.apk"
-          fi
+          # There is no always-latest copy: this app has no in-app updater and no
+          # Downloader-style sideload audience, which is what that fixed URL exists for on TV.
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          # Upload the whole dist/ so both the arm APK and the x86_64 APK are captured.
+          # Upload the whole dist/ so the APK is captured.
           name: ${{ env.APK_OUT }}
           path: dist/*
           if-no-files-found: error
@@ -324,7 +312,6 @@ jobs:
           name: OwnTV Mobile ${{ github.ref_name }}
           files: |
             dist/${{ env.APK_OUT }}
-            dist/OwnTV-Mobile-x86_64-v${{ steps.ver.outputs.name }}.apk
           body_path: dist/RELEASE_NOTES.md
           # Must stay false: it appends GitHub's auto commit/PR list under the body, burying the
           # hand-written notes.

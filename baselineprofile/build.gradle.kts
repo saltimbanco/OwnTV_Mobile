@@ -27,12 +27,12 @@ android {
         minSdk = 28
         targetSdk = 36
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // **The one real difference from the TV app's copy.** That module pins `x86_64`, because a
-        // baseline profile needs an API 33+ device and the arm TV boxes it targets are older — so it
-        // can only record on an emulator. A phone running this app is API 33+ as a matter of course,
-        // so recording happens on the real device, against the real arm APK, on the real hardware
-        // the profile is for.
-        missingDimensionStrategy("abi", "standard")
+        // **The one real difference from the TV app's copy.** That module pins its ABI dimension
+        // because a baseline profile needs an API 33+ device and the arm TV boxes it targets are
+        // older — so it can only record on an emulator. A phone running this app is API 33+ as a
+        // matter of course, so recording happens on the real device, against the real arm APK, on
+        // the real hardware the profile is for. (This app has no ABI dimension, so no
+        // missingDimensionStrategy is needed.)
     }
 
     targetProjectPath = ":app"

@@ -200,7 +200,7 @@ extras/                  logos, credits artwork, and the TV parity checklist
 
 Distribution is **sideloaded** while the app is pre-release: download the APK from the
 [Releases page](https://github.com/ahXN00/OwnTV_Mobile/releases) and install it. Each release
-carries an arm APK and an `x86_64` one for emulators.
+carries a single arm APK (arm64-v8a + armeabi-v7a) for real phones and tablets.
 
 The app checks for a new release itself — on startup if you let it, or from **Settings → App →
 Check for updates** — and can download and install it for you. That needs
@@ -214,7 +214,7 @@ still ask you to allow installs from OwnTV the first time.
 ```bash
 git clone https://github.com/ahXN00/OwnTV_Mobile.git
 cd OwnTV_Mobile
-./gradlew :app:assembleStandardDebug
+./gradlew :app:assembleDebug
 ```
 
 `local.properties` is developer-local and never committed:
@@ -239,8 +239,8 @@ repository file. With nothing configured the APK simply builds unsigned.
 ### Checks
 
 ```bash
-./gradlew :app:testStandardDebugUnitTest      # unit tests
-./gradlew :app:lintStandardDebug              # Android lint
+./gradlew :app:testDebugUnitTest      # unit tests
+./gradlew :app:lintDebug              # Android lint
 python tools/i18n/check_hardcoded_strings.py verify
 python tools/i18n/check_pseudo_locales.py     # needs a built APK
 ```
