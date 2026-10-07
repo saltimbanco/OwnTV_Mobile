@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.content.SearchIntent
 import tv.own.owntv.core.database.entity.MovieEntity
@@ -103,13 +104,15 @@ fun SearchScreen(
     LaunchedEffect(query, intent) { listState.scrollToItem(0) }
 
     // Reaching the bottom asks for the next page. Without it a search stops at the first 40 of each
-    // kind, and a provider with hundreds of CNN feeds looks like it only has forty.
+    // kind, and a provider with hundreds of CNN feeds looks like it only has forty. Distinct: a
+    // fling near the bottom emits the same (last, total) pair for many frames, and each one would
+    // otherwise call into the view-model for nothing.
     LaunchedEffect(listState, searching) {
         if (!searching) return@LaunchedEffect
         snapshotFlow {
             val info = listState.layoutInfo
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) to info.totalItemsCount
-        }.collect { (last, total) ->
+        }.distinctUntilChanged().collect { (last, total) ->
             if (total > 0 && last >= total - LOAD_MORE_MARGIN) vm.loadMore()
         }
     }
@@ -143,6 +146,7 @@ fun SearchScreen(
                     count = results.channels.size,
                     items = results.channels,
                     key = { "c${it.channel.id}" },
+                    contentType = "channel",
                 ) { row ->
                     MobileListRow(
                         title = row.channel.name,
@@ -162,6 +166,7 @@ fun SearchScreen(
                     count = results.movies.size,
                     items = results.movies,
                     key = { "m${it.id}" },
+                    contentType = "movie",
                 ) { movie ->
                     MobileListRow(
                         title = movie.name,
@@ -179,6 +184,7 @@ fun SearchScreen(
                     count = results.series.size,
                     items = results.series,
                     key = { "s${it.id}" },
+                    contentType = "series",
                 ) { show ->
                     MobileListRow(
                         title = show.name,
@@ -217,11 +223,12 @@ private fun <T> LazyListScope.group(
     count: Int,
     items: List<T>,
     key: (T) -> Any,
+    contentType: String,
     row: @Composable (T) -> Unit,
 ) {
     if (items.isEmpty()) return
-    item(key = "hdr_$label") { GroupHeader(label, count) }
-    items(items, key = key) { row(it) }
+    item(key = "hdr_$label", contentType = "header") { GroupHeader(label, count) }
+    items(items, key = key, contentType = { contentType }) { row(it) }
 }
 
 @Composable

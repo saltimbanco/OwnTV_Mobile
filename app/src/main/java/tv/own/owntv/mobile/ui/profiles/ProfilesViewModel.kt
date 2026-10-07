@@ -26,7 +26,7 @@ class ProfilesViewModel(
      * walk straight past a PIN.
      */
     val profiles: StateFlow<List<ProfileEntity>?> = profileDao.observeAll()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
      * The active profile, or null while the preference is still being read.
@@ -38,7 +38,7 @@ class ProfilesViewModel(
      */
     val activeProfileId: StateFlow<Long?> = settings.activeProfileId
         .map<Long, Long?> { it }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun verifyPin(profile: ProfileEntity, pin: String): Boolean = manager.verifyPin(profile, pin)
 

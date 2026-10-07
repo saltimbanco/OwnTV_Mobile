@@ -363,11 +363,14 @@ class GuideViewModel(
                     // reports every one of them as an item before a single page has loaded, and the
                     // row a not-yet-loaded channel draws is nothing at all. A list of items with no
                     // height never fills its viewport, so it composes the whole lineup looking for
-                    // something to show and takes the heap with it.
+                    // something to show and takes the heap with it. maxSize drops distant pages so
+                    // the guide cannot pin the lineup in memory; initialLoadSize fills the viewport.
                     Pager(
                         PagingConfig(
                             pageSize = PAGE_SIZE,
                             prefetchDistance = PAGE_SIZE / 2,
+                            initialLoadSize = PAGE_SIZE * 2,
+                            maxSize = 300,
                             enablePlaceholders = false,
                         ),
                     ) {

@@ -63,8 +63,6 @@ fun DownloadsScreen(
     vm: DownloadsViewModel = koinViewModel(),
 ) {
     val downloads by vm.downloads.collectAsStateWithLifecycle()
-    val storage by vm.storage.collectAsStateWithLifecycle()
-    val speed by vm.speedMbps.collectAsStateWithLifecycle()
     val root by vm.downloadRoot.collectAsStateWithLifecycle()
     val playing by vm.playing.collectAsStateWithLifecycle()
 
@@ -98,16 +96,19 @@ fun DownloadsScreen(
         }
     }
 
-    val shown = downloads.filter { tab.holds(it.mediaType) }
+    // Filtered once per queue/tab change, not once per speed tick: the header below reads the
+    // 1 Hz speed flow in its own leaf, so this scope stays asleep while a download runs.
+    val shown = remember(downloads, tab) { downloads.filter { tab.holds(it.mediaType) } }
     // The statuses, now headings rather than chips, in the order the television lists them.
-    val sections = DownloadSection.entries
-        .map { section -> section to shown.filter { section.holds(it.status) } }
-        .filter { it.second.isNotEmpty() }
+    val sections = remember(shown) {
+        DownloadSection.entries
+            .map { section -> section to shown.filter { section.holds(it.status) } }
+            .filter { it.second.isNotEmpty() }
+    }
 
     Column(modifier.fillMaxSize()) {
-        StorageHeader(
-            storage = storage,
-            speedMbps = speed,
+        StorageHeaderHost(
+            vm = vm,
             root = root,
             onOpenOptions = { optionsSheet = true },
         )
@@ -143,7 +144,7 @@ fun DownloadsScreen(
                     item(key = "header_${section.name}") {
                         SectionHeader(title = stringResource(section.labelRes))
                     }
-                    items(items, key = { it.id }) { download ->
+                    items(items, key = { it.id }, contentType = { it.status }) { download ->
                         DownloadRow(
                             download = download,
                             onClick = {
@@ -227,6 +228,24 @@ private enum class DownloadsTab(val labelRes: Int) {
         SERIES -> MediaFolders.folderFor(type) == MediaFolders.SERIES
         LIVE -> false // recordings come from their own screen
     }
+}
+
+@Composable
+private fun StorageHeaderHost(
+    vm: DownloadsViewModel,
+    root: String,
+    onOpenOptions: () -> Unit,
+) {
+    // The 1 Hz speed flow lives here, in the only leaf that draws it: a tick recomposes this
+    // header, not the screen, its chips and its list.
+    val storage by vm.storage.collectAsStateWithLifecycle()
+    val speed by vm.speedMbps.collectAsStateWithLifecycle()
+    StorageHeader(
+        storage = storage,
+        speedMbps = speed,
+        root = root,
+        onOpenOptions = onOpenOptions,
+    )
 }
 
 @Composable
