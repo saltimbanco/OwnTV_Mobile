@@ -121,13 +121,12 @@ fun DetailScreen(
     val shown = remember(seasonEpisodes, hideWatched, completedIds) {
         if (hideWatched) seasonEpisodes.filterNot { it.id in completedIds } else seasonEpisodes
     }
-    // Per-season watched counts for the chips below: O(seasons × episodes) if recomputed, so done
-    // once per episodes/completedIds change rather than per recomposition.
+    // Per-season watched counts for the chips below: one pass over the episodes, not two scans
+    // per season. Done once per episodes/completedIds change rather than per recomposition.
     val seasonCounts = remember(seasons, episodes, completedIds) {
-        seasons.associateWith { number ->
-            episodes.count { it.seasonNumber == number } to
-                episodes.count { it.seasonNumber == number && it.id in completedIds }
-        }
+        val total = episodes.groupingBy { it.seasonNumber }.eachCount()
+        val done = episodes.filter { it.id in completedIds }.groupingBy { it.seasonNumber }.eachCount()
+        seasons.associateWith { number -> (total[number] ?: 0) to (done[number] ?: 0) }
     }
     val nextUp = remember(episodes, nextUpId) { episodes.firstOrNull { it.id == nextUpId } }
     val resumeMs = progress?.takeIf { it.durationMs > 1L }?.positionMs ?: 0L
@@ -301,7 +300,7 @@ fun DetailScreen(
                     )
                 }
             }
-            items(shown, key = { it.id }) { episode ->
+            items(shown, key = { it.id }, contentType = { "episode" }) { episode ->
                 val watched = episodeProgress[episode.id]
                 EpisodeRow(
                     episode = episode,

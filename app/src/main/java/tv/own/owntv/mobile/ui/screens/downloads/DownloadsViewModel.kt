@@ -138,6 +138,9 @@ class DownloadsViewModel(
     /**
      * How fast the queue is moving, in megabits per second, from the growth of the running rows.
      * Zero whenever nothing is running, and after a pause, so a stale figure never lingers.
+     * Samples every second while something runs; idles at [IDLE_SAMPLE_MS] when the queue is
+     * quiet, so an open-but-idle screen is not woken once a second for a figure that stays zero
+     * (StateFlow already drops the repeated 0.0, this drops the wakeup itself).
      */
     val speedMbps: StateFlow<Double> = flow {
         var lastBytes = -1L
@@ -152,7 +155,7 @@ class DownloadsViewModel(
             )
             lastBytes = if (running.isEmpty()) -1L else bytes
             lastAt = now
-            delay(SPEED_SAMPLE_MS)
+            delay(if (running.isEmpty()) IDLE_SAMPLE_MS else SPEED_SAMPLE_MS)
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0.0)
 
@@ -299,5 +302,8 @@ class DownloadsViewModel(
 
     private companion object {
         const val SPEED_SAMPLE_MS = 1_000L
+
+        /** Quiet-queue poll: only re-checks for newly started work, the figure stays zero. */
+        const val IDLE_SAMPLE_MS = 5_000L
     }
 }

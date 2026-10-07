@@ -152,11 +152,13 @@
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/downloads/DownloadsViewModel.kt	\0
 1	locale	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideScreen.kt	EEEdMMM
 1	protocol	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideScreen.kt	guide
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideScreen.kt	onnow
 2	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideViewModel.kt	\0
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideViewModel.kt	guide_stats programmes=$programmes guideChannels=$guideChannels
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideViewModel.kt	sources=${ids.size} cachedRows=${synchronized(rowCache) { rowCache.size }}
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/guide/GuideViewModel.kt	totalMs=${android.os.SystemClock.elapsedRealtime() - startedAt}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/HomeScreen.kt	c${channel.id}
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/HomeScreen.kt	continue
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/HomeScreen.kt	e${episode.id}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/HomeScreen.kt	home
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/HomeScreen.kt	m${movie.id}
@@ -170,6 +172,7 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/home/TrendingHero.kt	✓ ${stringResource(R.string.home_trending_provider_match)}
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	delete_subtitles
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	download
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	episode
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	mark_watched
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	play_external
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/library/DetailScreen.kt	refetch_tmdb
@@ -229,9 +232,13 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/recordings/RecordingsScreen.kt	video/*
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	c${it.channel.id}
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	channel
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	hdr_$label
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	header
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	m${it.id}
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	movie
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	s${it.id}
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	series
 2	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchViewModel.kt	\0
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/BackupViewModel.kt	backup target unavailable
 1	file-path	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/BackupViewModel.kt	backup-export

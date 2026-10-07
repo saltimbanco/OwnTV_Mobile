@@ -248,10 +248,14 @@ class LiveViewModel(
                 } else {
                     // Placeholders off — see the Guide's pager: a not-yet-loaded channel draws a row
                     // with no height, and a list of those composes the whole lineup.
+                    // maxSize drops distant pages, so a 50 000-channel lineup cannot pin the whole
+                    // catalogue in memory while flinging; initialLoadSize fills the viewport at once.
                     Pager(
                         PagingConfig(
                             pageSize = PAGE_SIZE,
                             prefetchDistance = PAGE_SIZE / 2,
+                            initialLoadSize = PAGE_SIZE * 2,
+                            maxSize = 400,
                             enablePlaceholders = false,
                         ),
                     ) {

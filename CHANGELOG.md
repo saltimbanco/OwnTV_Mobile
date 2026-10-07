@@ -21,6 +21,8 @@
 - **Hiding a provider category no longer empties custom categories**
 - **Catch-up that shows no picture no longer reports a fast-start error**
 - **Faster channel switching on providers that mix HLS and TS channels**
+- **📱 Cheaper home, guide, search and downloads lists**
+- **🔋 The idle downloads screen stays asleep**
 
 ## v1.0.4 — 2026-10-02
 

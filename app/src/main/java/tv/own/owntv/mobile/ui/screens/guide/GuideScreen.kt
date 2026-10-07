@@ -303,7 +303,7 @@ private fun OnNowList(
     val nextLabel = stringResource(R.string.content_next_up)
 
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().mobileGroupPlate()) {
-        items(count = channels.itemCount, key = channels.itemKey { it.id }) { index ->
+        items(count = channels.itemCount, key = channels.itemKey { it.id }, contentType = { "onnow" }) { index ->
             val channel = channels[index] ?: return@items
             val slot = onNow[channel.id]
             val now = slot?.now
@@ -328,25 +328,38 @@ private fun OnNowList(
             if (now != null) {
                 NowProgress(now, nowMs)
                 slot.next?.let { next ->
-                    Text(
-                        text = nextLabel + separator + times.format(Date(next.startMs)) + separator + next.title,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        // Lined up under the programme title rather than under the logo, so the bar
-                        // and this line read as the row's own second half instead of a strip
-                        // floating between two channels.
-                        modifier = Modifier.padding(
-                            start = ROW_TEXT_INSET,
-                            end = MobileDimens.ScreenPaddingH,
-                            bottom = MobileDimens.GapSmall,
-                        ),
-                    )
+                    NextLine(next = next, nextLabel = nextLabel, separator = separator, times = times)
                 }
             }
         }
     }
+}
+
+/**
+ * "Next: 21:00 · Title", formatted once per programme rather than once per row per clock tick: the
+ * 30 s tick recomposes every visible row, and the Date plus the string build are pure garbage
+ * between two ticks of the same programme.
+ */
+@Composable
+private fun NextLine(next: EpgProgrammeEntity, nextLabel: String, separator: String, times: DateFormat) {
+    val text = remember(next.startMs, next.title) {
+        nextLabel + separator + times.format(Date(next.startMs)) + separator + next.title
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        // Lined up under the programme title rather than under the logo, so the bar
+        // and this line read as the row's own second half instead of a strip
+        // floating between two channels.
+        modifier = Modifier.padding(
+            start = ROW_TEXT_INSET,
+            end = MobileDimens.ScreenPaddingH,
+            bottom = MobileDimens.GapSmall,
+        ),
+    )
 }
 
 /** How much of the current programme has already gone, at [nowMs] — which moves. */

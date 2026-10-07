@@ -292,7 +292,7 @@ private fun HeroRow(
             horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapMedium),
             contentPadding = PaddingValues(horizontal = MobileDimens.ScreenPaddingH),
         ) {
-            items(items.size, key = { items[it].rowKey() }) { index ->
+            items(items.size, key = { items[it].rowKey() }, contentType = { items[it]::class }) { index ->
                 val item = items[index]
                 HeroCard(
                     item = item,
@@ -462,7 +462,7 @@ private fun TrendingRow(
             horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
             contentPadding = PaddingValues(horizontal = MobileDimens.ScreenPaddingH),
         ) {
-            items(items.size, key = { items[it].stableKey }) { index ->
+            items(items.size, key = { items[it].stableKey }, contentType = { items[it]::class }) { index ->
                 when (val item = items[index]) {
                     is TrendingHomeItem.Movie -> PosterCard(
                         title = item.movie.name,
@@ -503,7 +503,7 @@ private fun ContinueRow(
             horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
             contentPadding = PaddingValues(horizontal = MobileDimens.ScreenPaddingH),
         ) {
-            items(items.size, key = { items[it].stableKey }) { index ->
+            items(items.size, key = { items[it].stableKey }, contentType = { "continue" }) { index ->
                 val item = items[index]
                 PosterCard(
                     title = item.title,
@@ -562,7 +562,7 @@ private fun LiveRow(
             horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
             contentPadding = PaddingValues(horizontal = MobileDimens.ScreenPaddingH),
         ) {
-            items(channels.size, key = { channels[it].id }) { index ->
+            items(channels.size, key = { channels[it].id }, contentType = { mode }) { index ->
                 val channel = channels[index]
                 val menu = { onMenu(ContentTarget(MediaType.LIVE, channel.id, channel.name)) }
                 if (mode == HomeLiveRowMode.ON_NOW) {
@@ -614,7 +614,14 @@ private fun OnNowCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val now = guide.programmes[channel.id]?.firstOrNull { guide.now in it.startMs until it.stopMs }
+    // The map scan runs once per guide tick, not once per card per recomposition: every OnNowCard
+    // in the row reads the same ticking map, and without this each card re-scans its own list on
+    // every recomposition the tick causes.
+    val programmes = guide.programmes[channel.id]
+    val nowMs = guide.now
+    val now = remember(programmes, channel.id, nowMs) {
+        programmes?.firstOrNull { nowMs in it.startMs until it.stopMs }
+    }
     Row(
         modifier = Modifier
             .width(OnNowCardWidth)
