@@ -393,8 +393,11 @@ private const val MAX_ROWS = 3
 private val PillShape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
 
 /** Megabytes to one decimal, formatted for the locale. */
-private fun sizeMb(bytes: Long): String =
+private val sizeFormat = ThreadLocal.withInitial<java.text.NumberFormat> {
     java.text.NumberFormat.getNumberInstance().apply {
         minimumFractionDigits = 1
         maximumFractionDigits = 1
-    }.format(bytes / 1_048_576.0)
+    }
+}
+
+private fun sizeMb(bytes: Long): String = sizeFormat.get().format(bytes / 1_048_576.0)

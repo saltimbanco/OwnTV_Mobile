@@ -7,7 +7,9 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
-## Unreleased
+## Upstream Unreleased
+
+**Merged upstream work past v1.1.1 into this fork on 2026-11-01.**
 
 ### New features
 - **✨ Clean channel names: a Names option on each playlist**
@@ -29,7 +31,9 @@
 - **Renamed channels, films and series keep their name on Home and in Continue**
 - **Stalker portals behind a redirect stay signed in; their posters load**
 
-## v1.1.1 — 2026-10-21
+## Upstream v1.1.1 — 2026-10-21
+
+**Merged into this fork in v1.1.2.**
 
 ### New features
 - **🎧 Audio delay for each output: Bluetooth, speakers, headphones, HDMI**
@@ -48,6 +52,36 @@
 - **H.264 catch-up stays on hardware decoding on mpv**
 - **"Learned stream fixes" removed: catch-up no longer stays on software decoding for two weeks**
 - **No sound or picture left playing under a live error screen**
+
+## v1.1.2 — 2026-11-01
+
+**This fork's release on top of upstream v1.1.1.** Everything in this APK beyond upstream v1.1.1 is listed here — this fork's own work since v1.1.1, then the upstream work merged on 2026-11-01 (under Upstream Unreleased below). Core is upstream's own 1.0.69 release.
+
+### New features
+- **⏱️ A channel that stops for ten seconds hops to the same channel on your next playlist, and Live TV follows it there**
+
+### Fixes
+- **🔎 Tapping a channel in Search opens it in Live TV**
+- **🔎 A channel picked in Search opens on its own category, so Back from it lands there**
+- **📱 Live TV on a phone held sideways: a smaller preview, smaller channel names, and long names scroll to show the rest**
+- **🔄 Full screen always plays in landscape, whichever way the phone is held**
+- **↩️ Back from full screen returns to Live TV with the channel still playing in the preview**
+
+## v1.1.1 — 2026-10-21
+
+**This fork's release on top of upstream v1.1.0.** Everything upstream 1.1.0 ships is in here; the items below are this fork's own work on top of it, and nothing else differs.
+
+### New features
+- **📥 Import many servers from one plain-text file, live channels only or channels plus VOD**
+- **📦 One APK per device architecture: arm64-v8a and armeabi-v7a**
+
+### Fixes
+- **🔀 Failing live channels switch to your other servers; a channel that will not play — errors or a picture that never arrives — tries the next playlist after five seconds, each hop announced with a toast; the name match forgives shortened or alternate spellings ("nova sport prime" for "nova sports prime hd") but never invents a word ("ert 1" never becomes "ert sports 1")**
+- **🧠 The channel search behind that hop finds the same channel on a crowded playlist instead of missing it**
+- **🧹 Server-list import dedups on the login or MAC: one account under many hostnames imports once**
+- **🔐 A restored Xtream playlist without its password fails with a login error instead of staying empty**
+- **📜 The playlist picker scrolls to every playlist**
+- **📥 Server-list import says which lines it skipped**
 
 ## v1.1.0 — 2026-10-17
 
@@ -114,6 +148,8 @@
 - **📋 Long choice lists such as the playlist picker scroll to the last item**
 - **🏷️ Provider tags such as "|MULTI|" no longer lead a film's or show's page title**
 - **Faster channel switching on providers that mix HLS and TS channels**
+- **📱 Cheaper home, guide, search and downloads lists**
+- **🔋 The idle downloads screen stays asleep**
 - **⏺️ Recordings of some HLS channels were a few kB and would not play**
 - **🔎 Search finds "Spider-Man" from "Spider-M" and lists every match, not the first 40**
 - **📱 Cheaper home, guide, search and downloads lists** (community PR #64 by @saltimbanco)
@@ -129,6 +165,58 @@
 - **🎨 Every sheet, button and field in the Stage design, the player's sheets included**
 - **🔑 Metadata page shows your saved TMDB key, so Save no longer clears it**
 - **🔢 PIN fields open the number pad**
+
+## v1.0.7 — 2026-10-12
+
+### New features
+- **📥 Bulk import: live channels only, or channels plus VOD**
+
+## v1.0.6 — 2026-10-08
+
+### New features
+- **📦 Smaller downloads: one APK per device architecture**
+
+### Fixes
+- **Smoother poster and logo grids as images arrive**
+- **Cheaper home rows and customize lists**
+
+## v1.0.5 — 2026-10-07
+
+### New features
+- **🎨 Pixel app icon and Plus Jakarta Sans, the new default font**
+- **🔊 Volume swipe controls the phone's volume**
+- **⏪ Resume a saved channel: ask, always or never**
+- **🗂️ Remove a channel from a custom category**
+- **⏮️ Previous / next channel buttons in the player** (community PR #60 by @saltimbanco)
+- **📊 Progress bars on series posters and in list view**
+- **⭐ Favourite movies and series rows on Home**
+- **🔎 Search finds TV programmes by title (On TV)**
+- **⏰ Schedule recording… on a channel: pick the day, start and end**
+- **⏹️ Stop recording from the channel's menu**
+
+### Fixes
+- **Custom categories in the player's channel list and the Multiview picker**
+- **🎞️ Catch-up plays on the hardware decoder and freezes on its first frame less often**
+- **📡 A catch-up of a programme still on air switches to live instead of freezing**
+- **Hidden and renamed categories respected in the player's channel list**
+- **Hiding a provider category no longer empties custom categories**
+- **Catch-up that shows no picture no longer reports a fast-start error**
+- **🔄 Auto refresh of playlists and guides now runs on the phone**
+- **🎬 An automatic playlist or guide refresh waits until playback stops**
+- **💾 A first-run backup restore opens the app only once everything is restored**
+- **🔄 Restored playlists download straight away after a restore**
+- **🔑 Password fields use the password keyboard**
+- **⏱️ The seek bar's time no longer cut off with glass depth effects on**
+- **📋 Long choice lists such as the playlist picker scroll to the last item**
+- **🏷️ Provider tags such as "|MULTI|" no longer lead a film's or show's page title**
+- **Faster channel switching on providers that mix HLS and TS channels**
+- **📱 Cheaper home, guide, search and downloads lists**
+- **🔋 The idle downloads screen stays asleep**
+- **⏺️ Recordings of some HLS channels were a few kB and would not play**
+- **🔎 Search finds "Spider-Man" from "Spider-M" and lists every match, not the first 40**
+- **📱 Cheaper home, guide, search and downloads lists** (community PR #64 by @saltimbanco)
+- **🔋 The idle downloads screen stays asleep** (community PR #64 by @saltimbanco)
+- **📐 Aspect ratio changes on live channels again**
 
 ## v1.0.4 — 2026-10-02
 
