@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -244,9 +243,13 @@ private fun StartupChannelSheet(
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<ChannelEntity>>(emptyList()) }
     // Debounced like the guide's own search: every keystroke otherwise costs an FTS query over
-    // the whole live catalogue for a prefix the user has already moved past.
-    val debouncedQuery by snapshotFlow { query }.debounce(SEARCH_DEBOUNCE_MS)
-        .collectAsStateWithLifecycle(initialValue = query)
+    // the whole live catalogue for a prefix the user has already moved past. Collected in an
+    // effect, not in composition: flow operators in composition restart on every recomposition
+    // and trip the FlowOperatorInvokedInComposition lint.
+    var debouncedQuery by remember { mutableStateOf(query) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { query }.debounce(SEARCH_DEBOUNCE_MS).collect { debouncedQuery = it }
+    }
     LaunchedEffect(debouncedQuery) { results = vm.searchChannels(debouncedQuery) }
 
     MobileBottomSheet(
