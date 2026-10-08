@@ -451,7 +451,9 @@ private fun OutcomeSheet(outcome: BackupViewModel.Outcome, onDismiss: () -> Unit
                         Text(stringResource(R.string.settings_backup_invalid_locale))
                     }
                     Text(stringResource(R.string.settings_backup_restore_resync))
-                    Text(stringResource(R.string.settings_backup_restore_password_note))
+                    if (outcome.passwordsOmitted || outcome.summary.missingCredentials > 0) {
+                        Text(stringResource(R.string.settings_backup_restore_password_note))
+                    }
                 }
                 is BackupViewModel.Outcome.Failed -> Text(stringResource(outcome.messageRes))
             }

@@ -58,7 +58,7 @@ class BackupViewModel(
 
     sealed interface Outcome {
         data class Exported(val name: String, val passwordsOmitted: Boolean) : Outcome
-        data class Restored(val summary: BackupManager.ImportSummary) : Outcome
+        data class Restored(val summary: BackupManager.ImportSummary, val passwordsOmitted: Boolean = false) : Outcome
         data class Failed(@param:StringRes val messageRes: Int) : Outcome
     }
 
@@ -158,9 +158,10 @@ class BackupViewModel(
         if (busy) return
         viewModelScope.launch {
             busy = true
-            backup.import(current.file, sections, password ?: current.password, deviceSettings = deviceSettings).fold(
+            val effectivePassword = password ?: current.password
+            backup.import(current.file, sections, effectivePassword, deviceSettings = deviceSettings).fold(
                 onSuccess = {
-                    outcome = Outcome.Restored(it)
+                    outcome = Outcome.Restored(it, passwordsOmitted = effectivePassword.isNullOrBlank())
                     current.file.delete()
                     pending = null
                 },

@@ -543,7 +543,7 @@ private fun RestoreBackup(
                 state.restoredItems?.let {
                     Detail(pluralStringResource(R.plurals.setup_restored_items, it, it))
                 }
-                if (state.passwordsOmitted) Detail(stringResource(R.string.setup_passwords_omitted))
+                if (state.passwordsOmitted || state.missingCredentials > 0) Detail(stringResource(R.string.setup_passwords_omitted))
                 state.skippedSources.takeIf { it > 0 }?.let {
                     Detail(pluralStringResource(R.plurals.setup_skipped_sources, it, it))
                 }

@@ -7,6 +7,12 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## Unreleased
+
+### Fixes
+- **🔐 A restored Xtream playlist without its password fails with a login error instead of staying empty**
+- **💾 Restore says when playlists still need their passwords re-entered**
+
 ## v1.0.6 — 2026-10-08
 
 ### New features
