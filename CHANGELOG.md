@@ -7,7 +7,7 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
-## Unreleased
+## v1.0.6 — 2026-10-08
 
 ### New features
 - **📦 Smaller downloads: one APK per device architecture**
