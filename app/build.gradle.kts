@@ -83,9 +83,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The player engine ships large prebuilt .so files, so only the arm ABIs ship
-        // (arm64-v8a + armeabi-v7a). No x86_64 flavor, no ABI dimension — one build type axis,
-        // two variants (debug/release), one APK per ABI via the splits below.
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // (arm64-v8a + armeabi-v7a, selected by the splits block below). No x86_64 flavor,
+        // no ABI dimension — one build type axis, two variants (debug/release), one APK per ABI.
     }
 
     // One APK per ABI instead of a universal one: the engine's prebuilt .so files dominate the
