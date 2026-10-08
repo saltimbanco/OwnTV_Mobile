@@ -7,9 +7,15 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.allowRgb565
+import coil3.request.crossfade
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okio.Path.Companion.toOkioPath
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
+import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
 import tv.own.owntv.core.CoreBuildInfo
@@ -99,14 +105,37 @@ class OwnTVMobileApp : Application(), androidx.work.Configuration.Provider {
         // Per-request sizes stay with the call sites (PlaybackService's 256 px notification art,
         // the hero precache); decode sampling for views comes from their measured constraints.
         SingletonImageLoader.setSafe { ctx ->
+            // Images go through the app's own OkHttp client — the television's loader, ported — so
+            // posters/logos get the same User-Agent, proxy, DNS, TLS and connection pool the IPTV
+            // requests use (some panels reject default UAs). Two settings deliberately diverge from
+            // the panel-facing client: images re-enable connection retries (a poster CDN publishes
+            // both IPv6 and IPv4, and a phone that resolves IPv6 first on a broken IPv6 route needs
+            // the fallback OkHttp then tries) and restore HTTP/2 negotiation (a poster grid opens
+            // dozens of requests to one host at once; over HTTP/1.1 they queue behind the per-host
+            // connection limit, over h2 they multiplex). The shared client keeps its HTTP/1.1 pin:
+            // IPTV panels answer an HTTP/2 handshake with RST_STREAM(PROTOCOL_ERROR).
+            val imageHttpClient = GlobalContext.get().get<OkHttpClient>()
+                .newBuilder()
+                .retryOnConnectionFailure(true)
+                .protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+                .build()
             ImageLoader.Builder(ctx)
+                .components { add(OkHttpNetworkFetcherFactory(callFactory = { imageHttpClient })) }
                 .memoryCache {
+                    // Kept at Coil's default quarter, not the television's tenth: batch 2 measured
+                    // this warm on phone grids, and a phone's smaller posters cost less per tile
+                    // than a 4K TV's.
                     MemoryCache.Builder().maxSizePercent(ctx, 0.25).build()
                 }
                 .diskCache {
                     DiskCache.Builder().directory(ctx.cacheDir.resolve("image_cache").toOkioPath())
                         .maxSizeBytes(256L * 1024 * 1024).build()
                 }
+                // Opaque poster art doesn't need an alpha channel; RGB_565 halves bitmap memory
+                // for every cached poster and logo.
+                .allowRgb565(true)
+                // Tiles flashing in one by one is what a grid without this does as bytes arrive.
+                .crossfade(true)
                 .build()
         }
         // Core learns a panel's session limit while syncing; the engine is what acts on it. Registered

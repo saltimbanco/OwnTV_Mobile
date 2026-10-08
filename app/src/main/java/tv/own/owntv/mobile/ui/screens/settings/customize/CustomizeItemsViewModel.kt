@@ -135,8 +135,10 @@ class CustomizeItemsViewModel(
         if (ci == null) flowOf(PagingData.empty())
         else {
             // Placeholders off — see the Guide's pager: a not-yet-loaded row draws nothing, and a
-            // list of rows with no height composes everything the category holds.
-            Pager(PagingConfig(pageSize = 60, enablePlaceholders = false)) {
+            // list of rows with no height composes everything the category holds. Bounded like the
+            // Library pager (60/30/90/300): without maxSize this is the one unbounded pager left,
+            // and a 100k-item category would pin every visited page for the screen's lifetime.
+            Pager(PagingConfig(pageSize = 60, prefetchDistance = 30, initialLoadSize = 90, maxSize = 300, enablePlaceholders = false)) {
                 pagingSource(ci.categoryId, ci, ordered)
             }
                 .flow

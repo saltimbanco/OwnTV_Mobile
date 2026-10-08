@@ -82,10 +82,24 @@ android {
         buildConfigField("String", "TMDB_EDGE_KEY", "\"${edgeKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // The player engine ships large prebuilt .so files, so only the arm ABIs ship: one APK for
-        // real phones and tablets (arm64-v8a + armeabi-v7a). No x86_64 flavor, no ABI dimension —
-        // one build type axis, two variants (debug/release).
+        // The player engine ships large prebuilt .so files, so only the arm ABIs ship
+        // (arm64-v8a + armeabi-v7a). No x86_64 flavor, no ABI dimension — one build type axis,
+        // two variants (debug/release), one APK per ABI via the splits below.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+    }
+
+    // One APK per ABI instead of a universal one: the engine's prebuilt .so files dominate the
+    // size, so a universal APK ships every phone two copies of libmpv and friends (~90 MB at
+    // v1.0.5). Split APKs halve the download — the arm64-v8a APK for modern phones and tablets,
+    // armeabi-v7a for the remaining 32-bit devices. Same versionCode in both: these are
+    // sideloaded side by side from one GitHub release, never served by Play's multi-APK delivery.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
     }
 
     // The SAME keystore and the same property names as the TV app. A signing certificate must be

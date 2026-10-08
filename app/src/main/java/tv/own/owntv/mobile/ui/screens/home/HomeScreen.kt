@@ -123,7 +123,9 @@ fun HomeScreen(
         HomeSkeleton(modifier)
         return
     }
-    val rows = state.config.visibleOrder.filter { state.hasContent(it) }
+    // Computed once per feed, not once per recomposition: hasContent walks each row's loaded
+    // items, and every tick above (clock, sync pill, menu) recomposes through here.
+    val rows = remember(state) { state.config.visibleOrder.filter { state.hasContent(it) } }
 
     // The television's three states, in its order. **None of them offers "add a playlist"**: by the
     // time Home is on screen a playlist exists — the shell sends a user with none to setup instead —

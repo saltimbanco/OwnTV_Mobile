@@ -220,7 +220,7 @@ jobs:
             echo "No edge secret configured — the app will use the unprotected base URL."
           fi
 
-      - name: Build APK
+      - name: Build APKs (one per ABI)
         env:
           VERSION_NAME: ${{ steps.ver.outputs.name }}
           VERSION_CODE: ${{ steps.ver.outputs.code }}
@@ -232,39 +232,45 @@ jobs:
         run: |
           chmod +x ./gradlew
           if [ -n "$KEYSTORE_FILE" ]; then
-            echo "Building signed release APK (arm: arm64-v8a + armeabi-v7a)"
+            echo "Building signed release APKs (arm64-v8a + armeabi-v7a)"
             ./gradlew assembleRelease --stacktrace
-            ARM_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n1)
-            echo "Built: $ARM_SRC"
-            echo "ARM_SRC=$ARM_SRC" >> "$GITHUB_ENV"
+            OUT_DIR=app/build/outputs/apk/release
           else
-            echo "Building debug APK"
+            echo "Building debug APKs (arm64-v8a + armeabi-v7a)"
             ./gradlew assembleDebug
-            SRC=$(ls app/build/outputs/apk/debug/*.apk | head -n1)
-            echo "Built: $SRC"
-            echo "ARM_SRC=$SRC" >> "$GITHUB_ENV"
+            OUT_DIR=app/build/outputs/apk/debug
           fi
+          echo "Built:"
+          find "$OUT_DIR" -name '*.apk' | sort
+          echo "APK_DIR=$OUT_DIR" >> "$GITHUB_ENV"
 
       # Proves the APK carries the certificate it is supposed to. The trap this guards against is
       # documented in CLAUDE.md: env vars beat Gradle properties, so a stale KEYSTORE_* in the
       # environment signs with the wrong key and nothing else notices.
-      - name: Verify the signing certificate
+      - name: Verify the signing certificates
         if: env.KEYSTORE_FILE != ''
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
-          "$APKSIGNER" verify --print-certs "$ARM_SRC"
+          find "$APK_DIR" -name '*.apk' | sort | while read -r APK; do
+            "$APKSIGNER" verify --print-certs "$APK"
+          done
 
-      - name: Name the APK (OwnTV-Mobile-v<version>)
+      - name: Name the APKs (OwnTV-Mobile-v<version>-<abi>)
         run: |
           mkdir -p dist
           if [ "$IS_TAG" = "true" ]; then
-            OUT="OwnTV-Mobile-v${{ steps.ver.outputs.name }}.apk"
+            BASE="OwnTV-Mobile-v${{ steps.ver.outputs.name }}"
           else
-            OUT="OwnTV-Mobile-dev-${GITHUB_SHA::7}.apk"
+            BASE="OwnTV-Mobile-dev-${GITHUB_SHA::7}"
           fi
-          cp "$ARM_SRC" "dist/$OUT"
-          echo "APK_OUT=$OUT" >> "$GITHUB_ENV"
-          echo "Packaged dist/$OUT (arm: arm64-v8a + armeabi-v7a)"
+          find "$APK_DIR" -name '*.apk' | sort | while read -r SRC; do
+            # app-arm64-v8a-release.apk -> arm64-v8a; anything else gets a safe fallback name.
+            ABI=$(basename "$SRC" | sed -E 's/^app-(.+)-(release|debug)\.apk$/\1/')
+            case "$ABI" in arm64-v8a|armeabi-v7a) ;; *) ABI="unknown";; esac
+            cp "$SRC" "dist/$BASE-$ABI.apk"
+            echo "Packaged dist/$BASE-$ABI.apk"
+          done
+          echo "APK_OUT=$BASE" >> "$GITHUB_ENV"
           # There is no always-latest copy: this app has no in-app updater and no
           # Downloader-style sideload audience, which is what that fixed URL exists for on TV.
 
@@ -311,7 +317,7 @@ jobs:
         with:
           name: OwnTV Mobile ${{ github.ref_name }}
           files: |
-            dist/${{ env.APK_OUT }}
+            dist/${{ env.APK_OUT }}-*.apk
           body_path: dist/RELEASE_NOTES.md
           # Must stay false: it appends GitHub's auto commit/PR list under the body, burying the
           # hand-written notes.
