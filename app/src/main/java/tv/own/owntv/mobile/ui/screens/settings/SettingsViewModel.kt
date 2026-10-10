@@ -422,6 +422,9 @@ class SettingsViewModel(
     // every entry goes through core's [SourceImporter] one at a time, so validation, sync and
     // error handling stay core's. Scopes mirror the single-add defaults (Xtream everything now,
     // Stalker live now with VOD deferred).
+    //
+    // Replace semantics: once the file has parsed to at least one usable server, the active
+    // profile's existing playlists are deleted first, then the file's servers are added.
 
     sealed interface BulkImportUi {
         data object Idle : BulkImportUi
@@ -493,6 +496,34 @@ class SettingsViewModel(
             }
             importer.useProfile(pid)
             importer.reset()
+            // File import replaces: drop the profile's current playlists before adding the file's.
+            // Runs only after the file parsed to something usable, so an unreadable file never
+            // wipes anything. Each delete goes through SourceRepository like a manual delete
+            // (content cascades, per-item memories cleared), syncs cancelled and portal sessions
+            // dropped first, default playlist reset when it was among the deleted.
+            val existingIds = runCatching { sourceDao.sourceIdsForProfile(pid) }.getOrDefault(emptyList())
+            if (existingIds.isNotEmpty()) {
+                _deletingSourceIds.value = _deletingSourceIds.value + existingIds.toSet()
+                try {
+                    for (sid in existingIds) {
+                        runCatching { catalogSync.cancelSync(sid) }
+                        runCatching { stalkerAuth.invalidate(sid) }
+                    }
+                    val currentDefault = runCatching { settings.defaultSourceId.first() }.getOrDefault(-1L)
+                    withContext(NonCancellable) {
+                        for (sid in existingIds) {
+                            val s = runCatching { sourceDao.getById(sid) }.getOrNull() ?: continue
+                            runCatching { sourceRepository.deleteSource(s) }
+                            expiryCache.remove(sid)
+                        }
+                        if (currentDefault in existingIds) {
+                            runCatching { settings.setDefaultSource(-1L) }
+                        }
+                    }
+                } finally {
+                    _deletingSourceIds.value = _deletingSourceIds.value - existingIds.toSet()
+                }
+            }
             val succeeded = mutableListOf<String>()
             val failed = mutableListOf<BulkFailure>()
             parsed.entries.forEachIndexed { index, entry ->
