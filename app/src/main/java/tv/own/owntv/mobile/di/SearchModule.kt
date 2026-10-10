@@ -12,6 +12,6 @@ import tv.own.owntv.mobile.ui.screens.search.SearchViewModel
  * Guide's reader is, so the two apps cannot drift into finding different things for the same term.
  */
 val searchModule = module {
-    single { SearchReader(get(), get(), get(), get(), get(), get()) }
+    single { SearchReader(get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModelOf(::SearchViewModel)
 }

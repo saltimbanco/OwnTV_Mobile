@@ -44,7 +44,8 @@ code, you type the 6-digit PIN once, tick what to bring across, and see exactly 
 before it changes. A phone being set up only ever *receives* — nothing on the television is altered.
 A backup made on the TV also restores here, encrypted ones included — and **Restore a backup** asks
 what to bring back before it applies anything, so you can take the playlists and leave the old
-device's settings behind. Later on, the full two-way version lives at
+device's settings behind. The app opens once the restore is complete and starts downloading the
+restored playlists straight away. Later on, the full two-way version lives at
 ⋯ More → [Local sync](#-local-sync-with-your-tv).
 
 ---
@@ -176,7 +177,8 @@ as **Guide days to keep** is set to — and there's a search box.
 **The guide is opt-in, and the phone never offers it by itself** — if you have no programme names,
 this is why. Add XMLTV feeds here, **Fill from playlist** to take the URL your playlist already
 carries, set a User-Agent, pick a refresh interval — which can be **every N days** — and choose
-whether to use that feed's channel logos.
+whether to use that feed's channel logos. The refresh runs when the app opens or comes back, and
+waits while something is playing.
 
 **Guide days to keep** is under Settings → Sources & guide → EPG, beside EPG time offset: how many days of upcoming guide to store, 1–14, seven
 by default. The same number decides how much is downloaded, how much is kept, and how many days the
@@ -195,6 +197,8 @@ shows while it does, so the phone lets it finish instead of stopping it and star
 
 ### ▶️ Replay something
 **Where:** Guide → a past programme → **Watch from start**, or long-press a channel → **Catch-up**
+If you replay a programme that is still on air and the provider stops sending it partway, the
+channel switches to live by itself instead of freezing.
 
 ### 🕐 Rewind live
 **Where:** full-screen player, on a channel with an archive
@@ -223,7 +227,9 @@ dropped; playback jumps over it.
 ### ⏺️ Record
 **Where:** long-press a programme in the Guide, or a channel in the list, or the **Record** button in
 the player
-**Record every showing** sets a standing rule. Recordings land in **Downloads → Live TV**, and the
+**Record every showing** sets a standing rule. **Schedule recording…** in a channel's menu records it
+between a day and times you pick, guide or not; an overlap with another recording is shown first. While
+a channel records, its menu offers **Stop recording**. Recordings land in **Downloads → Live TV**, and the
 status pill shows one running even over the player.
 
 > A recording costs one of your provider's connections and says so before it starts.
@@ -258,7 +264,8 @@ Leaving the app stops the tiles.
 ### 🖼️ Browse
 **Where:** the **Library** tab
 Movies and Series as one screen with a segmented control (a tablet gets them as separate rail items).
-**Pinch to resize** the posters, or use the **Size** slider.
+**Pinch to resize** the posters, or use the **Size** slider. A part-watched film carries a progress
+bar, in the grid and the list alike; a show carries the bar of its latest part-watched episode.
 
 ### ▶️ A film or a show
 Tap for its page: backdrop, cast, chips, **Resume** or **Play**, favourite, download, season chips
@@ -293,6 +300,8 @@ connection** so you can prove a key or a self-hosted server works.
 One field over channels, films and shows, grouped with a count for each. Recent searches are kept,
 and three chips offer **Continue watching**, **Unwatched favourites** and **Channels**.
 Long-press a result to favourite, download or hide it.
+**On TV** lists programmes from the stored guide whose title matches, on now or within the next 12
+hours, with the channel and time; tap one to open that channel.
 Scroll to the bottom and more results load by themselves, so a word your provider carries hundreds
 of — "CNN", say — doesn't need a narrower search to reach the rest.
 
@@ -333,6 +342,7 @@ Every gesture above also has a button on the control bar:
 | **Speed** | 0.5× to 2× |
 | **Subtitles · Audio** | Tracks (the language you pick is remembered per channel, film or series), plus subtitle search, subtitle timing and A/V sync. Both are always on the bar — a film with one soundtrack still has A/V sync. Scroll the panel to reach what is below the tracks |
 | **Previous · Next** | The episode either side of this one, beside play. Series only |
+| **⏮ · ⏭** | Live: the previous or next channel in the list you are watching, wrapping round at both ends. Shown when the list has two or more channels |
 | **Aspect** | Fit · Fill · Stretch · Original · Force 16:9 · Force 4:3 |
 | **Quality** | Only when the stream offers several picture sizes. Auto, or one size for what is playing now |
 | **Favourite** | Adds what is playing |
@@ -441,7 +451,8 @@ cleanup, a review step and restore-originals), **custom categories**, span selec
 
 ### 🏠 Home & layout
 **Where:** Settings → Layout → **Home**
-Reorder or hide Home rows, switch channel rows between cards and *On now*, and choose whether Now
+Reorder or hide Home rows — including **Favourite movies** and **Favourite series**, which open the
+film or show — switch channel rows between cards and *On now*, and choose whether Now
 Trending is the detailed hero or a plain poster row.
 
 ---

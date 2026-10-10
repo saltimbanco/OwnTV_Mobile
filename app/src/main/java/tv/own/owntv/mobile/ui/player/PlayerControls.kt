@@ -335,7 +335,7 @@ private fun TransportRow(
         // Live: the previous/next channel of the same category at the capsule's outer ends, so a
         // thumb can zap without opening the channel list. Hidden with a single-channel list.
         if (isLive && onChannelPrevious != null) {
-            RoundControl(MobileIcons.SkipPrevious, R.string.player_previous_channel_list) {
+            RoundControl(MobileIcons.SkipPrevious, R.string.player_previous_channel_in_list) {
                 onChannelPrevious()
             }
         }
@@ -360,7 +360,7 @@ private fun TransportRow(
             RoundControl(MobileIcons.SkipNext, R.string.settings_remote_button_next) { player.next() }
         }
         if (isLive && onChannelNext != null) {
-            RoundControl(MobileIcons.SkipNext, R.string.player_next_channel) { onChannelNext() }
+            RoundControl(MobileIcons.SkipNext, R.string.player_next_channel_in_list) { onChannelNext() }
         }
     }
 }

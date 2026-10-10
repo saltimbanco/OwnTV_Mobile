@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -31,6 +34,7 @@ import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileGroup
 import tv.own.owntv.mobile.ui.components.MobileListRow
 import tv.own.owntv.mobile.ui.components.SettingRow
+import tv.own.owntv.mobile.ui.components.sheetListHeight
 import tv.own.owntv.mobile.ui.nav.MobileDestination
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 
@@ -286,25 +290,29 @@ fun <T> SettingsChoiceSheet(
                 ),
             )
         }
-        choices.forEach { choice ->
-            MobileListRow(
-                title = choice.label,
-                subtitle = choice.description,
-                onClick = { onSelect(choice.value); onDismiss() },
-                selected = choice.value == selected,
-                trailing = if (choice.value == selected) {
-                    {
-                        Icon(
-                            imageVector = MobileIcons.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(end = 0.dp),
-                        )
-                    }
-                } else {
-                    null
-                },
-            )
+        // Capped and scrolling, as [SheetScroll] is but without its gap between rows: a long list (20+
+        // playlists) otherwise ran past the screen and its last choices could not be reached (#6).
+        Column(Modifier.heightIn(max = sheetListHeight()).verticalScroll(rememberScrollState())) {
+            choices.forEach { choice ->
+                MobileListRow(
+                    title = choice.label,
+                    subtitle = choice.description,
+                    onClick = { onSelect(choice.value); onDismiss() },
+                    selected = choice.value == selected,
+                    trailing = if (choice.value == selected) {
+                        {
+                            Icon(
+                                imageVector = MobileIcons.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 0.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
         }
         footer?.invoke()
     }

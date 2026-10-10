@@ -207,6 +207,18 @@ fun HomeScreen(
                         onOpenChannel = onOpenChannel,
                         onMenu = { menuFor = it },
                     )
+                    HomeRow.FAVORITE_MOVIES -> FavoriteRow(
+                        title = stringResource(R.string.home_row_favorite_movies),
+                        items = state.favoriteMovies.map { ContentTarget(MediaType.MOVIE, it.id, it.name) to it.posterUrl },
+                        onOpen = onOpenMovie,
+                        onMenu = { menuFor = it },
+                    )
+                    HomeRow.FAVORITE_SERIES -> FavoriteRow(
+                        title = stringResource(R.string.home_row_favorite_series),
+                        items = state.favoriteSeries.map { ContentTarget(MediaType.SERIES, it.id, it.name) to it.posterUrl },
+                        onOpen = onOpenSeries,
+                        onMenu = { menuFor = it },
+                    )
                     HomeRow.CONTINUE_MOVIES -> ContinueRow(
                         title = stringResource(R.string.home_row_continue_movies),
                         items = state.continueMovies,
@@ -262,6 +274,8 @@ private fun HomeFeed.hasContent(row: HomeRow): Boolean = when (row) {
         HomeLiveRowMode.CARDS -> favoriteLive.isNotEmpty()
         HomeLiveRowMode.ON_NOW -> favoriteGuide.hasContent
     }
+    HomeRow.FAVORITE_MOVIES -> favoriteMovies.isNotEmpty()
+    HomeRow.FAVORITE_SERIES -> favoriteSeries.isNotEmpty()
     HomeRow.CONTINUE_MOVIES -> continueMovies.isNotEmpty()
     HomeRow.CONTINUE_SERIES -> continueSeries.isNotEmpty()
 }
@@ -485,6 +499,33 @@ private fun TrendingRow(
                         },
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Favourite films or shows, in the user's Favorites order; a tap opens the title's page. */
+@Composable
+private fun FavoriteRow(
+    title: String,
+    items: List<Pair<ContentTarget, String?>>,
+    onOpen: (Long) -> Unit,
+    onMenu: (ContentTarget) -> Unit,
+) {
+    Column {
+        SectionHeader(title = title)
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
+            contentPadding = PaddingValues(horizontal = MobileDimens.ScreenPaddingH),
+        ) {
+            items(items.size, key = { items[it].first.id }) { index ->
+                val (target, poster) = items[index]
+                PosterCard(
+                    title = target.title,
+                    imageUrl = poster,
+                    onClick = { onOpen(target.id) },
+                    onLongClick = { onMenu(target) },
+                )
             }
         }
     }

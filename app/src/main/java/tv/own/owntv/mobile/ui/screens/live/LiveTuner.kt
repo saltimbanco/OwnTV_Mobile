@@ -152,6 +152,42 @@ class LiveTuner(
         }
     }
 
+    /** Channels with a recording running right now, so their menu offers Stop instead of Record. */
+    val recordingChannelIds: StateFlow<Set<Long>> = recordings.observeRunning()
+        .map { rows -> rows.mapTo(HashSet()) { it.channelId } }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** Stop the running recording(s) of this channel, keeping what was captured. */
+    fun stopRecordingOn(ch: tv.own.owntv.core.database.entity.ChannelEntity) {
+        scope.launch {
+            recordings.observeRunning().first().filter { it.channelId == ch.id }.forEach { recordings.stop(it) }
+        }
+    }
+
+    /** What already claims this channel's playlist over the window — the clash the sheet warns about. */
+    suspend fun recordingClashes(
+        ch: tv.own.owntv.core.database.entity.ChannelEntity,
+        startMs: Long,
+        stopMs: Long,
+    ): List<tv.own.owntv.core.database.entity.RecordingEntity> {
+        val window = tv.own.owntv.core.recording.RecordingSchedule.manualWindow(startMs, stopMs, System.currentTimeMillis())
+            ?: return emptyList()
+        return recordings.clashesWith(ch.sourceId, window.first, window.last)
+    }
+
+    /** Record [ch] between two picked times (#2); [onScheduled] gets the start once it is saved. */
+    fun scheduleRecording(
+        ch: tv.own.owntv.core.database.entity.ChannelEntity,
+        startMs: Long,
+        stopMs: Long,
+        onScheduled: (Long) -> Unit,
+    ) {
+        scope.launch {
+            val pid = settings.activeProfileId.first().takeIf { it >= 0 } ?: return@launch
+            recordings.scheduleManual(pid, ch, startMs, stopMs)?.let { onScheduled(it.programmeStartMs) }
+        }
+    }
+
     private suspend fun startRecordingNow(
         ch: tv.own.owntv.core.database.entity.ChannelEntity,
         profileId: Long,
@@ -549,6 +585,20 @@ class LiveTuner(
 
     init {
         scope.launch { player.archiveEnded.collect { continueAfterCatchup() } }
+        scope.launch { player.archiveStalled.collect { liveAfterStall() } }
+    }
+
+    /**
+     * The archive on screen stopped arriving (`archiveStalled`). A replay of a programme still on air,
+     * or a rewind close to now, goes live instead of freezing — the television's rule, from core's
+     * [CatchupContinue.liveAfterStall]; anything else stays with the player's own recovery.
+     */
+    private fun liveAfterStall() {
+        val programmeStop = if (_replaying.value) lastCatchup?.stopMs else null
+        val rewound = timeshift.offsetSec.value != null
+        if (programmeStop == null && !rewound) return
+        val watching = if (rewound) timeshift.watchingWallMs.value else null
+        if (CatchupContinue.liveAfterStall(programmeStop, watching, System.currentTimeMillis())) goToLive()
     }
 
     /**

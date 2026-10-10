@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Next/previous channel in the player (touch controls, same category). -->
-    <string name="player_next_channel">Next channel</string>
-    <string name="player_previous_channel_list">Previous channel</string>
     <!-- Cross-server failover on interrupted live streams (SettingsVideoPlayerPage). -->
     <string name="settings_server_hop">Switch server on interruption</string>
     <string name="settings_server_hop_description">When a live channel keeps failing, try the same channel on your other servers.</string>

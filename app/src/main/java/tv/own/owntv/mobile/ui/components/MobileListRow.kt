@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,6 +76,8 @@ fun MobileListRow(
      * semantics, where TalkBack announces it as "selected".
      */
     selected: Boolean = false,
+    /** How far the item has been watched, in 0..1: a thin resume bar under the text. Null hides it. */
+    progress: Float? = null,
 ) {
     val press = remember { MutableInteractionSource() }
     // The hairline that divides one row from the next, inset to where the title starts rather than
@@ -150,6 +154,23 @@ fun MobileListRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 1.dp),
                 )
+            }
+            if (progress != null) {
+                // The poster tile's resume bar, laid under the text for a row that has no artwork.
+                Box(
+                    Modifier
+                        .padding(top = MobileDimens.GapTiny)
+                        .fillMaxWidth()
+                        .height(MobileDimens.PosterProgressHeight)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                }
             }
         }
         if (trailing != null) {

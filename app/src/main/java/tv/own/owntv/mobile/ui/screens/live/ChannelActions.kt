@@ -54,7 +54,7 @@ import tv.own.owntv.mobile.ui.theme.MobileDimens
 import tv.own.owntv.mobile.ui.theme.glassDialogWindow
 
 /** Which follow-up the sheet handed off to. Only ever one at a time. */
-private enum class ChannelDialog { RENAME, MATCH_EPG, EPG_OFFSET, MOVE, MOVE_TO_CATEGORY, NEW_CATEGORY }
+private enum class ChannelDialog { RENAME, MATCH_EPG, EPG_OFFSET, MOVE, MOVE_TO_CATEGORY, NEW_CATEGORY, SCHEDULE_RECORDING }
 
 /**
  * The long-press menu for a channel, and everything it opens.
@@ -99,6 +99,8 @@ fun ChannelMenu(
     // Configuration-aware, unlike context.getString: the toast below is formatted at click time with
     // a count that is not known at composition, so it cannot be a stringResource.
     val res = androidx.compose.ui.platform.LocalResources.current
+    val recordingChannelIds by tuner.recordingChannelIds.collectAsStateWithLifecycle()
+    val isRecording = channel.id in recordingChannelIds
 
     if (sheetOpen && multiviewSetting != null) {
         val canMove = vm.contextKeyOf(selected) != null
@@ -153,14 +155,24 @@ fun ChannelMenu(
                 )
             }
             // Record this channel from now. The guide's Record needs a programme, so a channel the
-            // provider publishes no guide for can only be recorded from here.
+            // provider publishes no guide for can only be recorded from here. While it records, the
+            // same row stops it — tapping Record again would start a second copy on another connection.
             add(
                 SheetAction(
                     key = "record",
-                    label = stringResource(R.string.recording_record),
+                    label = stringResource(if (isRecording) R.string.recording_stop else R.string.recording_record),
                     icon = MobileIcons.LiveTv,
                     group = 1,
-                    onClick = { tuner.recordNow(channel) },
+                    onClick = { if (isRecording) tuner.stopRecordingOn(channel) else tuner.recordNow(channel) },
+                ),
+            )
+            add(
+                SheetAction(
+                    key = "schedule_record",
+                    label = stringResource(R.string.recording_schedule),
+                    icon = MobileIcons.Schedule,
+                    group = 1,
+                    onClick = { dialog = ChannelDialog.SCHEDULE_RECORDING },
                 ),
             )
             add(
@@ -295,6 +307,22 @@ fun ChannelMenu(
             onCreate = { vm.createCustomCategory(it) },
             // Back to the picker, where the category just created is waiting.
             onDismiss = { dialog = ChannelDialog.MOVE_TO_CATEGORY },
+        )
+        ChannelDialog.SCHEDULE_RECORDING -> ScheduleRecordingSheet(
+            channelName = channel.name,
+            clashesFor = { start, stop -> tuner.recordingClashes(channel, start, stop) },
+            onSchedule = { start, stop ->
+                dialog = null
+                tuner.scheduleRecording(channel, start, stop) { at ->
+                    val whenText = android.text.format.DateUtils.formatDateTime(
+                        context, at,
+                        android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY or android.text.format.DateUtils.FORMAT_SHOW_DATE or
+                            android.text.format.DateUtils.FORMAT_SHOW_TIME or android.text.format.DateUtils.FORMAT_ABBREV_ALL,
+                    )
+                    android.widget.Toast.makeText(context, res.getString(R.string.recording_scheduled_for, whenText), android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { dialog = null },
         )
         null -> Unit
     }

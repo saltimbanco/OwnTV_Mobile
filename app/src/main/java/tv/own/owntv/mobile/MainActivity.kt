@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import tv.own.owntv.core.i18n.AppLocale
@@ -57,6 +58,7 @@ open class MainActivity : FragmentActivity() {
     private val cast: CastController by inject()
     private val localeStore: LocaleStore by inject()
     private val settings: SettingsRepository by inject()
+    private val autoRefresh: tv.own.owntv.core.sync.AutoRefresh by inject()
 
     /**
      * The engine actually holding the stream — mpv for a film, a download or a recording, ExoPlayer
@@ -123,6 +125,12 @@ open class MainActivity : FragmentActivity() {
         lifecycleScope.launch { settings.backgroundPlayback.collect { backgroundPlayback = it } }
         lifecycleScope.launch { settings.audioOnScreenOff.collect { audioOnScreenOff = it } }
         keepScreenOnWhileThereIsAPicture()
+        // "Refresh on startup" and the interval modes of the Auto refresh settings, once a profile is
+        // active (straight away, or as soon as first-run setup has made one).
+        lifecycleScope.launch {
+            settings.activeProfileId.first { it >= 0 }
+            autoRefresh.check(includeStartup = true)
+        }
         setContent {
             MobileTheme {
                 // The wallpaper and its blurred copy sit outside the shell, so the frost every glass
@@ -276,6 +284,8 @@ open class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Back in the foreground: interval refreshes only; core throttles a quick in-and-out.
+        lifecycleScope.launch { autoRefresh.check(includeStartup = false) }
         if (droppedVideoForBackground) {
             droppedVideoForBackground = false
             engine.exitAudioOnly()

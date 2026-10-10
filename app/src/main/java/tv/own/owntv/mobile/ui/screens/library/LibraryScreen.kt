@@ -118,6 +118,12 @@ fun LibraryScreen(
     val chosenColumns by vm.gridColumns.collectAsStateWithLifecycle()
     val favorites by vm.favoriteIds.collectAsStateWithLifecycle()
     val progress by vm.movieProgress.collectAsStateWithLifecycle()
+    val seriesProgress by vm.seriesProgress.collectAsStateWithLifecycle()
+    // The resume bar of one tile or row: a film's own position, a show's latest episode.
+    fun progressOf(id: Long): Float? = when (tab) {
+        LibraryTab.MOVIES -> progress[id]?.let { it.positionMs.toFloat() / it.durationMs.coerceAtLeast(1) }
+        LibraryTab.SERIES -> seriesProgress[id]
+    }
 
     val items = when (tab) {
         LibraryTab.MOVIES -> vm.movies
@@ -231,6 +237,7 @@ fun LibraryScreen(
                         MobileListRow(
                             title = item.name,
                             subtitle = item.details(),
+                            progress = progressOf(item.id),
                             // Beside the grid the title opens in the pane; on a phone it is a
                             // screen of its own. The same screen, reached two ways.
                             onClick = {
@@ -258,8 +265,7 @@ fun LibraryScreen(
                             title = item.name,
                             imageUrl = item.posterUrl,
                             subtitle = item.details(),
-                            progress = progress[item.id]?.takeIf { tab == LibraryTab.MOVIES }
-                                ?.let { it.positionMs.toFloat() / it.durationMs.coerceAtLeast(1) },
+                            progress = progressOf(item.id),
                             width = posterWidth,
                             sharedKey = posterKey(tab.name, item.id),
                             // Beside the grid the title opens in the pane; on a phone it is a

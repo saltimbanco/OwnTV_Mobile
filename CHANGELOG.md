@@ -23,15 +23,32 @@
 - **🔊 Volume swipe controls the phone's volume**
 - **⏪ Resume a saved channel: ask, always or never**
 - **🗂️ Remove a channel from a custom category**
+- **⏮️ Previous / next channel buttons in the player** (community PR #60 by @saltimbanco)
+- **📊 Progress bars on series posters and in list view**
+- **⭐ Favourite movies and series rows on Home**
+- **🔎 Search finds TV programmes by title (On TV)**
+- **⏰ Schedule recording… on a channel: pick the day, start and end**
+- **⏹️ Stop recording from the channel's menu**
 
 ### Fixes
 - **Custom categories in the player's channel list and the Multiview picker**
+- **🎞️ Catch-up plays on the hardware decoder and freezes on its first frame less often**
+- **📡 A catch-up of a programme still on air switches to live instead of freezing**
 - **Hidden and renamed categories respected in the player's channel list**
 - **Hiding a provider category no longer empties custom categories**
 - **Catch-up that shows no picture no longer reports a fast-start error**
+- **🔄 Auto refresh of playlists and guides now runs on the phone**
+- **🎬 An automatic playlist or guide refresh waits until playback stops**
+- **💾 A first-run backup restore opens the app only once everything is restored**
+- **🔄 Restored playlists download straight away after a restore**
+- **🔑 Password fields use the password keyboard**
+- **⏱️ The seek bar's time no longer cut off with glass depth effects on**
+- **📋 Long choice lists such as the playlist picker scroll to the last item**
+- **🏷️ Provider tags such as "|MULTI|" no longer lead a film's or show's page title**
 - **Faster channel switching on providers that mix HLS and TS channels**
 - **📱 Cheaper home, guide, search and downloads lists**
 - **🔋 The idle downloads screen stays asleep**
+- **⏺️ Recordings of some HLS channels were a few kB and would not play**
 
 ## v1.0.4 — 2026-10-02
 

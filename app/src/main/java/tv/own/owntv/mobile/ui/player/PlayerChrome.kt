@@ -112,7 +112,9 @@ private fun Modifier.playerPane(
     val light = (glass.highlightStrength / GlassConfig.DEFAULT_HIGHLIGHT_STRENGTH).coerceIn(0f, 1.8f)
     val material = materialFor(surface)
     return this
-        .then(if (glass.depthEffects) Modifier.shadow(material.shadow, shape) else Modifier)
+        // clip = false: shadow() clips by default, and that cut off the seek bar's scrub bubble, which
+        // floats above the pane.
+        .then(if (glass.depthEffects) Modifier.shadow(material.shadow, shape, clip = false) else Modifier)
         .background(DockFill, shape)
         .drawWithCache {
             val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }

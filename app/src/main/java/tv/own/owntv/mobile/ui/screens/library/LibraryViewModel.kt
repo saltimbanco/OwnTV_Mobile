@@ -376,6 +376,18 @@ class LibraryViewModel(
         .map { list -> list.associateBy { it.itemId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** Per show, how far into its most recently watched episode this profile is, in 0..1 — the bar on
+     *  a show's poster. A finished latest episode has no entry: there is nothing left to resume. */
+    val seriesProgress: StateFlow<Map<Long, Float>> = ctx
+        .flatMapLatest { c ->
+            if (c.profileId < 0) flowOf(emptyList()) else progressDao.observeLatestEpisodeProgressPerSeries(c.profileId)
+        }
+        .map { rows ->
+            rows.filter { it.durationMs > 0 && it.positionMs < (it.durationMs * WATCHED_FRACTION).toLong() }
+                .associate { it.seriesId to it.positionMs.toFloat() / it.durationMs }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     fun select(tab: LibraryTab) {
         _tab.value = tab
     }

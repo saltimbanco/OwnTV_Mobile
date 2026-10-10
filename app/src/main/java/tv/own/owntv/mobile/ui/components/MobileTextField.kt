@@ -84,7 +84,13 @@ fun MobileTextField(
         } else {
             VisualTransformation.None
         },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
+        // A password gets the password keyboard: the text one auto-corrects and capitalises, which
+        // turned a correct backup password into a wrong one.
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isPassword && keyboardType == KeyboardType.Text) KeyboardType.Password else keyboardType,
+            imeAction = imeAction,
+            autoCorrectEnabled = if (isPassword) false else null,
+        ),
         keyboardActions = KeyboardActions(
             onNext = { focusManager.moveFocus(FocusDirection.Down) },
             onDone = {

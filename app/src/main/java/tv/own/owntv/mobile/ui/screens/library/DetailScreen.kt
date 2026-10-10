@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.database.entity.EpisodeEntity
 import tv.own.owntv.core.database.entity.MetadataCacheEntity
+import tv.own.owntv.core.metadata.HeadlineTitle
 import tv.own.owntv.core.model.ContentMenu
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.ContentMenuSheet
@@ -105,7 +106,8 @@ fun DetailScreen(
     val itemDownloads by vm.itemDownloads.collectAsStateWithLifecycle()
     val episodeDownloads by vm.episodeDownloadStates.collectAsStateWithLifecycle()
 
-    val title = movie?.name ?: show?.name.orEmpty()
+    // The page's headline: without a leading provider tag ("|MULTI| "), as on the TV.
+    val title = HeadlineTitle.of(movie?.name ?: show?.name.orEmpty())
     val plot = movie?.plot ?: show?.plot
     val poster = movie?.posterUrl ?: show?.posterUrl
     val backdrop = movie?.backdropUrl ?: show?.backdropUrl

@@ -165,22 +165,24 @@ the current tab returns its list to the top. Predictive back is on.
 ### 3.2 Sections
 
 - **Home** — a snapping full-width hero rail, **Now Trending** as either the detailed hero or a plain
-  poster row, continue-watching rows, and favourite/recent channel rails in **Cards** or **On now**.
+  poster row, continue-watching rows, favourite movie and series rows, and favourite/recent channel rails in **Cards** or **On now**.
   Anything part-watched started from here obeys core's **Resume playback** mode — Always, Ask or
   Never — through one shared gate, so the six routes into a saved position cannot disagree.
 - **Live TV** — category chips with a search sheet, channel rows with number, logo, now/next,
   progress, provider name and catch-up and favourite markers. A channel opens its own screen on a
   phone; on a tablet it plays in the pane beside the list.
 - **Library** — Movies and Series as one screen with a segmented control, **pinch to resize** the
-  grid, and a detail page with backdrop, chips, resume, favourite, download, season chips and episode
-  progress.
+  grid, progress bars on part-watched films and shows, and a detail page with backdrop, chips, resume,
+  favourite, download, season chips and episode progress. The page's title drops a leading provider
+  tag such as "|MULTI|".
 - **Guide** — **three shapes the user picks between and the app remembers**: *On now* (the portrait
   default), *Grid* (the landscape and tablet default) and *Timeline*. A phone loads one day, one row
   at a time as the row appears; the television's whole-lineup window would be thousands of rows to
   draw twelve.
 - **Search** — one debounced field over channels, films and shows, grouped with counts, with recent
   terms and three curated chips. Results page as the list is scrolled rather than stopping at the
-  shared reader's first forty of each kind.
+  shared reader's first forty of each kind. An **On TV** group lists stored-guide programmes whose
+  title matches, on now or in the next 12 hours; a tap opens the channel.
 - **⋯ More** — Downloads, Recordings, Favourites, History, Backup, Local sync, Profiles, the error
   log, About and Settings.
 
@@ -204,7 +206,8 @@ Mobile-specific shapes:
 - A **programme sheet** whose synopsis is fetched when it opens, carrying watch, watch-from-start,
   record, record-every-showing and favourite.
 - **Recording** from the guide, the channel list or the player, with the status pill appearing over
-  the player in recordings-only mode so a running recording is visible during playback.
+  the player in recordings-only mode so a running recording is visible during playback. A channel's
+  menu also schedules one by day, start and end (no guide needed) and stops a running one.
 - **Multiview** — up to four tiles, drawn through a **TextureView** rather than a SurfaceView,
   because a device has very few hardware video planes and a second SurfaceView gets audio and no
   picture. Landscape puts two per row; portrait stacks them.

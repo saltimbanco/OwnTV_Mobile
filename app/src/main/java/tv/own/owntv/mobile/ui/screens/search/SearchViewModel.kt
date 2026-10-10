@@ -113,7 +113,7 @@ class SearchViewModel(
     fun loadMore() {
         if (_limit.value >= MAX_LIMIT) return
         val r = results.value
-        val total = r.channels.size + r.movies.size + r.series.size
+        val total = r.channels.size + r.movies.size + r.series.size + r.programmes.size
         if (total == lastTotal) return
         lastTotal = total
         _limit.value += PAGE

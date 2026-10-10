@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -90,6 +91,10 @@ fun SearchScreen(
     val channelsLabel = stringResource(R.string.search_channels)
     val moviesLabel = stringResource(R.string.search_movie)
     val seriesLabel = stringResource(R.string.search_series)
+    val onTvLabel = stringResource(R.string.search_on_tv)
+    // Programme clocks follow the phone's own locale, as on the channel page.
+    val locales = LocalConfiguration.current.locales
+    val times = remember(locales) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
 
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -158,6 +163,28 @@ fun SearchScreen(
                         onClick = { vm.rememberQuery(); onOpenChannel(row.channel.id) },
                         onLongClick = {
                             menuFor = ContentTarget(MediaType.LIVE, row.channel.id, row.channel.name)
+                        },
+                    )
+                }
+                group(
+                    label = onTvLabel,
+                    count = results.programmes.size,
+                    items = results.programmes,
+                    key = { "p${it.programme.id}-${it.channel.id}" },
+                ) { found ->
+                    MobileListRow(
+                        title = found.programme.title,
+                        subtitle = subtitle(
+                            found.channel.name,
+                            stringResource(
+                                R.string.content_live_time_range_plain,
+                                times.format(java.util.Date(found.programme.startMs)),
+                                times.format(java.util.Date(found.programme.stopMs)),
+                            ),
+                        ),
+                        onClick = { vm.rememberQuery(); onOpenChannel(found.channel.id) },
+                        onLongClick = {
+                            menuFor = ContentTarget(MediaType.LIVE, found.channel.id, found.channel.name)
                         },
                     )
                 }
