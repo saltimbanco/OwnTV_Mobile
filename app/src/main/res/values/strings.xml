@@ -32,5 +32,5 @@
     <string name="settings_bulk_import_default_server">Server %1$d</string>
     <string name="settings_bulk_import_default_portal">Portal %1$d</string>
     <string name="settings_bulk_import_failure_line">%1$s — %2$s</string>
-    <string name="settings_bulk_import_format_hint">Expected one server per line, e.g. “xtream;Name;http://host:port;user;pass” or “stalker;Name;http://portal;00:1A:79:AA:BB:CC”.</string>
+    <string name="settings_bulk_import_format_hint">Expected one server per line, e.g. “xtream;Name;http://host:port;user;pass”, “stalker;Name;http://portal;00:1A:79:AA:BB:CC”, or an Xtream URL like “http://host:port/get.php?username=user&amp;password=pass”. Importing replaces the existing playlists.</string>
 </resources>
