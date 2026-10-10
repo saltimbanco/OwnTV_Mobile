@@ -17,7 +17,14 @@ package tv.own.owntv.mobile.ui.screens.settings
  * xtream;My Server;http://example.com:8080;user1;pass1
  * stalker;My Portal;http://portal.example.com:8080/c/;00:1A:79:AA:BB:CC
  * stalker;My Portal;http://portal.example.com;00:1A:79:AA:BB:CC;serial;deviceId;deviceId2;signature
+ * http://example.com:8080/get.php?username=user1&password=pass1&type=m3u_plus
+ * http://example.com:8080/get.php?username=user1&password=pass1&type=m3u_plus | 2028-06-15 | conn=0/1
  * ```
+ * An Xtream playlist URL (`get.php`/`player_api.php` with `username`+`password` query parameters)
+ * is split into server + credentials; only its column is used and any trailing `|` columns
+ * (expiry, connections, …) are ignored. With an explicit name:
+ * `My Server;http://example.com/get.php?username=u&password=p` or
+ * `xtream;My Server;http://example.com/get.php?username=u&password=p`.
  * Shorthands (type inferred from shape):
  * ```
  * My Server;http://example.com:8080;user1;pass1   # 4 fields -> Xtream
@@ -82,6 +89,25 @@ private fun parseServerLine(
     defaultServerName: (Int) -> String,
     defaultPortalName: (Int) -> String,
 ): ServerListEntry? {
+    // Xtream playlist URL (e.g. `http://host:port/get.php?username=u&password=p&type=m3u_plus`):
+    // split into server + credentials, ignore any trailing metadata columns (`| expiry | conn=…`).
+    val urlIndex = parts.indexOfFirst { parseXtreamPlaylistUrl(it) != null }
+    if (urlIndex >= 0) {
+        val (server, user, pass) = parseXtreamPlaylistUrl(parts[urlIndex]) ?: return null
+        val name = when {
+            parts[0].equals("xtream", ignoreCase = true) ->
+                parts.getOrNull(1)
+                    ?.takeIf { it.isNotBlank() && parseXtreamPlaylistUrl(it) == null }
+                    ?: defaultServerName(position + 1)
+            urlIndex == 0 -> defaultServerName(position + 1)
+            urlIndex == 1 -> parts[0]
+                .takeIf { it.isNotBlank() && !it.equals("xtream", ignoreCase = true) }
+                ?: defaultServerName(position + 1)
+            else -> defaultServerName(position + 1)
+        }
+        if (name.isBlank()) return null
+        return ServerListEntry.Xtream(name, server, user, pass)
+    }
     if (parts.any { it.isEmpty() }) return null
     val first = parts[0].lowercase()
     return when (first) {
@@ -146,3 +172,40 @@ private fun parseShorthand(
 
 private fun hasUrlHost(value: String): Boolean =
     runCatching { java.net.URI(value).host }.getOrNull() != null
+
+/**
+ * Split an Xtream playlist URL (`get.php`/`player_api.php` carrying `username`+`password`)
+ * into `server + username + password`, or null when [raw] is not such a URL.
+ *
+ * The server is the URL origin (`scheme://host[:port]`); the playlist path and extra query
+ * parameters (`type=m3u_plus`, …) are dropped because core's [tv.own.owntv.core.setup.SourceImporter]
+ * rebuilds API URLs from the origin itself.
+ */
+private fun parseXtreamPlaylistUrl(raw: String): Triple<String, String, String>? {
+    val trimmed = raw.trim()
+    if (!trimmed.startsWith("http://", ignoreCase = true) &&
+        !trimmed.startsWith("https://", ignoreCase = true)
+    ) return null
+    return runCatching {
+        val uri = java.net.URI(trimmed)
+        val scheme = uri.scheme?.lowercase() ?: return null
+        if (scheme != "http" && scheme != "https") return null
+        val host = uri.host ?: return null
+        val query = uri.rawQuery ?: return null
+        val params = query.split('&').mapNotNull { pair ->
+            val eq = pair.indexOf('=')
+            if (eq < 0) null else {
+                val key = pair.substring(0, eq).trim().lowercase()
+                val value = runCatching {
+                    java.net.URLDecoder.decode(pair.substring(eq + 1).trim(), "UTF-8")
+                }.getOrDefault(pair.substring(eq + 1).trim())
+                key to value
+            }
+        }.toMap()
+        val user = params["username"] ?: params["user"] ?: return null
+        val pass = params["password"] ?: params["pass"] ?: return null
+        if (user.isBlank() || pass.isBlank()) return null
+        val portPart = if (uri.port != -1) ":${uri.port}" else ""
+        Triple("$scheme://$host$portPart", user, pass)
+    }.getOrNull()
+}
