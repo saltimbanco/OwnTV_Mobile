@@ -171,6 +171,7 @@ fun SearchScreen(
                     count = results.programmes.size,
                     items = results.programmes,
                     key = { "p${it.programme.id}-${it.channel.id}" },
+                    contentType = "programme",
                 ) { found ->
                     MobileListRow(
                         title = found.programme.title,

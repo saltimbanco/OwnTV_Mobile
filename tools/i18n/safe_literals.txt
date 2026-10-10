@@ -240,6 +240,7 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	m${it.id}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	movie
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	p${it.programme.id}-${it.channel.id}
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	programme
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	s${it.id}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchScreen.kt	series
 2	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/search/SearchViewModel.kt	\0
