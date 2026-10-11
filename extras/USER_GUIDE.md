@@ -302,8 +302,9 @@ and three chips offer **Continue watching**, **Unwatched favourites** and **Chan
 Long-press a result to favourite, download or hide it.
 **On TV** lists programmes from the stored guide whose title matches, on now or within the next 12
 hours, with the channel and time; tap one to open that channel.
-Scroll to the bottom and more results load by themselves, so a word your provider carries hundreds
-of — "CNN", say — doesn't need a narrower search to reach the rest.
+Every match is listed, up to 500 of each kind, so a word your provider carries hundreds of — "CNN",
+say — doesn't need a narrower search to reach the rest. Words match from their start, and a dash
+or other mark counts as a gap: "Spider-M" finds every Spider-Man.
 
 ### ⭐ Favourites & 🕐 History
 **Where:** ⋯ More → Favourites / History

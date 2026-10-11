@@ -234,9 +234,9 @@ private fun GuidePanel(nowNext: tv.own.owntv.core.live.EpgNowNext?) {
         }
         // Each upcoming programme gets its synopsis beside the start time, the same way the
         // television's preview pane shows one — a title alone rarely says which episode this is.
-        // Keyed by start time — programmes on one channel never share one, and these entries
-        // carry no id — so a guide refresh rebinds rows in place instead of rebuilding the list.
-        items(upcoming, key = { it.startMs }) { entry ->
+        // Not keyed: these entries carry no id, and a provider's guide can repeat a start time —
+        // a duplicate key throws instead of drawing.
+        items(upcoming) { entry ->
             val time = times.format(Date(entry.startMs))
             val synopsis = entry.description?.takeIf { it.isNotBlank() }
             MobileListRow(

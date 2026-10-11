@@ -49,6 +49,10 @@
 - **📱 Cheaper home, guide, search and downloads lists**
 - **🔋 The idle downloads screen stays asleep**
 - **⏺️ Recordings of some HLS channels were a few kB and would not play**
+- **🔎 Search finds "Spider-Man" from "Spider-M" and lists every match, not the first 40**
+- **📱 Cheaper home, guide, search and downloads lists** (community PR #64 by @saltimbanco)
+- **🔋 The idle downloads screen stays asleep** (community PR #64 by @saltimbanco)
+- **📐 Aspect ratio changes on live channels again**
 
 ## v1.0.4 — 2026-10-02
 
