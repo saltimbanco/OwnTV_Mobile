@@ -89,7 +89,7 @@ jobs:
         run: python3 tools/i18n/check_text_overflow.py
 
   pseudo:
-    # Builds the debug + release standard APKs and inspects their resource tables. Heavier than the
+    # Builds the debug + release APKs and inspects their resource tables. Heavier than the
     # other two jobs, so it is its own job rather than piggy-backed on android.yml — and skipped on
     # push, where android.yml already assembles main.
     if: ${{ github.event_name != 'push' && !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'bump/core-')) }}
@@ -113,7 +113,12 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
-          DBG=$(ls app/build/outputs/apk/standard/debug/*.apk | head -1)
-          REL=$(ls app/build/outputs/apk/standard/release/*.apk | head -1)
+          # No flavor dimension: per-ABI splits land directly under apk/<buildType>/.
+          # sort keeps the pick deterministic (arm64-v8a first); resources are
+          # identical across ABIs, so any split APK proves the packaging.
+          DBG=$(find app/build/outputs/apk -name '*-debug.apk' | sort | head -1)
+          REL=$(find app/build/outputs/apk -name '*-release*.apk' | sort | head -1)
+          [ -n "$DBG" ] || { echo "error: no debug APK under app/build/outputs/apk"; exit 1; }
+          [ -n "$REL" ] || { echo "error: no release APK under app/build/outputs/apk"; exit 1; }
           python3 tools/i18n/check_pseudo_locales.py --apk "$DBG" --mode debug
           python3 tools/i18n/check_pseudo_locales.py --apk "$REL" --mode release

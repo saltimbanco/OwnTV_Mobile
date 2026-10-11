@@ -25,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,7 +35,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.content.SearchIntent
 import tv.own.owntv.core.database.entity.MovieEntity
@@ -107,20 +105,6 @@ fun SearchScreen(
         runCatching { keyboard?.show() }
     }
     LaunchedEffect(query, intent) { listState.scrollToItem(0) }
-
-    // Reaching the bottom asks for the next page. Without it a search stops at the first 40 of each
-    // kind, and a provider with hundreds of CNN feeds looks like it only has forty. Distinct: a
-    // fling near the bottom emits the same (last, total) pair for many frames, and each one would
-    // otherwise call into the view-model for nothing.
-    LaunchedEffect(listState, searching) {
-        if (!searching) return@LaunchedEffect
-        snapshotFlow {
-            val info = listState.layoutInfo
-            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) to info.totalItemsCount
-        }.distinctUntilChanged().collect { (last, total) ->
-            if (total > 0 && last >= total - LOAD_MORE_MARGIN) vm.loadMore()
-        }
-    }
 
     Column(modifier.fillMaxSize().imePadding()) {
         MobileTextField(
@@ -391,6 +375,3 @@ private fun SearchIntent?.label(): String = when (this) {
 }
 
 private const val MIN_QUERY = 2
-
-/** How many rows from the end the next page is fetched, so the list does not visibly stall. */
-private const val LOAD_MORE_MARGIN = 5

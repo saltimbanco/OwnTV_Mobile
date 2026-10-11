@@ -93,20 +93,26 @@ fun VideoStage(
 
     // Shape comes from whichever engine actually holds the video, or the frame is laid out against
     // numbers the idle one last reported.
+    // The zoom too: the aspect sheet sets it on the engine playing, so reading mpv's while ExoPlayer
+    // held live meant no aspect choice ever reached the picture.
     val aspect: Float?
     val videoSize: Pair<Int, Int>?
+    val chosenZoom: ZoomMode
     if (liveExo != null) {
         val a by liveExo.videoAspect.collectAsStateWithLifecycle()
         val size by liveExo.videoSize.collectAsStateWithLifecycle()
+        val z by liveExo.zoomMode.collectAsStateWithLifecycle()
         aspect = a
         videoSize = size
+        chosenZoom = z
     } else {
         val a by player.videoAspect.collectAsStateWithLifecycle()
         val size by player.videoSize.collectAsStateWithLifecycle()
+        val z by player.zoomMode.collectAsStateWithLifecycle()
         aspect = a
         videoSize = size
+        chosenZoom = z
     }
-    val chosenZoom by player.zoomMode.collectAsStateWithLifecycle()
     val zoom = zoomOverride ?: chosenZoom
 
     // Keeping the screen awake is MainActivity's job, not this composable's: three of these exist and

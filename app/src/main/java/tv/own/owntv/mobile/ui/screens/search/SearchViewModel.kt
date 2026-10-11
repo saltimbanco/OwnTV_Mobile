@@ -52,24 +52,17 @@ class SearchViewModel(
     private val _intent = MutableStateFlow<SearchIntent?>(null)
     val intent: StateFlow<SearchIntent?> = _intent.asStateFlow()
 
-    /** How many rows of each kind to ask for. Grows as the list is scrolled to its end. */
-    private val _limit = MutableStateFlow(PAGE)
-
-    /** Total of the last page that was asked for, so a query that has run dry stops asking again. */
-    private var lastTotal = -1
-
     /**
-     * What the query found. Debounced, because every keystroke otherwise costs three queries over a
-     * catalogue that can hold a quarter of a million rows.
+     * What the query found — every match, up to core's cap, in one go. Debounced, because every
+     * keystroke otherwise costs three queries over a catalogue that can hold a quarter of a million rows.
      */
     val results: StateFlow<SearchResults> = combine(
         _query.map { it.trim() }.debounce(DEBOUNCE_MS).distinctUntilChanged(),
         ctx,
-        _limit,
-    ) { q, c, limit -> Triple(q, c, limit) }
-        .flatMapLatest { (q, c, limit) ->
+    ) { q, c -> q to c }
+        .flatMapLatest { (q, c) ->
             if (q.length < MIN_QUERY) flowOf(SearchResults())
-            else flow { emit(searchReader.search(c.profileId, c, q, limit)) }
+            else flow { emit(searchReader.search(c.profileId, c, q)) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchResults())
 
@@ -101,31 +94,7 @@ class SearchViewModel(
     private fun favoriteIds(type: MediaType): StateFlow<Set<Long>> = actions.favoriteIds(type)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    /**
-     * Ask for another page, when the list has been scrolled to its end.
-     *
-     * Two things stop it. A page that brought nothing new means the provider has no more matches, and
-     * asking again would re-run the same three queries for the same rows. The cap is there because a
-     * query like "a" matches most of a 170k-row catalogue, and nobody scrolls that far on a phone.
-     * The unchanged-total check doubles as the guard against the scroll firing twice before the new
-     * page has arrived.
-     */
-    fun loadMore() {
-        if (_limit.value >= MAX_LIMIT) return
-        val r = results.value
-        val total = r.channels.size + r.movies.size + r.series.size + r.programmes.size
-        if (total == lastTotal) return
-        lastTotal = total
-        _limit.value += PAGE
-    }
-
-    private fun resetPaging() {
-        lastTotal = -1
-        _limit.value = PAGE
-    }
-
     fun setQuery(q: String) {
-        if (q.trim() != _query.value.trim()) resetPaging()
         _query.value = q
         // Typing is the user leaving the launcher behind; the curated list would otherwise stay up
         // underneath the results.
@@ -164,11 +133,5 @@ class SearchViewModel(
     private companion object {
         const val DEBOUNCE_MS = 300L
         const val MIN_QUERY = 2
-        const val PAGE = 40
-        // Core's search takes a limit, not an offset, so every page re-reads from the top; the cap
-        // is what bounds that worst case (10 pages of 40 per kind instead of 25). Lowered from
-        // 1,000: nothing that matches that widely is found by scrolling, and each re-query maps
-        // every row it returns.
-        const val MAX_LIMIT = 400
     }
 }
