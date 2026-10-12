@@ -420,8 +420,9 @@ class SettingsViewModel(
     // (JSON + assets, optionally whole-file encrypted, secrets omitted when not), not a server
     // list. This is the plain-text counterpart: [parseServerList] reads the picked document, then
     // every entry goes through core's [SourceImporter] one at a time, so validation, sync and
-    // error handling stay core's. Scopes mirror the single-add defaults (Xtream everything now,
-    // Stalker live now with VOD deferred).
+    // error handling stay core's. [liveOnly] chooses the sync scope applied to every created
+    // source: live-only (VOD sections off) or Channels + VOD (the default, mirroring the
+    // single-add defaults — Xtream everything now, Stalker live now with VOD deferred).
     //
     // Replace semantics: once the file has parsed to at least one usable server, the active
     // profile's existing playlists are deleted first, then the file's servers are added.
@@ -459,7 +460,7 @@ class SettingsViewModel(
 
     private var bulkImportJob: Job? = null
 
-    fun importServerList(uri: Uri) {
+    fun importServerList(uri: Uri, liveOnly: Boolean = false) {
         bulkImportJob?.cancel()
         bulkImportJob = viewModelScope.launch {
             val pid = profileDao.resolveExistingProfileId(settings.activeProfileId.first())
@@ -533,15 +534,17 @@ class SettingsViewModel(
                         is ServerListEntry.Xtream -> importer.xtream(
                             name = entry.name, server = entry.server, username = entry.username,
                             password = entry.password, autoRefresh = PlaylistRefresh.OFF,
-                            live = SyncScopeChoice.Now, movies = SyncScopeChoice.Now,
-                            series = SyncScopeChoice.Now,
+                            live = SyncScopeChoice.Now,
+                            movies = if (liveOnly) SyncScopeChoice.Off else SyncScopeChoice.Now,
+                            series = if (liveOnly) SyncScopeChoice.Off else SyncScopeChoice.Now,
                         )
                         is ServerListEntry.Stalker -> importer.stalker(
                             name = entry.name, portalUrl = entry.portalUrl, mac = entry.mac,
                             serialNumber = entry.serialNumber, deviceId = entry.deviceId,
                             deviceId2 = entry.deviceId2, signature = entry.signature,
                             autoRefresh = PlaylistRefresh.OFF, live = SyncScopeChoice.Now,
-                            movies = SyncScopeChoice.Later, series = SyncScopeChoice.Later,
+                            movies = if (liveOnly) SyncScopeChoice.Off else SyncScopeChoice.Later,
+                            series = if (liveOnly) SyncScopeChoice.Off else SyncScopeChoice.Later,
                         )
                     }
                 }.exceptionOrNull()
