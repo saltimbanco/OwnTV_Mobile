@@ -132,6 +132,8 @@ class SettingsSearchCoverageTest {
             "settings_sources_resync_remove_full", "settings_sources_test_title", "settings_sources_import_file", "setup_auto_refresh",
             "setup_auto_refresh_title", "setup_default_playlist", "profiles_add_button", "profiles_delete_title",
             "settings_catchup_timezone_device", "settings_subtitle_color", "settings_subtitle_default",
+            // Bulk import scope sheet: transient picker options, not settings (like the auto-refresh sheet above).
+            "settings_bulk_import_live_only", "settings_bulk_import_with_vod", "settings_bulk_import_choose_file",
         ) + notRows
         val quick = read("SettingsQuick.kt")
         val quickTitle = Regex("""QuickToggle\(\s*"([a-z_]+)",\s*R\.string\.([a-z_0-9]+)""")
