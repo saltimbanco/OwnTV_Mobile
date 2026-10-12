@@ -7,6 +7,11 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.0.7 — 2026-10-12
+
+### New features
+- **📥 Bulk import: live channels only, or channels plus VOD**
+
 ## v1.0.6 — 2026-10-08
 
 ### New features
