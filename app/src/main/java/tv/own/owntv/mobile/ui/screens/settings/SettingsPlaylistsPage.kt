@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,8 +96,11 @@ fun SettingsPlaylistsPage(
     var confirmRetest by remember { mutableStateOf<SourceEntity?>(null) }
 
     // Bulk server-list import: a plain-text file with one Xtream/Stalker server per line,
-    // picked through the system document picker and parsed by SettingsViewModel.
-    val pickServerList = rememberServerListPicker { uri -> vm.importServerList(uri) }
+    // picked through the system document picker and parsed by SettingsViewModel. The scope
+    // sheet below picks what each created source syncs; false is Channels + VOD, the default.
+    var bulkLiveOnly by rememberSaveable { mutableStateOf(false) }
+    var showBulkScope by remember { mutableStateOf(false) }
+    val pickServerList = rememberServerListPicker { uri -> vm.importServerList(uri, liveOnly = bulkLiveOnly) }
 
     SettingsPage(modifier) {
         settingsNote(R.string.settings_sources_description)
@@ -124,8 +128,12 @@ fun SettingsPlaylistsPage(
             )
             MobileListRow(
                 title = stringResource(R.string.settings_sources_import_file),
+                subtitle = stringResource(
+                    if (bulkLiveOnly) R.string.settings_bulk_import_live_only
+                    else R.string.settings_bulk_import_with_vod,
+                ),
                 leading = { Icon(MobileIcons.PlaylistAdd, contentDescription = null) },
-                onClick = pickServerList,
+                onClick = { showBulkScope = true },
             )
         }
     }
@@ -228,6 +236,37 @@ fun SettingsPlaylistsPage(
                     },
                 )
             }
+        }
+    }
+
+    // Bulk import scope: what every server in the picked file syncs. Same radio-row pattern
+    // as the auto-refresh sheet above; the file picker opens from the sheet's last row.
+    if (showBulkScope) {
+        MobileBottomSheet(
+            onDismissRequest = { showBulkScope = false },
+            title = stringResource(R.string.settings_sources_import_file),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_bulk_import_scope_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+            )
+            MobileListRow(
+                title = stringResource(R.string.settings_bulk_import_live_only),
+                trailing = { RadioButton(selected = bulkLiveOnly, onClick = null) },
+                onClick = { bulkLiveOnly = true },
+            )
+            MobileListRow(
+                title = stringResource(R.string.settings_bulk_import_with_vod),
+                trailing = { RadioButton(selected = !bulkLiveOnly, onClick = null) },
+                onClick = { bulkLiveOnly = false },
+            )
+            MobileListRow(
+                title = stringResource(R.string.settings_bulk_import_choose_file),
+                leading = { Icon(MobileIcons.PlaylistAdd, contentDescription = null) },
+                onClick = { showBulkScope = false; pickServerList() },
+            )
         }
     }
 
