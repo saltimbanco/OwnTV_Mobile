@@ -615,5 +615,19 @@
     "tier": 2,
     "packaged": false,
     "pickerVisible": false
+  },
+  {
+    "id": "eu",
+    "languageTag": "eu",
+    "resourceQualifier": "eu",
+    "resourceDirectory": "values-eu",
+    "weblateCode": "eu",
+    "englishName": "Basque",
+    "endonym": "Euskara",
+    "script": "Latn",
+    "rtl": false,
+    "tier": 1,
+    "packaged": true,
+    "pickerVisible": true
   }
 ]
