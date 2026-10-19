@@ -17,6 +17,11 @@
         <item quantity="one">%1$d failed</item>
         <item quantity="other">%1$d failed</item>
     </plurals>
+    <plurals name="settings_bulk_import_skipped">
+        <item quantity="one">%1$d line skipped</item>
+        <item quantity="other">%1$d lines skipped</item>
+    </plurals>
+    <string name="settings_bulk_import_skipped_line">Line %1$d — %2$s</string>
     <string name="settings_bulk_import_parse_error">Can’t read server list</string>
     <string name="settings_bulk_import_parse_error_detail">Reason: %1$s</string>
     <string name="settings_bulk_import_no_profile">No active profile</string>
