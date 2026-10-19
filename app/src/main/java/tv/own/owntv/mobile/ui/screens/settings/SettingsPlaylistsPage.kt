@@ -317,6 +317,18 @@ fun SettingsPlaylistsPage(
                 title = pluralStringResource(R.plurals.settings_bulk_import_failed, bulk.failed.size, bulk.failed.size),
                 onClick = {},
             )
+            if (bulk.skipped.isNotEmpty()) {
+                StageSettingRow(
+                    title = pluralStringResource(R.plurals.settings_bulk_import_skipped, bulk.skipped.size, bulk.skipped.size),
+                    onClick = {},
+                )
+                bulk.skipped.forEach { (line, text) ->
+                    StageSettingRow(
+                        title = stringResource(R.string.settings_bulk_import_skipped_line, line, text),
+                        onClick = {},
+                    )
+                }
+            }
             bulk.failed.forEach { failure ->
                 val reason = failure.failure?.displayText(LocalContext.current.resources) ?: failure.detail.orEmpty()
                 StageSettingRow(

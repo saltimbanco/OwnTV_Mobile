@@ -72,6 +72,7 @@ class SettingsSearchCoverageTest {
             "settings_sources_import_file",
             "settings_bulk_import_live_only", "settings_bulk_import_with_vod", "settings_bulk_import_choose_file",
             "settings_bulk_import_title", "settings_bulk_import_parse_error",
+            "settings_bulk_import_skipped_line",
         )
         val skipped = setOf("SettingsBackupPage.kt", "SettingsLocalSyncPage.kt")
         val pages = dir.listFiles { f ->

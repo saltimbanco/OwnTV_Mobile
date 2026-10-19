@@ -430,6 +430,8 @@ class SettingsViewModel(
         data class Done(
             val succeeded: List<String>,
             val failed: List<BulkFailure>,
+            /** Lines the parser could not read, by 1-based line number and the raw text. */
+            val skipped: List<Pair<Int, String>> = emptyList(),
         ) : BulkImportUi
         data class ParseError(val message: String) : BulkImportUi
     }
@@ -556,7 +558,7 @@ class SettingsViewModel(
                 }
                 importer.reset()
             }
-            _bulkImport.value = BulkImportUi.Done(succeeded, failed)
+            _bulkImport.value = BulkImportUi.Done(succeeded, failed, parsed.skipped)
         }.also { job ->
             job.invokeOnCompletion { if (bulkImportJob == job) bulkImportJob = null }
         }
