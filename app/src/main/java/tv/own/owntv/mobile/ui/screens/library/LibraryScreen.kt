@@ -1,8 +1,6 @@
 package tv.own.owntv.mobile.ui.screens.library
 
-import tv.own.owntv.core.theme.AnimationLevel
-import tv.own.owntv.mobile.ui.nav.posterKey
-import tv.own.owntv.mobile.ui.components.MobileIcons
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
@@ -14,74 +12,101 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Tab
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.androidx.compose.koinViewModel
+import tv.own.owntv.core.customize.CategoryRestorePlan
 import tv.own.owntv.core.live.LiveKey
+import tv.own.owntv.core.live.ProviderTags
 import tv.own.owntv.core.settings.SettingsRepository
+import tv.own.owntv.core.theme.AnimationLevel
+import tv.own.owntv.core.ui.stage.PlaylistMark
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileSlider
-import tv.own.owntv.mobile.ui.components.CategoryPickerSheet
-import tv.own.owntv.mobile.ui.components.BrowseCategorySheet
-import tv.own.owntv.mobile.ui.components.FilterChipRow
+import tv.own.owntv.mobile.ui.screens.home.groupedCountText
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.mobileGroupPlate
-import tv.own.owntv.mobile.ui.components.PosterCard
-import tv.own.owntv.mobile.ui.components.GRID_LIST_SHARE
+import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.mobile.ui.components.TwoPane
 import tv.own.owntv.mobile.ui.nav.isExpandedWidth
 import tv.own.owntv.mobile.ui.screens.ObeyScrollToTop
+import tv.own.owntv.mobile.ui.screens.home.durationText
+import tv.own.owntv.mobile.ui.screens.home.formatRating
+import tv.own.owntv.mobile.ui.screens.home.formatYear
+import tv.own.owntv.mobile.ui.screens.live.CategoryRestoreConfirm
+import tv.own.owntv.mobile.ui.screens.live.LiveCategoryMenu
+import tv.own.owntv.mobile.ui.shell.ProvidePageCrumb
+import tv.own.owntv.mobile.ui.shell.PageCrumb
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageChoiceRow
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StagePlaylistMark
+import tv.own.owntv.mobile.ui.stage.StagePoster
+import tv.own.owntv.mobile.ui.stage.StageProgress
+import tv.own.owntv.mobile.ui.stage.StageRow
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSegmented
+import org.koin.compose.koinInject
+import tv.own.owntv.core.nav.MainSection
+import tv.own.owntv.core.nav.NavVisibility
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSizeBar
+import tv.own.owntv.mobile.ui.stage.StageTool
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.theme.LocalAnimations
-import tv.own.owntv.mobile.ui.theme.MobileDimens
 
 /**
- * Movies and Series.
+ * Movies and Series: each its own place on the bar, the same screen locked to its half.
  *
- * On a phone they are two tabs of one screen, because the bottom bar has five slots and neither
- * deserves one of its own. On a tablet the rail has room for both, and [fixedTab] is how that screen
- * says which half it is — the tab strip disappears and everything below it stays the same.
+ * The header's crumb names the open category and its count ("‹ **Disney+ Kids Movies** · 136 titles"); a tap
+ * opens the categories sheet. Under it the tool row — search inside the category, the sort order, the
+ * categories, Grid | List — then three posters a row (rating, playlist mark or ✓, progress) or the list rows.
  *
- * The grid decides its own column count from the width it was given, until the user pinches: from
- * then on their number is kept and travels with their backup, exactly like the fixed grid setting on
- * the television.
+ * The grid decides its own column count from the width it was given, until the user pinches or moves Poster
+ * size: from then on their number is kept and travels with their backup, like the TV's fixed grid setting.
+ * On a tablet the title opens in a pane beside the grid.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     scrollToTop: SharedFlow<String>,
@@ -90,45 +115,41 @@ fun LibraryScreen(
     onPlay: () -> Unit,
     modifier: Modifier = Modifier,
     fixedTab: LibraryTab? = null,
-    /**
-     * Pins the grid to one folder and takes the chip strip away — how the Favourites and History
-     * screens show films and shows without a second copy of this grid existing.
-     */
-    lockedKey: LiveKey? = null,
     vm: LibraryViewModel = koinViewModel(),
 ) {
     LaunchedEffect(fixedTab) { fixedTab?.let { vm.select(it) } }
-    // Locking and unlocking are one pair: the pin belongs to this screen's lifetime, not to the view
-    // model's. On the television that view model is a single instance shared with the browse section,
-    // so a pin left behind froze its category rail. `DisposableEffect` (not `LaunchedEffect`) also
-    // means the pin is in place before the first frame, so the list never flashes the wrong folder.
-    if (lockedKey != null) {
-        val pinned = lockedKey
-        DisposableEffect(pinned) {
-            vm.lock(pinned)
-            onDispose { vm.unlock() }
-        }
-    }
 
     val tab by vm.tab.collectAsStateWithLifecycle()
+    // Library (no fixed tab) offers Movies | Series — only the halves the playlist has; with one, it is that one.
+    val navVisibility: NavVisibility = koinInject()
+    val sections by remember(navVisibility) { navVisibility.visibleSections() }
+        .collectAsStateWithLifecycle(MainSection.allBrowse)
+    val switchTabs = if (fixedTab != null) emptyList() else buildList {
+        if (MainSection.MOVIES in sections) add(LibraryTab.MOVIES)
+        if (MainSection.SERIES in sections) add(LibraryTab.SERIES)
+    }
+    LaunchedEffect(switchTabs) { switchTabs.singleOrNull()?.let { vm.select(it) } }
     val categories by vm.categories.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
     val count by vm.count.collectAsStateWithLifecycle()
     val viewMode by vm.viewMode.collectAsStateWithLifecycle()
+    val sort by vm.sortMode.collectAsStateWithLifecycle()
+    val query by vm.query.collectAsStateWithLifecycle()
     val chosenColumns by vm.gridColumns.collectAsStateWithLifecycle()
     val favorites by vm.favoriteIds.collectAsStateWithLifecycle()
     val progress by vm.movieProgress.collectAsStateWithLifecycle()
     val seriesProgress by vm.seriesProgress.collectAsStateWithLifecycle()
-    // The resume bar of one tile or row: a film's own position, a show's latest episode.
-    fun progressOf(id: Long): Float? = when (tab) {
-        LibraryTab.MOVIES -> progress[id]?.let { it.positionMs.toFloat() / it.durationMs.coerceAtLeast(1) }
+    val watched by vm.watchedIds.collectAsStateWithLifecycle()
+    val marks by vm.playlistMarks.collectAsStateWithLifecycle()
+    val seasonCounts by vm.seasonCounts.collectAsStateWithLifecycle()
+    val movies = tab == LibraryTab.MOVIES
+    // The resume bar of one tile or row: a film's own position, a show's latest episode. None once watched.
+    fun progressOf(id: Long): Float? = if (id in watched) null else when (tab) {
+        LibraryTab.MOVIES -> progress[id]?.takeIf { it.durationMs > 1L }?.let { it.positionMs.toFloat() / it.durationMs }
         LibraryTab.SERIES -> seriesProgress[id]
     }
 
-    val items = when (tab) {
-        LibraryTab.MOVIES -> vm.movies
-        LibraryTab.SERIES -> vm.series
-    }.collectAsLazyPagingItems()
+    val items = (if (movies) vm.movies else vm.series).collectAsLazyPagingItems()
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -136,9 +157,10 @@ fun LibraryScreen(
     listState.ObeyScrollToTop(route, scrollToTop)
 
     var menuFor by remember { mutableStateOf<VodItem?>(null) }
-    var sheetOpen by remember { mutableStateOf(false) }
-    var categoryPicker by remember { mutableStateOf(false) }
+    var sortOpen by remember { mutableStateOf(false) }
+    var categoriesOpen by remember { mutableStateOf(false) }
     var categoryMenuFor by remember { mutableStateOf<VodCategory?>(null) }
+    var restoreFor by remember { mutableStateOf<VodCategory?>(null) }
 
     val twoPane = isExpandedWidth()
     // Beside the grid, something is always open: the pane is a preview of the grid, so it falls back
@@ -146,6 +168,13 @@ fun LibraryScreen(
     // first title happens to be the one already showing still fills the pane instead of emptying it.
     var tappedItem by rememberSaveable { mutableStateOf<Long?>(null) }
     val openItem = tappedItem ?: if (twoPane) items.peekFirstId() else null
+    // The title last opened keeps its marker when you come back to the list (`.selbar`, `.pc.sel`).
+    var lastOpened by rememberSaveable { mutableStateOf<Long?>(null) }
+    val open = { item: VodItem ->
+        lastOpened = item.id
+        // Wide: a tap picks the title for the card, a second tap on it opens its page.
+        if (twoPane && item.id != openItem) tappedItem = item.id else onOpenItem(tab, item.id)
+    }
 
     // A new selection's scroll position has nothing to do with the old one's, and neither does the
     // title that was open in the pane — it is not in this category any more.
@@ -155,94 +184,92 @@ fun LibraryScreen(
         tappedItem = null
     }
 
+    // The header's crumb: "‹ Disney+ Kids Movies · 136 titles", a tap opens the categories.
+    val categoryLabel = categories.firstOrNull { it.key == selected }?.label(tab).orEmpty()
+    val countText = groupedCountText(if (movies) R.plurals.content_vod_title_count else R.plurals.content_vod_series_count, count)
+    ProvidePageCrumb { owner -> PageCrumb(categoryLabel, countText, owner = owner) { categoriesOpen = true } }
+
+    // A show's list row says how many seasons it has — read for the rows on screen only.
+    if (!movies && viewMode == SettingsRepository.VodViewMode.LIST) {
+        LaunchedEffect(listState, items) {
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index } }
+                .distinctUntilChanged()
+                .collect { indices -> vm.loadSeasonCounts(indices.mapNotNull { items.peek(it)?.id }) }
+        }
+    }
+
     val listPane = @Composable {
     // The column count comes from the width this pane actually got, not the window's: beside a
     // detail pane, or next to the rail, the grid has less room than the screen is wide.
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    // Roughly one poster per 110 dp of width, which is three on a small phone and eight on a tablet
-    // in landscape. The user's own number wins whenever they have set one.
-    val width = maxWidth.value.toInt()
-    val columns = chosenColumns.takeIf { it > 0 } ?: (width / COLUMN_WIDTH_DP).coerceIn(MIN_COLUMNS, MAX_COLUMNS)
-    // The gaps between the columns come out of the tiles, or the last one is pushed off the edge.
-    val gaps = MobileDimens.GridGap.value.toInt() * (columns - 1)
-    val posterWidth = ((width - GRID_PADDING_DP * 2 - gaps) / columns).dp
+    // Roughly one poster per 110 dp of width, which is three on a phone and eight on a tablet in
+    // landscape. The user's own number wins whenever they have set one.
+    // Beside the card the posters are six across 520 dp.
+    val columns = chosenColumns.takeIf { it > 0 }
+        ?: (maxWidth.value.toInt() / (if (twoPane) WIDE_COLUMN_WIDTH_DP else COLUMN_WIDTH_DP)).coerceIn(MIN_COLUMNS, MAX_COLUMNS)
 
     Column(Modifier.fillMaxSize()) {
-        if (fixedTab == null) {
-            // Transparent, or Material's own opaque surface paints a square black band across the
-            // top of the page's rounded glass pane and squares off its two top corners.
-            PrimaryTabRow(
-                selectedTabIndex = tab.ordinal,
-                containerColor = Color.Transparent,
-            ) {
-                LibraryTab.entries.forEach { entry ->
-                    Tab(
-                        selected = entry == tab,
-                        onClick = { vm.select(entry) },
-                        text = { Text(stringResource(entry.labelRes())) },
-                    )
-                }
-            }
-        }
-        if (lockedKey == null) Box(Modifier.fillMaxWidth()) {
-            FilterChipRow(
-                labels = categories.map { it.label(tab) },
-                selectedIndex = categories.indexOfFirst { it.key == selected },
-                onSelect = { index -> categories.getOrNull(index)?.let { vm.select(it.key) } },
-                modifier = Modifier.padding(end = MobileDimens.TouchTarget * 2),
-                // All, Favorites and History are not folders: there is nothing to hide or move.
-                onLongPress = { index ->
-                    categoryMenuFor = categories.getOrNull(index)?.takeIf { it.builtIn == null }
-                },
-                onLongPressLabel = stringResource(R.string.settings_customize_categories),
-            )
-            Row(Modifier.align(Alignment.CenterEnd)) {
-                IconButton(onClick = { categoryPicker = true }) {
-                    Icon(MobileIcons.Search, stringResource(R.string.content_search_categories))
-                }
-                IconButton(onClick = { sheetOpen = true }) {
-                    Icon(MobileIcons.Tune, stringResource(R.string.content_sorting))
-                }
-            }
-        }
-        if (categoryPicker) {
-            CategoryPickerSheet(
-                labels = categories.map { it.label(tab) },
-                selectedIndex = categories.indexOfFirst { it.key == selected },
-                onSelect = { index -> categories.getOrNull(index)?.let { vm.select(it.key) } },
-                onDismiss = { categoryPicker = false },
+        if (switchTabs.size > 1) {
+            StageSegmented(
+                options = switchTabs.map { stringResource(if (it == LibraryTab.MOVIES) R.string.common_nav_movies else R.string.common_nav_series) },
+                selected = switchTabs.indexOf(tab).coerceAtLeast(0),
+                onSelect = { vm.select(switchTabs[it]) },
+                fill = true,
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = TOOLS_TOP),
             )
         }
-        val categoryLabel = categories.firstOrNull { it.key == selected }?.label(tab).orEmpty()
-        Text(
-            // "Action (312 movies)" — core's own wording, so the count reads as it does on the TV.
-            text = pluralStringResource(
-                if (tab == LibraryTab.MOVIES) R.plurals.content_count_movies else R.plurals.content_count_series,
-                count,
-                categoryLabel,
-                count,
-            ),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-        )
+        // `.tools`: the search field takes the room, then the order and Grid | List at the right. No categories
+        // tool: the crumb under the title opens the same sheet.
+        Row(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = TOOLS_TOP, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StageSearchField(
+                value = query,
+                onValueChange = vm::setQuery,
+                placeholder = stringResource(R.string.common_search),
+                inline = true,
+                modifier = Modifier.weight(1f),
+            )
+            // The order and Grid | List sit at the right edge and the search takes all the rest; a long order
+            // ("Hinzugefügt am" at a large font) shortens at 150 dp rather than squeezing the field to its icon.
+            StageTool(
+                onClick = { sortOpen = true },
+                icon = MobileIcons.Sort,
+                value = stringResource(sort.labelRes()),
+                on = sortOpen,
+                modifier = Modifier.widthIn(max = 150.dp),
+            )
+            val views = SettingsRepository.VodViewMode.entries
+            StageSegmented(
+                options = views.map { stringResource(it.labelRes()) },
+                selected = views.indexOf(viewMode),
+                onSelect = { vm.setViewMode(views[it]) },
+                icons = listOf(MobileIcons.GridView, MobileIcons.FormatListBulleted),
+                iconOnly = true,
+            )
+        }
         // Empty only once the first page has actually come back — otherwise every category change
         // flashes "No movies here" for as long as the query takes on a 170k-title catalogue.
         if (items.itemCount == 0 && items.loadState.refresh !is LoadState.Loading) {
-            EmptyLibrary(tab)
+            EmptyLibrary(tab, query)
         } else if (viewMode == SettingsRepository.VodViewMode.LIST) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().mobileGroupPlate()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 8.dp),
+            ) {
                 items(count = items.itemCount, key = items.itemKey { it.id }) { index ->
                     items[index]?.let { item ->
-                        MobileListRow(
-                            title = item.name,
-                            subtitle = item.details(),
+                        VodListRow(
+                            item = item,
+                            seasons = seasonCounts[item.id]?.takeIf { !movies && it > 0 },
                             progress = progressOf(item.id),
-                            // Beside the grid the title opens in the pane; on a phone it is a
-                            // screen of its own. The same screen, reached two ways.
-                            onClick = {
-                                if (twoPane) tappedItem = item.id else onOpenItem(tab, item.id)
-                            },
+                            watched = item.id in watched,
+                            mark = marks[item.sourceId],
+                            selected = item.id == lastOpened,
+                            onClick = { open(item) },
                             onLongClick = { menuFor = item },
                         )
                     }
@@ -252,27 +279,24 @@ fun LibraryScreen(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
                 state = gridState,
-                contentPadding = PaddingValues(MobileDimens.GapSmall),
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GridGap),
-                verticalArrangement = Arrangement.spacedBy(MobileDimens.GridGap),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .pinchToResize(columns) { vm.setGridColumns(it) },
             ) {
                 items(count = items.itemCount, key = items.itemKey { it.id }) { index ->
                     items[index]?.let { item ->
-                        PosterCard(
-                            title = item.name,
+                        StagePoster(
                             imageUrl = item.posterUrl,
-                            subtitle = item.details(),
+                            title = item.name,
+                            rating = item.rating?.takeIf { it > 0 }?.let(::formatRating),
+                            mark = marks[item.sourceId],
+                            watched = item.id in watched,
                             progress = progressOf(item.id),
-                            width = posterWidth,
-                            sharedKey = posterKey(tab.name, item.id),
-                            // Beside the grid the title opens in the pane; on a phone it is a
-                            // screen of its own. The same screen, reached two ways.
-                            onClick = {
-                                if (twoPane) tappedItem = item.id else onOpenItem(tab, item.id)
-                            },
+                            selected = item.id == (if (twoPane) openItem else lastOpened),
+                            onClick = { open(item) },
                             onLongClick = { menuFor = item },
                         )
                     }
@@ -281,8 +305,17 @@ fun LibraryScreen(
         }
     }
 
-    if (sheetOpen) {
-        LibraryOptionsSheet(vm = vm, columns = columns, onDismiss = { sheetOpen = false })
+    if (sortOpen) {
+        VodSortSheet(
+            tab = tab,
+            sort = sort,
+            viewMode = viewMode,
+            columns = columns,
+            onSort = vm::setSort,
+            onViewMode = vm::setViewMode,
+            onColumns = vm::setGridColumns,
+            onDismiss = { sortOpen = false },
+        )
     }
     }
     }
@@ -292,14 +325,31 @@ fun LibraryScreen(
             list = listPane,
             detail = {
                 openItem?.let { id ->
-                    DetailScreen(tab = tab, itemId = id, onPlay = onPlay)
+                    LibraryTitleCard(tab = tab, itemId = id, onPlay = onPlay, onOpen = { onOpenItem(tab, id) })
                 }
             },
             modifier = modifier,
-            listShare = GRID_LIST_SHARE,
+            // The grid 520 of 791 dp.
+            listShare = WIDE_GRID_SHARE,
         )
     } else {
         Box(modifier) { listPane() }
+    }
+
+    if (categoriesOpen) {
+        val counts by vm.categoryCounts.collectAsStateWithLifecycle()
+        val showCounts by vm.sheetCounts.collectAsStateWithLifecycle()
+        VodCategoriesSheet(
+            tab = tab,
+            categories = categories,
+            selected = selected,
+            counts = counts,
+            showCounts = showCounts,
+            marks = marks,
+            onSelect = vm::select,
+            onHold = { categoryMenuFor = it },
+            onDismiss = { categoriesOpen = false },
+        )
     }
 
     menuFor?.let { item ->
@@ -308,114 +358,172 @@ fun LibraryScreen(
             tab = tab,
             selected = selected,
             isFavorite = item.id in favorites,
-            originName = categories.firstOrNull { it.key == selected }?.label(tab).orEmpty(),
+            originName = categoryLabel,
+            categories = categories,
             vm = vm,
             onDismiss = { menuFor = null },
         )
     }
 
     categoryMenuFor?.let { category ->
-        BrowseCategorySheet(
-            title = category.label(tab),
-            onHide = { vm.hideCategory(category.key) },
+        val name = category.label(tab)
+        LiveCategoryMenu(
+            title = name,
+            custom = category.key is LiveKey.Custom,
             onMove = { kind -> vm.moveCategory(category.key, kind) },
+            onHide = { vm.hideCategory(category.key) },
+            onRestore = { categoryMenuFor = null; restoreFor = category },
             onDismiss = { categoryMenuFor = null },
+        )
+    }
+    restoreFor?.let { category ->
+        val plan by produceState<CategoryRestorePlan?>(null, category.key) { value = vm.categoryRestorePlan(category.key) }
+        CategoryRestoreConfirm(
+            title = category.label(tab),
+            custom = category.key is LiveKey.Custom,
+            plan = plan,
+            onRestore = { vm.restoreCategory(category.key) },
+            onDismiss = { restoreFor = null },
         )
     }
 }
 
 /**
- * Sorting, grid-or-list, and how big the posters are.
- *
- * The size slider is the same number the pinch gesture sets, for the people who never think to pinch
- * — dragging it left puts more, smaller posters on a row.
+ * `.chrow` of the list view: 92 dp — the poster 52 × 78 (radius 9), the title (14.5 / 700, two lines
+ * allowed), "2026 · ★ 8.4 · 1 h 30 min" (12 muted, the rating in gold) or a show's seasons, the progress
+ * under it (140 wide); at the end ✓ when watched, else the playlist mark. [selected] = the title last opened.
  */
 @Composable
-private fun LibraryOptionsSheet(vm: LibraryViewModel, columns: Int, onDismiss: () -> Unit) {
-    val sort by vm.sortMode.collectAsStateWithLifecycle()
-    val viewMode by vm.viewMode.collectAsStateWithLifecycle()
+private fun VodListRow(
+    item: VodItem,
+    seasons: Int?,
+    progress: Float?,
+    watched: Boolean,
+    mark: PlaylistMark?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val palette = LocalStagePalette.current
+    val separator = stringResource(R.string.content_epg_bits_separator)
+    val length = item.durationSecs?.takeIf { it >= 60 }?.let { durationText(it / 60L) }
+        ?: seasons?.let { pluralStringResource(R.plurals.home_trending_seasons, it, it) }
+    val line = buildAnnotatedString {
+        val parts = listOfNotNull(
+            item.year?.takeIf { it > 0 }?.let { { append(formatYear(it)) } },
+            item.rating?.takeIf { it > 0 }?.let { { withStyle(SpanStyle(color = RatingGold)) { append("★ " + formatRating(it)) } } },
+            length?.let { { append(it) } },
+        )
+        parts.forEachIndexed { i, part ->
+            if (i > 0) append(separator)
+            part()
+        }
+    }
+    StageRow(onClick = onClick, onLongClick = onLongClick, selected = selected, height = 92.dp) {
+        AsyncImage(
+            item.posterUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(52.dp, 78.dp).clip(RoundedCornerShape(9.dp)).background(palette.cardSolid),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(item.name, style = stageText(14.5f, 700), color = palette.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (line.isNotEmpty()) {
+                Text(line, style = stageText(12f, 400), color = palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+            }
+            progress?.let { StageProgress(it, Modifier.padding(top = 6.dp).width(140.dp), thin = true) }
+        }
+        when {
+            watched -> StageIcon(MobileIcons.Check, 14.dp, stageAccent.accent)
+            mark != null -> StagePlaylistMark(mark)
+        }
+    }
+}
 
-    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.content_sorting)) {
-        SettingsRepository.SortMode.entries.forEach { mode ->
-            MobileListRow(
-                title = stringResource(mode.labelRes()),
-                leading = { RadioButton(selected = mode == sort, onClick = { vm.setSort(mode); onDismiss() }) },
-                onClick = { vm.setSort(mode); onDismiss() },
+/**
+ * Sort: "Sort movies · Applies to every category in this section", the four orders — each with its
+ * line while it is not the current one, the current filled and ticked — then VIEW Grid | List and, on the
+ * grid, POSTER SIZE (the number the pinch sets; to the right is bigger posters, fewer a row).
+ */
+@Composable
+private fun VodSortSheet(
+    tab: LibraryTab,
+    sort: SettingsRepository.SortMode,
+    viewMode: SettingsRepository.VodViewMode,
+    columns: Int,
+    onSort: (SettingsRepository.SortMode) -> Unit,
+    onViewMode: (SettingsRepository.VodViewMode) -> Unit,
+    onColumns: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = stringResource(if (tab == LibraryTab.MOVIES) R.string.content_sort_movies_title else R.string.content_sort_series_title)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title, subtitle = stringResource(R.string.content_sort_applies_hint))
+        listOf(
+            Triple(SettingsRepository.SortMode.PLAYLIST, MobileIcons.Layers, R.string.content_sort_provider_order_hint),
+            Triple(SettingsRepository.SortMode.ALPHA, MobileIcons.FormatListBulleted, null),
+            Triple(SettingsRepository.SortMode.RATING, MobileIcons.StarBorder, R.string.content_sort_rating_hint),
+            Triple(SettingsRepository.SortMode.DATE_ADDED, MobileIcons.Schedule, R.string.content_sort_date_added_hint),
+        ).forEach { (mode, icon, hint) ->
+            val current = mode == sort
+            StageMenuItem(
+                label = stringResource(mode.labelRes()),
+                onClick = { onSort(mode) },
+                icon = icon,
+                value = hint?.takeIf { !current }?.let { stringResource(it) },
+                filled = current,
+                checked = current,
             )
         }
-        HorizontalDivider()
-        SettingsRepository.VodViewMode.entries.forEach { mode ->
-            MobileListRow(
-                title = stringResource(mode.labelRes()),
-                leading = {
-                    RadioButton(selected = mode == viewMode, onClick = { vm.setViewMode(mode); onDismiss() })
-                },
-                onClick = { vm.setViewMode(mode); onDismiss() },
-            )
-        }
+        StageGroupLabel(stringResource(R.string.content_menu_group_view))
+        val views = SettingsRepository.VodViewMode.entries
+        StageChoiceRow(
+            options = views.map { stringResource(it.labelRes()) },
+            selected = views.indexOf(viewMode),
+            onSelect = { onViewMode(views[it]) },
+        )
         if (viewMode == SettingsRepository.VodViewMode.GRID) {
-            HorizontalDivider()
-            Text(
-                text = stringResource(R.string.settings_size),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(
-                    start = MobileDimens.ScreenPaddingH,
-                    top = MobileDimens.GapSmall,
-                ),
-            )
-            MobileSlider(
-                // Left is smaller posters, so the slider runs the opposite way to the column count.
-                value = (MAX_COLUMNS + MIN_COLUMNS - columns).toFloat(),
-                onValueChange = { vm.setGridColumns(MAX_COLUMNS + MIN_COLUMNS - it.toInt()) },
-                valueRange = MIN_COLUMNS.toFloat()..MAX_COLUMNS.toFloat(),
-                steps = MAX_COLUMNS - MIN_COLUMNS - 1,
-                modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+            StageGroupLabel(stringResource(R.string.content_poster_size))
+            StageSizeBar(
+                fraction = (MAX_COLUMNS - columns).toFloat() / (MAX_COLUMNS - MIN_COLUMNS),
+                onChange = { onColumns(MAX_COLUMNS - kotlin.math.round(it * (MAX_COLUMNS - MIN_COLUMNS)).toInt()) },
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
     }
 }
 
+/** Nothing in the category, or nothing matching the search — core's sentences, in the Stage type. */
 @Composable
-private fun EmptyLibrary(tab: LibraryTab) {
-    Box(Modifier.fillMaxSize().padding(MobileDimens.GapLarge), contentAlignment = Alignment.Center) {
+private fun EmptyLibrary(tab: LibraryTab, query: String) {
+    val movies = tab == LibraryTab.MOVIES
+    val q = query.trim()
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Text(
-            text = stringResource(
-                if (tab == LibraryTab.MOVIES) R.string.content_no_movies_here else R.string.content_no_series_here,
-            ),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = when {
+                q.isNotEmpty() -> stringResource(if (movies) R.string.content_no_movies_found else R.string.content_no_series_found, q)
+                else -> stringResource(if (movies) R.string.content_no_movies_here else R.string.content_no_series_here)
+            },
+            style = stageText(13.5f, 500),
+            color = LocalStagePalette.current.muted,
             textAlign = TextAlign.Center,
         )
     }
 }
 
-/** The year, the rating, or both — whatever the provider actually sent for this item. */
+/** The entry's name: a translated label for the three fixed ones; a provider folder without its tags. */
 @Composable
-private fun VodItem.details(): String? {
-    val stars = rating?.takeIf { it > 0 }?.let { stringResource(R.string.content_rating, it.toFloat()) }
-    val separator = stringResource(R.string.content_epg_bits_separator)
-    return listOfNotNull(year?.takeIf { it > 0 }?.toString(), stars)
-        .takeIf { it.isNotEmpty() }
-        ?.joinToString(separator)
-}
-
-@Composable
-private fun VodCategory.label(tab: LibraryTab): String = when (builtIn) {
+internal fun VodCategory.label(tab: LibraryTab): String = when (builtIn) {
     VodCategory.BuiltIn.ALL -> stringResource(
         if (tab == LibraryTab.MOVIES) R.string.content_category_all_movies else R.string.content_category_all_series,
     )
     VodCategory.BuiltIn.FAVORITES -> stringResource(R.string.content_category_favorites)
     VodCategory.BuiltIn.HISTORY -> stringResource(R.string.content_category_history)
-    null -> title.orEmpty()
-}
-
-private fun LibraryTab.labelRes() = when (this) {
-    LibraryTab.MOVIES -> R.string.common_nav_movies
-    LibraryTab.SERIES -> R.string.common_nav_series
+    null -> remember(title) { ProviderTags.parse(title.orEmpty()).name }
 }
 
 private fun SettingsRepository.SortMode.labelRes() = when (this) {
-    SettingsRepository.SortMode.PLAYLIST -> R.string.settings_sort_playlist
+    SettingsRepository.SortMode.PLAYLIST -> R.string.content_sort_provider_order
     SettingsRepository.SortMode.ALPHA -> R.string.settings_sort_alpha
     SettingsRepository.SortMode.RATING -> R.string.settings_sort_rating
     SettingsRepository.SortMode.DATE_ADDED -> R.string.settings_sort_date_added
@@ -482,8 +590,15 @@ private fun Modifier.pinchToResize(columns: Int, onChange: (Int) -> Unit): Modif
  */
 private fun LazyPagingItems<VodItem>.peekFirstId(): Long? = itemSnapshotList.firstOrNull()?.id
 
+/** The room between the crumb and the tools (`.tools` at 128 under a 102 dp header), as on Live TV. */
+private val TOOLS_TOP = 26.dp
+
+/** The rating's gold, `#ffcc4d` (the same on the poster chip). */
+private val RatingGold = Color(0xFFFFCC4D)
+
 private const val COLUMN_WIDTH_DP = 110
-private const val GRID_PADDING_DP = 8
+private const val WIDE_COLUMN_WIDTH_DP = 86
+private const val WIDE_GRID_SHARE = 0.66f
 private const val MIN_COLUMNS = 2
 private const val MAX_COLUMNS = 8
 private const val PINCH_OUT = 1.25f

@@ -1,17 +1,13 @@
 package tv.own.owntv.mobile.ui.screens.multiview
 
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileIcons
-import tv.own.owntv.mobile.ui.components.MobileListRow
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 
 /**
  * Long-press on a tile: what can be done with that one tile.
@@ -34,7 +30,9 @@ fun MultiviewTileSheet(
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.multiview_button)) {
+    val title = stringResource(R.string.multiview_button)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title)
         Row(
             label = stringResource(R.string.multiview_tile_change_channel),
             icon = MobileIcons.LiveTv,
@@ -77,16 +75,5 @@ fun MultiviewTileSheet(
 
 @Composable
 private fun Row(label: String, icon: ImageVector, onClick: () -> Unit) {
-    MobileListRow(
-        title = label,
-        leading = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        },
-        onClick = onClick,
-    )
+    StageMenuItem(label, onClick = onClick, icon = icon)
 }

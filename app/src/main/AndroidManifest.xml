@@ -74,6 +74,18 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- More › Backup › Share: the system share sheet reads the backup through this, and
+             res/xml/share_paths.xml exposes the one cache folder the backup is written to — nothing else. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.share"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
+
         <!-- One launcher activity per icon colour (core's AppIcon); AppIconSwitcher keeps exactly one
              enabled. MainActivity is the default (Eggshell) and keeps its name, so an icon placed before
              this change still opens the app. Each carries its own icon and launch-screen theme.

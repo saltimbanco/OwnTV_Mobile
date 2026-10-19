@@ -72,7 +72,8 @@
       theme rather than from the system's night mode, because OwnTV's theme is a setting: a user on
       Light with the phone in dark mode would otherwise get a white icon on a white bar.
     -->
-    <style name="Theme.OwnTVMobile.CastButton.Dark">
+    <!-- A light AppCompat parent too: MediaRouter picks its default icon (white or dark) from the theme. -->
+    <style name="Theme.OwnTVMobile.CastButton.Dark" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="mediaRouteButtonStyle">@style/Widget.OwnTVMobile.MediaRouteButton.Dark</item>
     </style>
 

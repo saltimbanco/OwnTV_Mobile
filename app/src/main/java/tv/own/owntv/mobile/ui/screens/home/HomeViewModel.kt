@@ -1,9 +1,11 @@
 package tv.own.owntv.mobile.ui.screens.home
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -13,28 +15,37 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import tv.own.owntv.core.content.AdultCategoryClassifier
+import tv.own.owntv.core.database.dao.CategoryDao
+import tv.own.owntv.core.database.dao.ChannelDao
+import tv.own.owntv.core.database.dao.HistoryDao
 import tv.own.owntv.core.database.dao.MovieDao
 import tv.own.owntv.core.database.dao.ProfileDao
+import tv.own.owntv.core.database.dao.ProgressDao
 import tv.own.owntv.core.database.dao.SeriesDao
+import tv.own.owntv.core.database.dao.SourceDao
 import tv.own.owntv.core.database.dao.resolveExistingProfileId
 import tv.own.owntv.core.database.entity.MetadataCacheEntity
+import tv.own.owntv.core.database.entity.WatchHistoryEntity
+import tv.own.owntv.core.home.HeroItem
 import tv.own.owntv.core.home.TrendingHomeItem
+import tv.own.owntv.core.home.homeKey
+import tv.own.owntv.core.metadata.MetadataImages
 import tv.own.owntv.core.metadata.MetadataRepository
 import tv.own.owntv.core.home.HomeFeed
 import tv.own.owntv.core.home.HomeFeedReader
 import tv.own.owntv.core.model.HomeLiveRowMode
 import tv.own.owntv.core.model.HomeRow
 import tv.own.owntv.core.model.MediaType
-import tv.own.owntv.core.network.ConnectivityObserver
+import tv.own.owntv.core.repository.activeSourceIds
 import tv.own.owntv.core.settings.SettingsRepository
-import tv.own.owntv.core.weather.WeatherInfo
-import tv.own.owntv.core.weather.WeatherRepository
+import tv.own.owntv.mobile.ui.components.jsonList
 import tv.own.owntv.mobile.ui.screens.ContentActions
 import tv.own.owntv.mobile.ui.screens.library.VodTuner
 
@@ -56,8 +67,11 @@ class HomeViewModel(
     private val movieDao: MovieDao,
     private val seriesDao: SeriesDao,
     private val metadata: MetadataRepository,
-    weatherRepository: WeatherRepository,
-    connectivity: ConnectivityObserver,
+    private val sourceDao: SourceDao,
+    private val historyDao: HistoryDao,
+    private val progressDao: ProgressDao,
+    private val channelDao: ChannelDao,
+    private val categoryDao: CategoryDao,
 ) : ViewModel() {
 
     private val profileId: StateFlow<Long> = settings.activeProfileId
@@ -77,11 +91,21 @@ class HomeViewModel(
     /** Null until the first load finishes — the screen shows nothing rather than a false empty state. */
     val feed: StateFlow<HomeFeed?> = _feed
 
+    // Declared before `init`: the first load below fills them.
+    private val _heroBackdrops = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /** The TMDB backdrop per Keep watching card, keyed by [homeKey]; the card falls back without one. */
+    val heroBackdrops: StateFlow<Map<String, String>> = _heroBackdrops
+
+    private val resolvingHeroKeys = mutableSetOf<String>()
+
     init {
         reloads.tryEmit(Unit)
         viewModelScope.launch {
             combine(profileId, reloads) { pid, _ -> pid }.collectLatest { pid ->
-                _feed.value = if (pid < 0) HomeFeed() else reader.load(pid)
+                val feed = if (pid < 0) HomeFeed() else reader.load(pid)
+                _feed.value = feed
+                resolveHeroBackdrops(feed.heroItems)
             }
         }
     }
@@ -90,16 +114,81 @@ class HomeViewModel(
         reloads.tryEmit(Unit)
     }
 
-    /** The weather chip, when the setting is on and there is a network to ask over. */
-    val weather: StateFlow<WeatherInfo?> =
-        combine(connectivity.isOnline, settings.weatherEnabled, settings.weatherLocation) { online, enabled, location ->
-            Triple(online, enabled, location)
-        }.flatMapLatest { (online, enabled, location) ->
-            if (!online || !enabled) flowOf<WeatherInfo?>(null) else flow { emit(weatherRepository.get(location)) }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    // --- Keep watching stills -------------------------------------------------------------------
 
-    val fahrenheit: StateFlow<Boolean> = settings.weatherFahrenheit
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    /**
+     * The TV's lookup, card for card: a film's backdrop, a show's (or, with none, its episode's still).
+     * Off the first frame: the rows paint first, the stills fill in after.
+     */
+    private fun resolveHeroBackdrops(items: List<HeroItem>) {
+        items.filterNot { it is HeroItem.LiveHero }.forEach { item ->
+            val key = item.homeKey
+            if (_heroBackdrops.value.containsKey(key) || !resolvingHeroKeys.add(key)) return@forEach
+            viewModelScope.launch {
+                try {
+                    delay(250)
+                    val url = withContext(Dispatchers.IO) { runCatching { heroBackdrop(item) }.getOrNull() } ?: return@launch
+                    _heroBackdrops.value = _heroBackdrops.value + (key to url)
+                } finally {
+                    resolvingHeroKeys.remove(key)
+                }
+            }
+        }
+    }
+
+    private suspend fun heroBackdrop(item: HeroItem): String? = when (item) {
+        is HeroItem.MovieHero -> MetadataImages.backdrop(metadata.resolveMovie(item.movie)?.backdropPath, size = "w1280")
+        is HeroItem.SeriesHero -> {
+            val show = metadata.resolveSeries(item.series)
+            MetadataImages.backdrop(show?.backdropPath, size = "w1280")
+                ?: metadata.resolveEpisode(item.series, item.episode)
+                    ?.let { MetadataImages.backdrop(it.backdropPath ?: it.posterPath, size = "w1280") }
+        }
+        is HeroItem.LiveHero -> null
+    }
+
+    // --- Progress on the poster rows ------------------------------------------------------------------
+
+    /** Per film, how far in (0..1); at the Library's watched fraction or more it counts as watched. */
+    val movieProgress: StateFlow<Map<Long, Float>> = profileId
+        .flatMapLatest { pid -> if (pid < 0) flowOf(emptyList()) else progressDao.observeMovieProgress(pid) }
+        .map { rows -> rows.filter { it.durationMs > 0 }.associate { it.itemId to it.positionMs.toFloat() / it.durationMs } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Per show, how far into the episode watched last (0..1) — the same reading as [movieProgress]. */
+    val seriesProgress: StateFlow<Map<Long, Float>> = profileId
+        .flatMapLatest { pid -> if (pid < 0) flowOf(emptyList()) else progressDao.observeLatestEpisodeProgressPerSeries(pid) }
+        .map { rows -> rows.filter { it.durationMs > 0 }.associate { it.seriesId to it.positionMs.toFloat() / it.durationMs } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // --- The Resume pill ------------------------------------------------------------------------------
+
+    /** The last thing watched, as the pill at the top of Home names it (the TV's Continue chip). */
+    data class ResumeTarget(val name: String, val type: MediaType, val itemId: Long, val positionMs: Long)
+
+    val resume: StateFlow<ResumeTarget?> = profileId
+        .flatMapLatest { pid ->
+            if (pid < 0) flowOf(null) else historyDao.observeMostRecent(pid).map { h -> h?.let { resolveResume(pid, it) } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The TV's `resolveContinue`: the item behind the history row, unless the profile may not see it. */
+    private suspend fun resolveResume(pid: Long, h: WatchHistoryEntity): ResumeTarget? = withContext(Dispatchers.IO) {
+        when (h.mediaType) {
+            MediaType.MOVIE -> movieDao.getById(h.itemId)
+                ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
+                ?.let { m -> ResumeTarget(m.name, MediaType.MOVIE, m.id, progressDao.get(pid, MediaType.MOVIE, m.id)?.positionMs ?: 0L) }
+            MediaType.EPISODE -> seriesDao.getEpisodeById(h.itemId)?.let { ep ->
+                seriesDao.getSeriesById(ep.seriesId)
+                    ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
+                    ?.let { s -> ResumeTarget(s.name, MediaType.EPISODE, ep.id, progressDao.get(pid, MediaType.EPISODE, ep.id)?.positionMs ?: 0L) }
+            }
+            MediaType.LIVE -> channelDao.getById(h.itemId)
+                ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
+                ?.let { c -> ResumeTarget(c.name, MediaType.LIVE, c.id, 0L) }
+            else -> null
+        }
+    }
 
     /** Switch a live row between logo cards and what-is-on-now. Stored where the TV app reads it. */
     fun toggleLiveMode(row: HomeRow) {
@@ -187,6 +276,59 @@ class HomeViewModel(
         }
 
     data class TrendingDetails(val cache: MetadataCacheEntity?, val tmdbWins: Boolean)
+
+    /**
+     * What the hero's info line and buttons need beyond the snapshot (the TV's `TrendingExtras`): TMDB
+     * genres and title art, and how many entries of the same title the shown playlists hold.
+     */
+    @Immutable
+    data class TrendingExtras(val genres: List<String> = emptyList(), val versions: Int = 1, val logoUrl: String? = null)
+
+    private val _trendingExtras = MutableStateFlow<Map<String, TrendingExtras>>(emptyMap())
+
+    /** Keyed by [TrendingHomeItem.stableKey]; filled for the title on screen. */
+    val trendingExtras: StateFlow<Map<String, TrendingExtras>> = _trendingExtras
+
+    private val resolvingTrendingKeys = mutableSetOf<String>()
+
+    fun resolveTrendingExtras(item: TrendingHomeItem) {
+        val key = item.stableKey
+        if (_trendingExtras.value.containsKey(key) || !resolvingTrendingKeys.add(key)) return
+        viewModelScope.launch {
+            try {
+                val extras = withContext(Dispatchers.IO) {
+                    val cache = runCatching { resolveTrendingDetails(item).cache }.getOrNull()
+                    TrendingExtras(
+                        genres = jsonList(cache?.genresJson),
+                        versions = runCatching { versionCount(item) }.getOrDefault(1),
+                        logoUrl = MetadataImages.logo(cache?.logoPath),
+                    )
+                }
+                _trendingExtras.value = _trendingExtras.value + (key to extras)
+            } finally {
+                resolvingTrendingKeys.remove(key)
+            }
+        }
+    }
+
+    /**
+     * Entries of the same title (same title signature, the year within one where both have one) across
+     * the playlists Home is showing — what "All versions" then lists. The TV's count, rule for rule.
+     */
+    private suspend fun versionCount(item: TrendingHomeItem): Int {
+        // Waits for the profile: right after launch it is still being read, and a 1 counted then would stay.
+        val pid = profileId.first { it >= 0 }
+        val (type, signature, year) = when (item) {
+            is TrendingHomeItem.Movie -> Triple(MediaType.MOVIE, item.movie.titleSignature, item.movie.parsedYear)
+            is TrendingHomeItem.Series -> Triple(MediaType.SERIES, item.series.titleSignature, item.series.parsedYear)
+        }
+        if (signature.isBlank()) return 1
+        val rows = activeSourceIds(settings, sourceDao, pid, type).flatMap { sid ->
+            if (type == MediaType.MOVIE) movieDao.trendingExact(sid, listOf(signature)) else seriesDao.trendingExact(sid, listOf(signature))
+        }
+        return rows.count { row -> year == null || row.parsedYear == null || kotlin.math.abs(row.parsedYear!! - year) <= 1 }
+            .coerceAtLeast(1)
+    }
 
     // --- The long-press menu ------------------------------------------------------------------------
 

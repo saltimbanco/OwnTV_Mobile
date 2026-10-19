@@ -18,7 +18,7 @@ data class CastRequest(
     val startPositionMs: Long = 0,
     /** Per-item `Key: Value` headers (M3U `#EXTHTTP`/`#EXTVLCOPT`); non-blank means "cannot cast". */
     val httpHeaders: String? = null,
-    /** Widevine/ClearKey protected (#115). A default receiver has no licence handling, so true also
+    /** Widevine/ClearKey protected. A default receiver has no licence handling, so true also
      *  means "cannot cast". */
     val drm: Boolean = false,
 )

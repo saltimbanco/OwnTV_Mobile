@@ -96,7 +96,7 @@ class MobileMultiviewState(
     private val claims = HashMap<Int, OpenStreamRegistry.Claim>()
 
     /**
-     * Tiles playing sound with no picture — the owner's background-audio case (§2.4): watch one
+     * Tiles playing sound with no picture — the background-audio case: watch one
      * channel while another's commentary plays behind it. It still costs a provider connection,
      * because dropping the video track does not close the stream, so the tile says so.
      */
@@ -137,7 +137,7 @@ class MobileMultiviewState(
         pool.giveSoundTo(tile)
     }
 
-    /** Put [channel] in [tile] if its playlist has a connection to spare, else show the reason (D11). */
+    /** Put [channel] in [tile] if its playlist has a connection to spare, else show the reason. */
     fun fill(tile: Int, channel: ChannelEntity) {
         if (tile !in tiles.indices) return
         // **Which tile gets the sound is decided here, synchronously, and not inside the coroutine.**

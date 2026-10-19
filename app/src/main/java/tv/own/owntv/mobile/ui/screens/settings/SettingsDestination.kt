@@ -1,72 +1,57 @@
 package tv.own.owntv.mobile.ui.screens.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import tv.own.owntv.mobile.R
+import tv.own.owntv.mobile.ui.setup.SetupEntry
 
 /**
- * One settings page, chosen by its route.
- *
- * It exists because settings are reached two ways: as a route of their own on a phone, and inside
- * the right-hand pane on a tablet, where there is no back stack to navigate. Both go through this,
- * so a page can never be wired into one and forgotten in the other.
- *
- * [onOpenRoute] is what a row that leads somewhere calls — navigation on a phone, and a push onto
- * the pane's own stack on a tablet.
+ * One full page, chosen by its route. Each says where it is in the crumb ("‹ Settings · Player"); the
+ * pages with a count of their own say it themselves. [onAddSource] is the setup flow, a route outside settings.
  */
 @Composable
-fun SettingsGroupPage(group: SettingsGroup, onOpenRoute: (String) -> Unit) {
-    val openLeaf: (SettingsLeaf) -> Unit = { onOpenRoute(it.route) }
-    when (group) {
-        SettingsGroup.SOURCES -> SettingsSourcesPage(onOpenLeaf = openLeaf)
-        SettingsGroup.APPEARANCE -> SettingsAppearancePage(onOpenLeaf = openLeaf)
-        SettingsGroup.LAYOUT -> SettingsLayoutPage(onOpenLeaf = openLeaf)
-        SettingsGroup.CONTENT -> SettingsContentPage(onOpenLeaf = openLeaf)
-        SettingsGroup.PLAYBACK -> SettingsPlaybackPage(onOpenLeaf = openLeaf)
-        SettingsGroup.NETWORK -> SettingsNetworkPage()
-        SettingsGroup.APP -> SettingsAppPage(
-            onOpenLanguage = { onOpenRoute(SettingsLeaf.LANGUAGE.route) },
-        )
-    }
-}
-
-/**
- * One leaf page. [onAddSource] is the setup flow, which is a route outside settings altogether and
- * so stays the caller's business in both layouts.
- */
-@Composable
-fun SettingsLeafPage(leaf: SettingsLeaf, onOpenRoute: (String) -> Unit, onAddSource: () -> Unit) {
+fun SettingsLeafPage(leaf: SettingsLeaf, onSetup: (SetupEntry) -> Unit) {
     when (leaf) {
-        SettingsLeaf.PLAYLISTS -> SettingsPlaylistsPage(onAddSource = onAddSource)
+        // Add a source sits under Playlists ("‹ Settings · Playlists").
+        SettingsLeaf.ADD_SOURCE -> SettingsCrumb(stringResource(R.string.settings_playlists))
+        !in OWN_CRUMB -> SettingsCrumb(null, leaf.group)
+        else -> Unit
+    }
+    when (leaf) {
+        SettingsLeaf.PLAYLISTS -> SettingsPlaylistsPage()
+        SettingsLeaf.ADD_SOURCE -> AddSourcePage(onSetup)
         SettingsLeaf.EPG_SOURCES -> SettingsEpgSourcesPage()
+        SettingsLeaf.HIGHLIGHT -> SettingsHighlightPage()
         SettingsLeaf.GLASS_EFFECT -> SettingsGlassPage()
         SettingsLeaf.FONTS -> SettingsFontsPage()
-        SettingsLeaf.WEATHER -> SettingsWeatherPage()
+        SettingsLeaf.HOME -> SettingsHomePage()
+        SettingsLeaf.BROWSING -> SettingsBrowsingPage()
+        SettingsLeaf.CONTENT_MENUS -> SettingsMenusPage()
         SettingsLeaf.CUSTOMIZE -> SettingsCustomizePage()
         SettingsLeaf.METADATA -> SettingsMetadataPage()
         SettingsLeaf.OPEN_SUBTITLES -> SettingsOpenSubtitlesPage()
-        SettingsLeaf.VIDEO_PLAYER -> SettingsVideoPlayerPage(
-            onOpenLeaf = { target -> onOpenRoute(target.route) },
-        )
-        SettingsLeaf.VP_PLAYER, SettingsLeaf.VP_PICTURE, SettingsLeaf.VP_STREAMING, SettingsLeaf.VP_LIVE,
-        SettingsLeaf.VP_LIVE_TUNING, SettingsLeaf.VP_CONTROLS, SettingsLeaf.VP_MULTIVIEW, SettingsLeaf.VP_SOUND,
-        SettingsLeaf.VP_LANGUAGES, SettingsLeaf.VP_RESUME, SettingsLeaf.VP_DIAGNOSTICS -> SettingsVideoPlayerPage(
-            onOpenLeaf = { target -> onOpenRoute(target.route) },
-            category = leaf,
-        )
+        SettingsLeaf.EXTERNAL_PLAYER -> ExternalPlayerPage()
         SettingsLeaf.SUBTITLE_APPEARANCE -> SettingsSubtitleAppearancePage()
-        SettingsLeaf.RECORDING -> SettingsRecordingPage()
-        SettingsLeaf.HOME -> SettingsHomePage()
         SettingsLeaf.LANGUAGE -> SettingsLanguagePage()
+        SettingsLeaf.PROXY -> SettingsProxyPage()
+        SettingsLeaf.DNS -> SettingsDnsPage()
+        SettingsLeaf.SPORTS -> tv.own.owntv.mobile.ui.screens.sports.SportsSettingsPage()
+        SettingsLeaf.SPORTS_LEAGUES -> tv.own.owntv.mobile.ui.screens.sports.SportsLeaguesPage()
+        SettingsLeaf.SPORTS_TEAMS -> tv.own.owntv.mobile.ui.screens.sports.SportsTeamsPage()
+        SettingsLeaf.SPORTS_ALERTS -> tv.own.owntv.mobile.ui.screens.sports.SportsAlertsPage()
+        SettingsLeaf.CATCHUP_SOURCES, SettingsLeaf.LIVE_ENGINE_SOURCES, SettingsLeaf.VOD_ENGINE_SOURCES,
+        SettingsLeaf.LATENCY_SOURCES, SettingsLeaf.PREROLL_SOURCES, SettingsLeaf.TUNE_TIMEOUT_SOURCES -> PerPlaylistPage(leaf)
     }
 }
 
-/** Whichever of the two a route names, or nothing when it is not a settings route at all. */
-@Composable
-fun SettingsRoutePage(route: String, onOpenRoute: (String) -> Unit, onAddSource: () -> Unit) {
-    SettingsGroup.entries.firstOrNull { it.route == route }?.let {
-        SettingsGroupPage(it, onOpenRoute)
-        return
-    }
-    SettingsLeaf.entries.firstOrNull { it.route == route }?.let {
-        SettingsLeafPage(it, onOpenRoute, onAddSource)
-    }
+/** Pages whose crumb carries a count of their own. */
+private val OWN_CRUMB = setOf(SettingsLeaf.PLAYLISTS, SettingsLeaf.EPG_SOURCES, SettingsLeaf.CUSTOMIZE, SettingsLeaf.GLASS_EFFECT)
+
+/** What a settings route calls itself in the header, or null when it is not one. */
+fun settingsPageTitleRes(route: String?): Int? = when (route) {
+    tv.own.owntv.mobile.ui.nav.MobileDestination.SETTINGS.route -> tv.own.owntv.mobile.R.string.common_nav_settings
+    else -> settingsLeafOf(route)?.titleRes ?: SettingsGroup.entries.firstOrNull { it.route == route }?.titleRes
 }
+
+/** A settings group page or full page: its crumb is its own ("‹ Settings · …"), not the shell's "‹ where from". */
+fun isSettingsPage(route: String?): Boolean = route != null && route.startsWith("settings/")

@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,9 +22,22 @@ import tv.own.owntv.core.customize.SpanSelector
 import tv.own.owntv.core.model.MediaType
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.FilterChipRow
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.screens.settings.SettingsPage
+import androidx.compose.foundation.layout.Box
+import tv.own.owntv.mobile.ui.components.MobileBottomSheet
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.screens.settings.PageNote
+import tv.own.owntv.mobile.ui.screens.settings.SettingsCrumb
+import tv.own.owntv.mobile.ui.screens.settings.SettingsGroup
+import tv.own.owntv.mobile.ui.screens.settings.SettingsStagePage
+import tv.own.owntv.mobile.ui.screens.settings.StageConfirmSheet
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageTool
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.screens.settings.settingsNote
 import tv.own.owntv.mobile.ui.screens.settings.settingsSection
 
@@ -65,86 +76,44 @@ fun CustomizeCategoriesPane(
     var sheet by remember { mutableStateOf<CustomizeSheet?>(null) }
     var editingPin by remember { mutableStateOf<PinEdit?>(null) }
 
-    SettingsPage(modifier) {
+    var moreMenu by remember { mutableStateOf(false) }
+    var restoring by remember { mutableStateOf(false) }
+    val restorePlaylist by vm.restorePlaylistName.collectAsStateWithLifecycle()
+    SettingsCrumb(tv.own.owntv.mobile.ui.screens.home.groupedCountText(R.plurals.settings_customize_categories_count, rows.size), SettingsGroup.CONTENT)
+
+    SettingsStagePage(modifier) {
+        // The sections as tools with ⋯ at the end, then Sort · Filter · +.
         item(key = "sections") {
-            FilterChipRow(
-                labels = SECTIONS.map { stringResource(it.labelRes()) },
-                selectedIndex = SECTIONS.indexOf(section).coerceAtLeast(0),
-                onSelect = { vm.selectSection(SECTIONS[it]) },
-            )
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SECTIONS.forEach { s -> StageTool(onClick = { vm.selectSection(s) }, label = stringResource(s.labelRes()), on = s == section) }
+                Box(Modifier.weight(1f))
+                StageTool(onClick = { moreMenu = true }, icon = MobileIcons.MoreHoriz, contentDescription = stringResource(R.string.common_nav_more))
+            }
         }
         item(key = "actions") {
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                AssistChip(
+                StageTool(
                     onClick = { sheet = CustomizeSheet.SORT },
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.settings_customize_sort_button,
-                                stringResource(
-                                    if (currentSort == SettingsRepository.SortMode.PLAYLIST) {
-                                        R.string.content_provider
-                                    } else {
-                                        R.string.settings_sort_alpha
-                                    },
-                                ),
-                            ),
-                        )
-                    },
+                    icon = MobileIcons.Sort,
+                    label = plainLabel(
+                        stringResource(
+                            R.string.settings_customize_sort_button,
+                            stringResource(if (currentSort == SettingsRepository.SortMode.PLAYLIST) R.string.content_provider else R.string.settings_sort_alpha),
+                        ),
+                    ),
                 )
-                AssistChip(
+                StageTool(
                     onClick = { sheet = CustomizeSheet.FILTER },
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.settings_customize_filter_button,
-                                stringResource(visibilityFilter.labelRes()),
-                            ),
-                        )
-                    },
+                    icon = MobileIcons.VisibilityOff,
+                    label = plainLabel(stringResource(R.string.settings_customize_filter_button, stringResource(visibilityFilter.labelRes()))),
                 )
-                AssistChip(
-                    onClick = { sheet = CustomizeSheet.NEW_CATEGORY_BEHAVIOR },
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.settings_customize_new_categories_button,
-                                stringResource(
-                                    if (hideNewCategories) {
-                                        R.string.settings_customize_behavior_hide
-                                    } else {
-                                        R.string.settings_customize_behavior_show
-                                    },
-                                ),
-                            ),
-                        )
-                    },
-                )
-                AssistChip(
-                    onClick = { creatingCategory = true },
-                    label = { Text(stringResource(R.string.settings_customize_new_category)) },
-                )
-                if (pinLock.pin == null) {
-                    AssistChip(
-                        onClick = { editingPin = PinEdit.SET },
-                        label = { Text(stringResource(R.string.settings_customize_set_pin)) },
-                    )
-                } else {
-                    AssistChip(
-                        onClick = { editingPin = PinEdit.CHANGE },
-                        label = { Text(stringResource(R.string.settings_customize_change_pin)) },
-                    )
-                    AssistChip(
-                        onClick = { editingPin = PinEdit.REMOVE },
-                        label = { Text(stringResource(R.string.settings_customize_remove_lock)) },
-                    )
-                }
+                StageTool(onClick = { creatingCategory = true }, icon = MobileIcons.Add, contentDescription = stringResource(R.string.settings_customize_new_category))
+                // Bulk rename over every listed category, as the items page has it (the long-press span stays).
+                StageTool(onClick = { vm.bulkRenameAll(autocleanup = false) }, label = stringResource(R.string.settings_bulk_rename_title))
+                StageTool(onClick = { vm.bulkRenameAll(autocleanup = true) }, label = stringResource(R.string.settings_bulk_rename_auto_cleanup))
             }
         }
         if (anchorKey != null) {
@@ -166,25 +135,22 @@ fun CustomizeCategoriesPane(
                 hiddenItems.entries.sortedBy { it.value.lowercase() },
                 key = { "hidden-${it.key}" },
             ) { entry ->
-                MobileListRow(
-                    title = entry.value.ifBlank { entry.key },
-                    trailing = {
-                        TextButton(onClick = { vm.unhideChannel(entry.key) }) {
-                            Text(stringResource(R.string.settings_customize_unhide))
-                        }
-                    },
-                )
+                StageSettingRow(title = entry.value.ifBlank { entry.key }, icon = MobileIcons.VisibilityOff, onClick = { vm.unhideChannel(entry.key) }) {
+                    StageRowValue(stringResource(R.string.settings_customize_unhide), plain = true)
+                }
             }
         }
 
-        settingsSection(R.string.settings_customize_categories)
         if (rows.isEmpty()) {
             settingsNote(R.string.settings_customize_empty)
         }
         items(rows, key = { it.key }) { row ->
-            MobileListRow(
+            val inSpan = row.key in selectedKeys
+            StageSettingRow(
                 title = row.displayName,
                 subtitle = row.provenance(),
+                icon = if (inSpan) MobileIcons.Check else MobileIcons.Folder,
+                current = inSpan,
                 onClick = {
                     when {
                         anchorKey == null -> onOpenItems(row)
@@ -197,10 +163,55 @@ fun CustomizeCategoriesPane(
                     }
                 },
                 onLongClick = { menuFor = row },
-                leading = spanTick(row.key in selectedKeys),
-                selected = row.key in selectedKeys,
-            )
+            ) {
+                if (row.hidden) {
+                    Text(stringResource(R.string.settings_customize_hidden), style = stageText(12.5f, 700), color = LocalStagePalette.current.dim)
+                } else {
+                    StageRowValue("", StageChevron.FORWARD)
+                }
+            }
         }
+        item(key = "hold-note") { PageNote(stringResource(R.string.settings_customize_hold_note_mobile)) }
+    }
+
+    // ⋯: what the TV's More popup holds — new categories, the PIN lock, and Restore playlist defaults.
+    if (moreMenu) {
+        val close = { moreMenu = false }
+        MobileBottomSheet(onDismissRequest = close) {
+            StageSheetHeader(stringResource(R.string.settings_customize_title), eyebrow = stringResource(section.labelRes()))
+            StageMenuItem(
+                plainLabel(
+                    stringResource(
+                        R.string.settings_customize_new_categories_button,
+                        stringResource(if (hideNewCategories) R.string.settings_customize_behavior_hide else R.string.settings_customize_behavior_show),
+                    ),
+                ),
+                onClick = { close(); sheet = CustomizeSheet.NEW_CATEGORY_BEHAVIOR },
+                icon = MobileIcons.Add,
+            )
+            if (pinLock.pin == null) {
+                StageMenuItem(plainLabel(stringResource(R.string.settings_customize_set_pin)), onClick = { close(); editingPin = PinEdit.SET }, icon = MobileIcons.Lock)
+            } else {
+                StageMenuItem(plainLabel(stringResource(R.string.settings_customize_change_pin)), onClick = { close(); editingPin = PinEdit.CHANGE }, icon = MobileIcons.Lock)
+                StageMenuItem(stringResource(R.string.settings_customize_remove_lock), onClick = { close(); editingPin = PinEdit.REMOVE }, icon = MobileIcons.Lock)
+            }
+            StageMenuItem(stringResource(R.string.settings_customize_restore_defaults), onClick = { close(); restoring = true }, icon = MobileIcons.Refresh)
+        }
+    }
+    // Asks first, naming the section and the playlist(s) shown; combined categories are left alone.
+    if (restoring) {
+        StageConfirmSheet(
+            title = stringResource(
+                R.string.settings_customize_restore_defaults_title,
+                stringResource(section.labelRes()),
+                restorePlaylist ?: stringResource(R.string.content_all_playlists),
+            ),
+            text = stringResource(R.string.settings_customize_restore_defaults_description),
+            confirm = stringResource(R.string.settings_backup_restore_action),
+            confirmIcon = MobileIcons.Refresh,
+            onConfirm = { vm.restoreSectionDefaults() },
+            onDismiss = { restoring = false },
+        )
     }
 
     menuFor?.let { row ->
@@ -234,9 +245,12 @@ fun CustomizeCategoriesPane(
                 null
             } else {
                 {
-                    TextButton(onClick = { renaming = null; deleting = row }) {
-                        Text(stringResource(R.string.common_delete))
-                    }
+                    StageMenuItem(
+                        stringResource(R.string.common_delete),
+                        onClick = { renaming = null; deleting = row },
+                        icon = MobileIcons.Delete,
+                        danger = true,
+                    )
                 }
             },
         )
@@ -369,3 +383,9 @@ private fun CategoryActionsSheet(
         onDelete = if (row.categoryId == null) onDelete else null,
     )
 }
+
+/**
+ * A TV label without the TV's own decorations — the 🔒 and the ▾ it draws in text — for a row that has a Stage
+ * icon and chevron of its own.
+ */
+internal fun plainLabel(text: String): String = text.replace("🔒", "").replace("▾", "").trim()

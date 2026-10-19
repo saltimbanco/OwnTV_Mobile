@@ -58,7 +58,7 @@ private val DancingScriptFamily = FontFamily(
  * happened: two entries in the font picker, one typeface. A file in the app cannot be aliased away.
  * It is the same JetBrains Mono the TV app already carries for its settings value column.
  */
-// The default since core made it one (the TV's Stage redesign): every weight from one variable file.
+// The default since core made it one (the TV's Stage design): every weight from one variable file.
 private val PlusJakartaSansFamily = FontFamily(
     variableFont(R.font.plus_jakarta_sans_variable, FontWeight.Normal),
     variableFont(R.font.plus_jakarta_sans_variable, FontWeight.Medium),

@@ -37,7 +37,7 @@ val playerModule = module {
     // engine by design; four pictures at once is what the ExoPlayer live engine exists for, and the
     // pool is the only thing that ever builds more than one of it.
     single { tv.own.owntv.player.LiveEnginePool { livePreviewEngine() } }
-    // L2 - live's own ExoPlayer engine, the second engine the phone's HUD can now swap to. It is
+    // Live's own ExoPlayer engine, the second engine the phone's HUD can now swap to. It is
     // DELIBERATELY not borrowed from the pool above: leaving Multiview calls releaseAll(), which
     // would take the channel the user is watching down with the tiles. One instance, session-long,
     // the same arrangement the television has.

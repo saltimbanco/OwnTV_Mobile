@@ -36,7 +36,4 @@ fun TwoPane(
     }
 }
 
-/** A grid pane: more than half, because the grid is what the screen is for. */
-const val GRID_LIST_SHARE = 0.55f
-
 private const val LIST_SHARE = 0.38f

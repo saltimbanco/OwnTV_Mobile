@@ -58,7 +58,7 @@ import tv.own.owntv.player.ZoomMode
  * The picture: the engine's output surface, the zoom the user chose, and whichever subtitle layer the
  * engine is currently using.
  *
- * Used at three sizes without changing — the 16:9 box on the channel screen, the fullscreen player and
+ * Used at three sizes without changing — the 16:9 preview in Live TV, the fullscreen player and
  * the docked mini player — because all three are the same stream and the same engine.
  */
 @Composable
@@ -75,21 +75,23 @@ fun VideoStage(
      */
     zoomOverride: ZoomMode? = null,
     /**
-     * Settings → Auto frame rate, seamless switches only (M9, owner decision 7). Passed only by the full
+     * Settings → Auto frame rate, seamless switches only. Passed only by the full
      * screen player, as the setting's description says: the smaller views keep the screen's own rate,
      * and leaving full screen hands it back.
      */
     autoFrameRate: Boolean = false,
 ) {
-    // L2 — which engine holds the picture. Resolved HERE rather than passed in, and that is the whole
-    // point: this composable is used at four sizes (the channel screen's panel, full screen, the
+    // Which engine holds the picture. Resolved HERE rather than passed in, and that is the whole
+    // point: this composable is used at four sizes (Live TV's preview, full screen, the
     // docked mini player and the floating window) and the first attempt passed the engine to ONE of
     // them. The other three drew mpv's surface while ExoPlayer held the stream, so ExoPlayer had no
     // surface at all — sound, no picture — and the watchdog dutifully handed every channel back to
     // mpv within seconds. A parameter that three of four callers forget is the wrong shape.
     val tuner: LiveTuner = koinInject()
     val liveOnExo by tuner.liveOnExo.collectAsStateWithLifecycle()
-    val liveExo = tuner.exoEngine.takeIf { liveOnExo }
+    // Live TV's preview pane is always ExoPlayer's (core's preview), before any tune says so.
+    val previewing by tuner.previewing.collectAsStateWithLifecycle()
+    val liveExo = tuner.exoEngine.takeIf { liveOnExo || previewing }
 
     // Shape comes from whichever engine actually holds the video, or the frame is laid out against
     // numbers the idle one last reported.
@@ -211,7 +213,7 @@ private class MpvSurfaceView(context: Context, private val player: OwnTVPlayer) 
         holder.addCallback(this)
     }
 
-    /** Seamless-only frame-rate hint (M9); re-applied on each fps change and on a surface re-create. */
+    /** Seamless-only frame-rate hint; re-applied on each fps change and on a surface re-create. */
     fun applyVideoFrameRate(fps: Float) {
         pendingFps = fps
         val surface = holder.surface ?: return

@@ -17,10 +17,13 @@ import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.snapTo
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -28,15 +31,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -65,8 +65,6 @@ import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -75,12 +73,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import tv.own.owntv.core.theme.AnimationLevel
-import tv.own.owntv.core.theme.GlassSurface
-import tv.own.owntv.mobile.ui.theme.GlassNest
 import tv.own.owntv.mobile.ui.theme.LocalAnimations
-import tv.own.owntv.mobile.ui.theme.MobileDimens
-import tv.own.owntv.mobile.ui.theme.MobileSheetShape
-import tv.own.owntv.mobile.ui.theme.glassSurface
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageRadii
+import tv.own.owntv.mobile.ui.stage.stageGlass
+import tv.own.owntv.mobile.ui.stage.LocalStageBackdrop
+import tv.own.owntv.mobile.ui.stage.rememberStageBackdrop
+import tv.own.owntv.mobile.ui.stage.stageBackdropSource
 import kotlin.math.roundToInt
 
 /** Where a sheet can come to rest. */
@@ -88,12 +87,6 @@ private enum class SheetAnchor { HIDDEN, HALF, EXPANDED }
 
 /** How far the content starts below where it ends up. Enough to read as weight, not as a slide. */
 private const val SETTLE_DP = 18f
-
-/** The grab handle, as faint as the mockup's. */
-private const val GRAB_ALPHA = 0.34f
-
-/** How dark the app goes behind an open sheet. */
-private const val SCRIM_ALPHA = 0.5f
 
 /** How far the back gesture shrinks the sheet before it lets go of it. */
 private const val BACK_SCALE = 0.92f
@@ -130,6 +123,13 @@ class SheetHostState internal constructor() {
 internal val LocalSheetHost = staticCompositionLocalOf<SheetHostState?> { null }
 
 /**
+ * Whether a sheet is up. A video surface draws above the sheet, so Live TV's preview lets its picture
+ * go while this is true.
+ */
+@Composable
+fun sheetOpen(): Boolean = LocalSheetHost.current?.entries?.isNotEmpty() == true
+
+/**
  * The layer every bottom sheet in the app is drawn on, hosted once above the whole UI.
  *
  * A sheet used to be a `ModalBottomSheet`, which is a separate window — and a separate window cannot
@@ -141,10 +141,13 @@ internal val LocalSheetHost = staticCompositionLocalOf<SheetHostState?> { null }
 fun MobileSheetHost(content: @Composable () -> Unit) {
     val host = remember { SheetHostState() }
     val entry = host.entries.lastOrNull()
+    // What a sheet's glass blurs: the app under it, recorded only while a sheet is open.
+    val backdrop = rememberStageBackdrop().takeIf { entry != null }
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier
                 .fillMaxSize()
+                .stageBackdropSource(backdrop)
                 // Neither a screen reader nor the keyboard's focus may wander into the page behind an
                 // open sheet — a dialog window used to give both of those for free, and an in-window
                 // sheet has to say so itself.
@@ -162,7 +165,11 @@ fun MobileSheetHost(content: @Composable () -> Unit) {
         }
         // Keyed on the entry, so opening a second sheet builds fresh state rather than sliding the
         // old sheet's position into new content.
-        if (entry != null) key(entry) { SheetLayer(entry) }
+        if (entry != null) {
+            key(entry) {
+                CompositionLocalProvider(LocalStageBackdrop provides backdrop) { SheetLayer(entry) }
+            }
+        }
     }
 }
 
@@ -218,12 +225,8 @@ private fun BoxScope.SheetLayer(entry: SheetEntry) {
     // the frame it appeared.
     LaunchedEffect(Unit) {
         snapshotFlow { state.anchors.size }.first { it > 0 }
-        // A short sheet has no HALF anchor at all, and lands fully open instead.
-        val landing = if (state.anchors.positionOf(SheetAnchor.HALF).isNaN()) {
-            SheetAnchor.EXPANDED
-        } else {
-            SheetAnchor.HALF
-        }
+        // Every sheet opens in full; HALF stays a rest on the way down.
+        val landing = SheetAnchor.EXPANDED
         // A finger on the sheet while it is still rising cancels the animation. That is not a reason
         // to stop watching for the close.
         runCatching {
@@ -279,13 +282,18 @@ private fun BoxScope.SheetLayer(entry: SheetEntry) {
     }
 
     val offset = if (state.anchors.size > 0) state.requireOffset() else sheetHeight.toFloat()
+    val stagePalette = LocalStagePalette.current
+    // A Stage sheet (`.ph .sheet`) runs edge to edge at the bottom with only its top corners curved, and
+    // keeps 30 dp under its last row — never less than the gesture bar.
+    val stageShape = RoundedCornerShape(topStart = StageRadii.Sheet, topEnd = StageRadii.Sheet)
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val shown = if (sheetHeight > 0) (1f - offset / sheetHeight).coerceIn(0f, 1f) else 0f
 
     Box(
         Modifier
             .fillMaxSize()
             .onSizeChanged { containerHeight = it.height }
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = SCRIM_ALPHA * shown * (1f - backProgress.value)))
+            .background(stagePalette.scrim.let { it.copy(alpha = it.alpha * shown * (1f - backProgress.value)) })
             // Tapping away is a dismissal, and it is the sheet that animates out rather than the
             // whole layer blinking off. The scrim also swallows the touches the page behind must not
             // receive while a modal sheet is open. It must never take focus: it is a full-screen
@@ -299,8 +307,7 @@ private fun BoxScope.SheetLayer(entry: SheetEntry) {
             ),
     )
 
-    // A sheet stands clear of the screen on all four sides, so all four corners are curved — the
-    // wallpaper running round it is what makes the floating material read as floating.
+    // The content arrives a little after the pane, so the sheet reads as having weight.
     val settle = remember { Animatable(if (animations == AnimationLevel.OFF) 0f else SETTLE_DP) }
     LaunchedEffect(Unit) {
         if (animations != AnimationLevel.OFF) settle.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
@@ -319,12 +326,6 @@ private fun BoxScope.SheetLayer(entry: SheetEntry) {
             // A tall sheet with the keyboard up is the one case that reaches the top of the screen,
             // and its title must not end up printed across the clock.
             .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(
-                start = MobileDimens.ShellInset,
-                end = MobileDimens.ShellInset,
-                bottom = MobileDimens.ShellInset,
-            )
             .offset { IntOffset(0, offset.roundToInt()) }
             .graphicsLayer {
                 val shrink = lerp(1f, BACK_SCALE, backProgress.value)
@@ -354,49 +355,30 @@ private fun BoxScope.SheetLayer(entry: SheetEntry) {
                 isTraversalGroup = true
                 entry.title?.let { paneTitle = it }
             }
-            .glassSurface(GlassSurface.DIALOGS, MobileSheetShape)
-            .clip(MobileSheetShape),
+            .stageGlass(stageShape)
+            .clip(stageShape),
     ) {
         // Our own handle, not Material's: theirs pads 22 dp above and below a 4 dp bar, which is a
         // finger's width of empty sheet before the first word.
         Box(
             Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(
-                    top = MobileDimens.GrabPaddingTop,
-                    bottom = MobileDimens.GrabPaddingBottom,
-                )
-                .size(MobileDimens.GrabWidth, MobileDimens.GrabHeight)
+                .padding(top = 10.dp, bottom = 12.dp)
+                .size(38.dp, 4.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = GRAB_ALPHA)),
+                .background(stagePalette.ink.copy(alpha = 0.25f)),
         )
         // The settle rides an inner layer, so what catches up is what is inside the pane — put it on
         // the pane itself and the glass slides off its own bottom edge.
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = MobileDimens.SheetPaddingH,
-                    end = MobileDimens.SheetPaddingH,
-                    bottom = MobileDimens.SheetPaddingBottom,
-                )
+                .padding(start = 12.dp, end = 12.dp, bottom = maxOf(30.dp, navBottom))
                 .graphicsLayer { translationY = settle.value * density },
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.SheetGap),
+            // The rows stack flush (`.mi`, `.grp`); the header and labels carry their own space.
+            verticalArrangement = Arrangement.Top,
         ) {
-            val column = this
-            entry.title?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = MobileDimens.GapTiny + 2.dp),
-                )
-            }
-            // Everything in a sheet is already standing on a pane of glass, so it draws as the layer
-            // behind one — no second frost over the first.
-            GlassNest(GlassSurface.DIALOGS) { column.body() }
+            body()
         }
     }
 }

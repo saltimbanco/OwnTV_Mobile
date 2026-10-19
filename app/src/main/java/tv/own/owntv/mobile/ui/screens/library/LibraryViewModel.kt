@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -25,7 +26,11 @@ import tv.own.owntv.core.content.movieCountFlow
 import tv.own.owntv.core.content.moviePagingSource
 import tv.own.owntv.core.content.seriesCountFlow
 import tv.own.owntv.core.content.seriesPagingSource
+import tv.own.owntv.core.customize.CategoryRestorePlan
 import tv.own.owntv.core.customize.CustomizationStore
+import tv.own.owntv.core.customize.planCategoryRestore
+import tv.own.owntv.core.customize.restoreCategoryToDefault
+import tv.own.owntv.core.ui.stage.PlaylistMark
 import tv.own.owntv.core.customize.CustomizeKeys
 import tv.own.owntv.core.customize.SectionCustomizations
 import tv.own.owntv.core.customize.CategoryRailEditor
@@ -69,8 +74,9 @@ import tv.own.owntv.mobile.ui.components.ReorderItem
 /** Which half of the library is on screen. */
 enum class LibraryTab { MOVIES, SERIES }
 
-/** One chip in the strip. [builtIn] labels are translated; the rest are provider or user names. */
-data class VodCategory(val key: LiveKey, val title: String? = null, val builtIn: BuiltIn? = null) {
+/** One entry of the categories sheet. [builtIn] labels are translated; the rest are provider or user names.
+ *  [sourceId] is the playlist a provider folder belongs to (its mark in the sheet). */
+data class VodCategory(val key: LiveKey, val title: String? = null, val builtIn: BuiltIn? = null, val sourceId: Long? = null) {
     enum class BuiltIn { ALL, FAVORITES, HISTORY }
 }
 
@@ -81,6 +87,11 @@ data class VodItem(
     val posterUrl: String?,
     val year: Int?,
     val rating: Double?,
+    val sourceId: Long,
+    /** The provider folder it was synced into — the menu's "2026 · Disney+ Kids Movies". */
+    val categoryId: Long?,
+    /** A film's length; null on a show. */
+    val durationSecs: Int? = null,
 )
 
 /**
@@ -93,7 +104,7 @@ data class VodItem(
  * Nothing here queries until a tab is actually collected — a catalogue of 170,000 films must not cost
  * anything at launch, and the count under the chips is the only whole-list question ever asked.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 class LibraryViewModel(
     private val movieDao: MovieDao,
     private val seriesDao: SeriesDao,
@@ -168,9 +179,11 @@ class LibraryViewModel(
         AdultCategoryClassifier.hiddenCategoryIds(cats, cust.hiddenCategories, profile?.isKids == true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    // Eagerly: nothing collects it, it is only read as `.value` (the pager, Move, restore) — shared
+    // "while subscribed" it stayed empty and Move was never offered in a folder (Live TV had the same fix).
     private val folderContextKeys: StateFlow<Map<Long, String>> = vodCategories
         .map { cats -> cats.associateBy({ it.id }, { CustomizeKeys.category(it) }) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     /** Contexts that actually carry a manual order — core's query takes the cheap path for the rest,
      *  and the pager is rebuilt when a folder gains or loses one. */
@@ -193,6 +206,7 @@ class LibraryViewModel(
             kids = profile?.isKids == true,
             alphaRest = sort == SettingsRepository.SortMode.ALPHA,
         )
+        val sourceOf = cats.associateBy({ it.id }, { it.sourceId })
         buildList {
             add(VodCategory(LiveKey.All, builtIn = VodCategory.BuiltIn.ALL))
             add(VodCategory(LiveKey.Favorites, builtIn = VodCategory.BuiltIn.FAVORITES))
@@ -202,11 +216,46 @@ class LibraryViewModel(
                     VodCategory(
                         key = e.categoryId?.let { LiveKey.Folder(it) } ?: LiveKey.Custom(e.customId!!),
                         title = e.displayName,
+                        sourceId = e.categoryId?.let(sourceOf::get),
                     ),
                 )
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Every entry's count for the categories sheet — read only while the sheet is open. */
+    val categoryCounts: StateFlow<Map<LiveKey, Int>> = combine(ctx, mediaType, hiddenCategoryIds, categories, ::CountArgs)
+        .flatMapLatest { (c, type, hidden, items) ->
+            if (c.profileId < 0) return@flatMapLatest flowOf(emptyMap())
+            val ids = c.sourceIdsFor(type)
+            val movie = type == MediaType.MOVIE
+            val single = items.filter { it.key !is LiveKey.Folder }.map { item ->
+                (if (movie) movieCountFlow(item.key, c.profileId, ids, hidden, movieDao, customCategoryDao)
+                else seriesCountFlow(item.key, c.profileId, ids, hidden, seriesDao, customCategoryDao))
+                    .map { mapOf(item.key to it) }
+            }
+            val folders = (if (movie) movieDao.observeCountsByCategory(ids.ifEmpty { listOf(-1L) }) else seriesDao.observeCountsByCategory(ids.ifEmpty { listOf(-1L) }))
+                .map { rows -> rows.associate { LiveKey.Folder(it.categoryId) as LiveKey to it.itemCount } }
+            combine(single + folders) { parts -> parts.fold(emptyMap<LiveKey, Int>()) { acc, m -> acc + m } }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private data class CountArgs(
+        val ctx: ActiveProfileSources,
+        val type: MediaType,
+        val hidden: Set<Long>,
+        val items: List<VodCategory>,
+    )
+
+    /** Settings › Layout › Show counts. */
+    val sheetCounts: StateFlow<Boolean> = settings.sheetCounts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** Which playlist a poster or row comes from — only when more than one is shown, as on Live TV. */
+    val playlistMarks: StateFlow<Map<Long, PlaylistMark>> = combine(ctx, mediaType) { c, type ->
+        if (c.sourceIdsFor(type).size < 2) emptyMap()
+        else c.sources.withIndex().associate { (i, s) -> s.id to PlaylistMark.of(s.name, i) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** Hide and reorder a category from the strip, through the same editor Settings → Customize uses. */
     private val categoryEditor = CategoryRailEditor(customize, categoryDao, profileDao)
@@ -264,13 +313,34 @@ class LibraryViewModel(
         val ctx: ActiveProfileSources,
         val cust: SectionCustomizations,
         val hidden: Set<Long>,
+        val query: String = "",
+        val sort: SettingsRepository.SortMode = SettingsRepository.SortMode.PLAYLIST,
     )
+
+    private val _query = MutableStateFlow("")
+
+    /** The tool row's search, inside the open category. Cleared when the category changes. */
+    val query: StateFlow<String> = _query
+
+    fun setQuery(text: String) {
+        _query.value = text
+    }
+
+    /**
+     * The search and the sort order are inputs of the pager, so changing either re-queries. The order
+     * used to be read once, when the pager was made — so picking another one in the sheet re-sorted
+     * nothing until something else happened to rebuild the list.
+     */
+    private fun args(selected: Flow<LiveKey>, sort: Flow<SettingsRepository.SortMode>): Flow<Args> =
+        combine(selected, ctx, custom, hiddenCategoryIds, ::Args)
+            .combine(orderedContexts) { args, _ -> args }
+            .combine(_query.debounce(SEARCH_DEBOUNCE_MS)) { args, q -> args.copy(query = q.trim()) }
+            .combine(sort) { args, s -> args.copy(sort = s) }
 
     /** The films of the current selection. Collected only while the Movies tab is on screen. */
     val movies: Flow<PagingData<VodItem>> =
-        combine(_selectedMovies, ctx, custom, hiddenCategoryIds, ::Args)
-            .combine(orderedContexts) { args, _ -> args }
-            .flatMapLatest { (key, c, cust, hidden) ->
+        args(_selectedMovies, settings.sortMovies)
+            .flatMapLatest { (key, c, cust, hidden, query, sort) ->
                 if (c.profileId < 0) {
                     flowOf(PagingData.empty())
                 } else {
@@ -279,8 +349,8 @@ class LibraryViewModel(
                             key = key,
                             profileId = c.profileId,
                             sourceIds = c.sourceIdsFor(MediaType.MOVIE),
-                            query = "",
-                            sort = sortMode.value,
+                            query = query,
+                            sort = sort,
                             movieDao = movieDao,
                             customCategoryDao = customCategoryDao,
                             contextKey = { folderContextKeys.value[it] },
@@ -296,9 +366,8 @@ class LibraryViewModel(
 
     /** [movies] for shows. */
     val series: Flow<PagingData<VodItem>> =
-        combine(_selectedSeries, ctx, custom, hiddenCategoryIds, ::Args)
-            .combine(orderedContexts) { args, _ -> args }
-            .flatMapLatest { (key, c, cust, hidden) ->
+        args(_selectedSeries, settings.sortSeries)
+            .flatMapLatest { (key, c, cust, hidden, query, sort) ->
                 if (c.profileId < 0) {
                     flowOf(PagingData.empty())
                 } else {
@@ -307,8 +376,8 @@ class LibraryViewModel(
                             key = key,
                             profileId = c.profileId,
                             sourceIds = c.sourceIdsFor(MediaType.SERIES),
-                            query = "",
-                            sort = sortMode.value,
+                            query = query,
+                            sort = sort,
                             seriesDao = seriesDao,
                             customCategoryDao = customCategoryDao,
                             contextKey = { folderContextKeys.value[it] },
@@ -352,6 +421,9 @@ class LibraryViewModel(
         posterUrl = posterUrl,
         year = year,
         rating = rating,
+        sourceId = sourceId,
+        categoryId = categoryId,
+        durationSecs = durationSecs,
     )
 
     private fun SeriesEntity.asItem(cust: SectionCustomizations) = VodItem(
@@ -360,6 +432,8 @@ class LibraryViewModel(
         posterUrl = posterUrl,
         year = year,
         rating = rating,
+        sourceId = sourceId,
+        categoryId = categoryId,
     )
 
     val favoriteIds: StateFlow<Set<Long>> = combine(ctx, mediaType) { c, type -> c to type }
@@ -378,15 +452,79 @@ class LibraryViewModel(
 
     /** Per show, how far into its most recently watched episode this profile is, in 0..1 — the bar on
      *  a show's poster. A finished latest episode has no entry: there is nothing left to resume. */
-    val seriesProgress: StateFlow<Map<Long, Float>> = ctx
+    private val latestEpisodes = ctx
         .flatMapLatest { c ->
             if (c.profileId < 0) flowOf(emptyList()) else progressDao.observeLatestEpisodeProgressPerSeries(c.profileId)
         }
+
+    val seriesProgress: StateFlow<Map<Long, Float>> = latestEpisodes
         .map { rows ->
             rows.filter { it.durationMs > 0 && it.positionMs < (it.durationMs * WATCHED_FRACTION).toLong() }
                 .associate { it.seriesId to it.positionMs.toFloat() / it.durationMs }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /**
+     * The ✓ of a poster or row: a film watched to the end, or a show whose latest episode was (Home's rule;
+     * core has no "whole series finished").
+     */
+    val watchedIds: StateFlow<Set<Long>> = combine(_tab, movieProgress, latestEpisodes) { tab, movies, episodes ->
+        if (tab == LibraryTab.MOVIES) {
+            movies.values.filter { it.durationMs > 0 && it.positionMs >= (it.durationMs * WATCHED_FRACTION).toLong() }
+                .mapTo(HashSet()) { it.itemId }
+        } else {
+            episodes.filter { it.durationMs > 0 && it.positionMs >= (it.durationMs * WATCHED_FRACTION).toLong() }
+                .mapTo(HashSet()) { it.seriesId }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    private val _seasonCounts = MutableStateFlow<Map<Long, Int>>(emptyMap())
+
+    /** Seasons stored for a show, for its list row ("1 season"). A show never opened has none stored: 0, not shown. */
+    val seasonCounts: StateFlow<Map<Long, Int>> = _seasonCounts
+
+    /** Read the season counts of the rows on screen, once each — one batched query per scroll settle. */
+    fun loadSeasonCounts(seriesIds: List<Long>) {
+        val missing = seriesIds.filterNot { it in _seasonCounts.value }
+        if (missing.isEmpty()) return
+        viewModelScope.launch {
+            val found = seriesDao.storedSeasonCounts(missing).associate { it.seriesId to it.seasonCount }
+            _seasonCounts.value += missing.associateWith { found[it] ?: 0 }
+        }
+    }
+
+    /** What restoring [key]'s category to the playlist default would undo (empty when nothing) — the TV's. */
+    suspend fun categoryRestorePlan(key: LiveKey): CategoryRestorePlan {
+        val contextKey = categoryContextKey(key) ?: return CategoryRestorePlan()
+        val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return CategoryRestorePlan()
+        val type = mediaType.value
+        return planCategoryRestore(customize, contentOrderDao, pid, type, contextKey, customCategoryDao) {
+            when (key) {
+                is LiveKey.Folder -> if (type == MediaType.MOVIE) {
+                    movieDao.snapshotByCategoryManual(key.id, pid, contextKey, Int.MAX_VALUE).mapTo(HashSet()) { CustomizeKeys.movie(it) }
+                } else {
+                    seriesDao.snapshotByCategoryManual(key.id, pid, contextKey, Int.MAX_VALUE).mapTo(HashSet()) { CustomizeKeys.series(it) }
+                }
+                else -> customCategoryDao.stableItemKeys(pid, contextKey).toSet()
+            }
+        }
+    }
+
+    /** Back to the playlist's order and contents (core's restoreCategoryToDefault). */
+    fun restoreCategory(key: LiveKey) {
+        val contextKey = categoryContextKey(key) ?: return
+        viewModelScope.launch {
+            val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return@launch
+            restoreCategoryToDefault(customize, contentOrderDao, pid, mediaType.value, contextKey, categoryRestorePlan(key))
+        }
+    }
+
+    /** The content_order / movedFromOrigin context behind a category, or null for the fixed entries. */
+    private fun categoryContextKey(key: LiveKey): String? = when (key) {
+        is LiveKey.Folder -> folderContextKeys.value[key.id]
+        is LiveKey.Custom -> key.id
+        else -> null
+    }
 
     fun select(tab: LibraryTab) {
         _tab.value = tab
@@ -431,12 +569,13 @@ class LibraryViewModel(
         val current = if (_tab.value == LibraryTab.MOVIES) _selectedMovies else _selectedSeries
         if (current.value == key) return
         current.value = key
+        _query.value = ""
         val movies = _tab.value == LibraryTab.MOVIES
         viewModelScope.launch {
             if (movies) settings.setLastMoviesCategory(key.serialize())
             else settings.setLastSeriesCategory(key.serialize())
             // Core fills a lazily-added Stalker catalogue in the provider's own order; tell it the
-            // user is here so this category is served next (core's N1c). A no-op for a playlist that
+            // user is here so this category is served next. A no-op for a playlist that
             // was not lazily added, and for a category that is already complete.
             if (key is LiveKey.Folder) {
                 runCatching { catalogPriority.requestFirst(key.id) }
@@ -478,19 +617,15 @@ class LibraryViewModel(
 
     // --- The long-press actions ------------------------------------------------------------------
 
-    fun toggleFavorite(itemId: Long) {
+    /** [favorite] is what the menu showed, not [favoriteIds]' `.value`: from the movie page nothing collects that. */
+    fun setFavorite(itemId: Long, favorite: Boolean) {
         viewModelScope.launch {
             val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return@launch
             val type = mediaType.value
-            if (itemId in favoriteIds.value) userDataWriter.removeFavorite(pid, type, itemId)
+            if (!favorite) userDataWriter.removeFavorite(pid, type, itemId)
             else favoriteDao.add(FavoriteEntity(profileId = pid, mediaType = type, itemId = itemId))
         }
     }
-
-    /** True when the film has been watched to the end (or marked so). */
-    fun isWatched(itemId: Long): Boolean = movieProgress.value[itemId]?.let {
-        it.durationMs > 0 && it.positionMs >= (it.durationMs * WATCHED_FRACTION).toLong()
-    } == true
 
     /**
      * Mark a film watched without playing it. The 1 ms / 1 ms sentinel is the TV app's: it satisfies
@@ -529,6 +664,15 @@ class LibraryViewModel(
             }
         }
     }
+
+    /** Whether Remove from history has anything to remove (the TV's: dimmed otherwise). */
+    suspend fun isInHistory(itemId: Long): Boolean {
+        val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return false
+        return historyDao.exists(pid, mediaType.value, itemId)
+    }
+
+    /** The episodes stored for a show — Download all episodes' count. 0 for a show never opened. */
+    suspend fun episodeCount(seriesId: Long): Int = seriesDao.episodeCount(seriesId)
 
     fun removeFromHistory(itemId: Long) {
         viewModelScope.launch {
@@ -775,6 +919,9 @@ class LibraryViewModel(
     private companion object {
         const val WATCHED_FRACTION = 0.95f
 
+        /** Typing re-queries a catalogue of up to 170k titles; one query per pause, not per letter. */
+        const val SEARCH_DEBOUNCE_MS = 250L
+
         /** The Move sheet holds its list in memory, so a huge folder is cut off — the live list's limit. */
         const val MOVE_LIST_LIMIT = 5_000
 
@@ -799,5 +946,5 @@ internal fun episodeFileName(name: String, episodeNumber: Int, containerExt: Str
     return "$stem.${containerExt ?: StorageAccess.extOf(streamUrl)}"
 }
 
-/** Where films go on disk. Core owns the name so the two apps cannot drift apart (D1). */
+/** Where films go on disk. Core owns the name so the two apps cannot drift apart. */
 internal val MOVIES_DIR: String = MediaFolders.MOVIES

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +22,7 @@ import tv.own.owntv.core.profile.PROFILE_AVATAR_COUNT
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
 
 /**
  * A profile's picture, drawn rather than loaded — ten object tiles (lightning, sword, tree, car,
@@ -40,13 +40,13 @@ fun ProfileAvatar(avatarId: Int, modifier: Modifier = Modifier, imagePath: Strin
         Box(
             modifier = modifier
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                .background(LocalStagePalette.current.cardSolid),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = MobileIcons.Person,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = LocalStagePalette.current.muted,
                 modifier = Modifier.fillMaxSize(SILHOUETTE_FRACTION),
             )
         }
@@ -62,7 +62,8 @@ fun ProfileAvatar(avatarId: Int, modifier: Modifier = Modifier, imagePath: Strin
         }
         if (imagePath.isNotBlank()) {
             AsyncImage(
-                model = java.io.File(imagePath),
+                // A content:// address is a photo just picked for a profile not created yet.
+                model = if (imagePath.startsWith("content:")) imagePath else java.io.File(imagePath),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize().clip(CircleShape),

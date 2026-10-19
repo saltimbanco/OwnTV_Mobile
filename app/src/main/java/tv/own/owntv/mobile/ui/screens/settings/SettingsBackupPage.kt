@@ -1,21 +1,28 @@
 package tv.own.owntv.mobile.ui.screens.settings
 
+import android.content.Intent
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,60 +31,97 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.backup.BackupManager
+import tv.own.owntv.core.companion.CompanionFailure
+import tv.own.owntv.core.companion.CompanionServerState
 import tv.own.owntv.core.database.entity.ProfileEntity
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
-import tv.own.owntv.mobile.ui.components.sheetListHeight
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.components.StageConfirmItems
 import tv.own.owntv.mobile.ui.profiles.ProfilePinSheet
+import tv.own.owntv.mobile.ui.screens.MoreCountsViewModel
 import tv.own.owntv.mobile.ui.setup.copyPickedFile
 import tv.own.owntv.mobile.ui.setup.rememberBackupFilePicker
+import tv.own.owntv.mobile.ui.shell.ShellViewModel
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageLabel
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageProgress
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.drawInnerRing
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageClickable
+import tv.own.owntv.mobile.ui.stage.stageFx
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
 
 /** What the picker offers to create. A `.own` is a ZIP, and no MIME type of its own exists for it. */
 private const val BACKUP_MIME = "application/octet-stream"
 private const val BACKUP_FILE_NAME = "owntv-backup.own"
 
+/** Where a backup goes once its contents are chosen: a picked file, another device by Remote, or the share sheet. */
+private enum class BackupTarget { FILE, REMOTE, SHARE }
+
 /**
- * Save everything to a file, or bring it back.
+ * More › Backup & Restore: "Never backed up" (what lives only on this phone) or when the last backup
+ * was; **Back up now** to a file on this phone, by Remote to another device, or through the share sheet;
+ * **Restore** from a file or by Remote; and what a backup holds.
  *
- * Both ends go through the phone's document picker, so the backup lands wherever the user keeps
- * their files — the downloads folder, a cloud drive, an SD card — without the app ever asking for
- * access to storage it does not need. A restore merges: nothing already on the phone is deleted.
- *
- * Every choice on the way is a bottom sheet, like every other choice in this app. Nothing here is a
- * centred dialog: a dialog is its own window, so it cannot frost the wallpaper the rest of the app
- * frosts, and it sits exactly where the keyboard will cover it.
+ * Files go through the phone's document picker, so the backup lands wherever the user keeps their files
+ * without the app ever asking for storage access it does not need. Remote is core's companion server, as on
+ * the television: another device on the same Wi-Fi opens the address, enters the PIN, and downloads the
+ * backup or sends one. A restore merges: nothing already on the phone is deleted. Every choice on the way
+ * is a Stage sheet.
  */
 @Composable
 fun SettingsBackupPage(
     modifier: Modifier = Modifier,
     vm: BackupViewModel = koinViewModel(),
+    counts: MoreCountsViewModel = koinViewModel(),
+    shell: ShellViewModel = koinViewModel(),
 ) {
     val profiles by vm.profiles.collectAsStateWithLifecycle()
     val activeId by vm.activeProfileId.collectAsStateWithLifecycle()
+    val lastBackup by counts.lastBackup.collectAsStateWithLifecycle()
+    val favorites by counts.favorites.collectAsStateWithLifecycle()
+    val history by counts.history.collectAsStateWithLifecycle()
+    val playlists by shell.playlists.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val palette = LocalStagePalette.current
 
-    var exportSheet by remember { mutableStateOf(false) }
+    var exportTarget by remember { mutableStateOf<BackupTarget?>(null) }
+    var restoreChooser by remember { mutableStateOf(false) }
+    var remoteRestore by remember { mutableStateOf(false) }
+    var remoteExport by remember { mutableStateOf(false) }
     // Held while the document picker is in front: the user has already said what to export, and the
     // picker only decides where it goes.
     var chosen by remember { mutableStateOf<ExportRequest?>(null) }
 
-    val createDocument = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(BACKUP_MIME),
-    ) { uri ->
+    val createDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(BACKUP_MIME)) { uri ->
         val request = chosen
         chosen = null
         if (uri != null && request != null) {
@@ -91,50 +135,127 @@ fun SettingsBackupPage(
         }
     }
 
-    SettingsPage(modifier) {
-        settingsSection(R.string.settings_backup_title) {
-            // A long export has no popup over it: the page says so and the rows go quiet, which
-            // leaves the screen readable instead of blocking it behind a spinner.
-            if (vm.busy) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(MobileDimens.GapMedium),
-                    verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_backup_working),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+    Column(
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val last = lastBackup
+        if (last == null) {
+            // `.card` warn: what lives only on this phone, counted.
+            BackupCard(warn = true, icon = MobileIcons.Warning, title = stringResource(R.string.more_backup_never_title), inline = true) {
+                Text(
+                    stringResource(
+                        R.string.more_backup_never_body_mobile,
+                        pluralStringResource(R.plurals.more_playlist_count, playlists.size, playlists.size),
+                        pluralStringResource(R.plurals.more_count_favorites, favorites.total, favorites.total),
+                        pluralStringResource(R.plurals.more_count_history, history.total, history.total),
+                    ),
+                    style = stageText(11.5f, 500, lineHeight = 1.4f),
+                    color = palette.muted,
+                )
             }
-            SettingRow(
-                title = stringResource(R.string.settings_backup_export_button),
-                subtitle = stringResource(R.string.settings_backup_choose_folder),
-                enabled = !vm.busy,
-                onClick = { exportSheet = true },
-            )
-            SettingRow(
-                title = stringResource(R.string.settings_backup_restore_button),
-                subtitle = stringResource(R.string.settings_backup_pick_file),
-                enabled = !vm.busy,
-                onClick = { pickBackup() },
-            )
+        } else {
+            BackupCard(icon = MobileIcons.History, title = stringResource(R.string.more_pane_last_backup), inline = true) {
+                Text(
+                    DateUtils.getRelativeTimeSpanString(last.at, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
+                    style = stageText(11.5f, 500),
+                    color = palette.muted,
+                )
+            }
+        }
+        // A long backup has no popup over it: the card says so and the buttons go quiet.
+        BackupCard(fx = true, icon = MobileIcons.Download, title = stringResource(R.string.more_backup_now)) {
+            Text(stringResource(R.string.more_backup_now_body_mobile), style = stageText(11.5f, 500), color = palette.muted)
+            if (vm.busy) {
+                Text(stringResource(R.string.settings_backup_working), style = stageText(11.5f, 600), color = palette.text, modifier = Modifier.padding(top = 10.dp))
+                StageProgress(0f, Modifier.fillMaxWidth().padding(top = 6.dp))
+            }
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                StageButton(onClick = { if (!vm.busy) exportTarget = BackupTarget.FILE }, text = stringResource(R.string.more_backup_file_tv_mobile), icon = MobileIcons.Folder, small = true, enabled = !vm.busy)
+                StageButton(onClick = { if (!vm.busy) exportTarget = BackupTarget.REMOTE }, text = stringResource(R.string.settings_backup_remote), icon = MobileIcons.Translate, small = true, enabled = !vm.busy)
+                StageButton(onClick = { if (!vm.busy) exportTarget = BackupTarget.SHARE }, text = stringResource(R.string.common_share), icon = MobileIcons.OpenInNew, small = true, enabled = !vm.busy)
+            }
+        }
+        BackupCard(icon = MobileIcons.Refresh, title = stringResource(R.string.settings_backup_restore_action), onClick = { if (!vm.busy) restoreChooser = true }) {
+            Text(stringResource(R.string.more_restore_body_mobile), style = stageText(11.5f, 500), color = palette.muted)
+        }
+        StageLabel(stringResource(R.string.more_backup_included), Modifier.padding(start = 4.dp, top = 8.dp))
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            BackupManager.Section.entries.forEach { IncludedChip(stringResource(it.labelRes())) }
         }
     }
 
-    if (exportSheet) {
+    exportTarget?.let { target ->
         ExportSheet(
             profiles = profiles,
             activeProfileId = activeId,
             verifyPin = vm::verifyPin,
             onExport = { request ->
-                chosen = request
-                exportSheet = false
-                createDocument.launch(BACKUP_FILE_NAME)
+                exportTarget = null
+                when (target) {
+                    BackupTarget.FILE -> {
+                        chosen = request
+                        createDocument.launch(BACKUP_FILE_NAME)
+                    }
+                    BackupTarget.REMOTE -> {
+                        remoteExport = true
+                        vm.exportRemote(request.sections, request.profileIds, request.password)
+                    }
+                    BackupTarget.SHARE -> vm.exportForShare(request.sections, request.profileIds, request.password) { file ->
+                        val uri = FileProvider.getUriForFile(context, context.packageName + ".share", file)
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType(BACKUP_MIME)
+                            .putExtra(Intent.EXTRA_STREAM, uri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        context.startActivity(Intent.createChooser(send, null))
+                    }
+                }
             },
-            onDismiss = { exportSheet = false },
+            onDismiss = { exportTarget = null },
+        )
+    }
+
+    if (restoreChooser) {
+        MobileBottomSheet(onDismissRequest = { restoreChooser = false }, title = stringResource(R.string.settings_backup_restore_title)) {
+            StageSheetHeader(title = stringResource(R.string.settings_backup_restore_title), subtitle = stringResource(R.string.more_restore_body_mobile))
+            StageMenuItem(stringResource(R.string.more_backup_file_tv_mobile), onClick = { restoreChooser = false; pickBackup() }, icon = MobileIcons.Folder, chevron = true)
+            StageMenuItem(stringResource(R.string.settings_backup_remote), onClick = { restoreChooser = false; remoteRestore = true }, icon = MobileIcons.Translate, chevron = true)
+        }
+    }
+
+    if (remoteRestore) {
+        val state by vm.remoteState.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { vm.startRemoteRestore() }
+        // A backup sent from the other device goes into the same restore steps as a picked file.
+        LaunchedEffect(Unit) { vm.remoteBackups.collect { file -> remoteRestore = false; vm.beginRestore(file) } }
+        DisposableEffect(Unit) { onDispose { vm.stopRemote() } }
+        RemoteSheet(
+            title = stringResource(R.string.settings_restore_remote_title),
+            body = stringResource(R.string.settings_restore_remote_description),
+            state = state,
+            preparing = false,
+            onRestart = vm::startRemoteRestore,
+            onDismiss = { remoteRestore = false },
+        )
+    }
+
+    if (remoteExport) {
+        val state by vm.remoteState.collectAsStateWithLifecycle()
+        DisposableEffect(Unit) { onDispose { vm.stopRemote() } }
+        // A failed preparation is reported by the outcome sheet; the Remote sheet has nothing to show.
+        LaunchedEffect(vm.outcome) { if (vm.outcome is BackupViewModel.Outcome.Failed) remoteExport = false }
+        RemoteSheet(
+            title = stringResource(R.string.settings_download_remote_title),
+            body = stringResource(R.string.settings_download_remote_description),
+            state = state,
+            preparing = vm.preparingRemote,
+            onRestart = null,
+            onDismiss = { remoteExport = false },
         )
     }
 
@@ -161,7 +282,7 @@ fun SettingsBackupPage(
     vm.outcome?.let { outcome -> OutcomeSheet(outcome, vm::dismissOutcome) }
 
     // A restore can bring a different icon colour than the launcher shows. Offer the restart once the
-    // summary is closed, so the two dialogs never stack.
+    // summary is closed, so the two sheets never stack.
     val settings: tv.own.owntv.core.settings.SettingsRepository = org.koin.compose.koinInject()
     val chosenIcon = settings.appIcon.pref(null)
     val appliedIcon = tv.own.owntv.mobile.ui.components.rememberAppliedIcon()
@@ -169,11 +290,136 @@ fun SettingsBackupPage(
     LaunchedEffect(vm.outcome) { if (vm.outcome is BackupViewModel.Outcome.Restored) restoredPending = true }
     if (restoredPending && vm.outcome == null) {
         if (chosenIcon != null && chosenIcon != appliedIcon) {
-            tv.own.owntv.mobile.ui.components.AppIconRestartDialog(chosenIcon) { restoredPending = false }
+            AppIconRestartSheet(chosenIcon) { restoredPending = false }
         } else {
             LaunchedEffect(Unit) { restoredPending = false }
         }
     }
+}
+
+/**
+ * `.card` (radius 18, padding 14, ink 4.5 %): an icon (18) over a 15 / 800 title and its [content]. [inline]
+ * puts the icon beside the title block (the warning); [warn] is the warn tint and rim; [fx] the selected look.
+ */
+@Composable
+private fun BackupCard(
+    icon: ImageVector,
+    title: String,
+    warn: Boolean = false,
+    fx: Boolean = false,
+    inline: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    val palette = LocalStagePalette.current
+    val shape = RoundedCornerShape(18.dp)
+    val interaction = remember { MutableInteractionSource() }
+    val warnColor = palette.warn
+    val base = Modifier
+        .fillMaxWidth()
+        .clip(shape)
+        .then(
+            when {
+                warn -> Modifier
+                    .background(warnColor.copy(alpha = 0.10f))
+                    .drawBehind { drawInnerRing(warnColor.copy(alpha = 0.3f), 1.dp.toPx(), 18.dp.toPx()) }
+                fx -> Modifier.stageFx(18.dp)
+                else -> Modifier.background(palette.ink.copy(alpha = 0.045f))
+            },
+        )
+        .then(if (onClick != null) Modifier.stageClickable(interaction, onClick, null) else Modifier)
+        .padding(14.dp)
+    val tint = if (warn) warnColor else palette.text
+    if (inline) {
+        Row(base, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StageIcon(icon, 20.dp, tint)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = stageText(14f, 800), color = palette.text)
+                Column(Modifier.padding(top = 2.dp)) { content() }
+            }
+        }
+    } else {
+        Column(base) {
+            StageIcon(icon, 18.dp, tint)
+            Text(title, style = stageText(15f, 800), color = palette.text, modifier = Modifier.padding(top = 6.dp))
+            content()
+        }
+    }
+}
+
+/** What's included: a 28 dp `.tool` with a ✓. */
+@Composable
+private fun IncludedChip(text: String) {
+    val palette = LocalStagePalette.current
+    Row(
+        Modifier.height(28.dp).clip(RoundedCornerShape(12.dp)).background(palette.controlFill).padding(horizontal = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StageIcon(MobileIcons.Check, 14.dp, palette.muted)
+        Text(text, style = stageText(12.5f, 700), color = palette.muted)
+    }
+}
+
+/**
+ * Remote: core's companion server, open while this sheet is. The PIN (accent, spaced), the QR of the address
+ * on white (a QR on glass may not scan) and the address itself; Starting / Failed / Locked say so.
+ * [onRestart] mints a fresh PIN after a failure or a lock (restore only).
+ */
+@Composable
+internal fun RemoteSheet(
+    title: String,
+    body: String,
+    state: CompanionServerState,
+    preparing: Boolean,
+    onRestart: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val palette = LocalStagePalette.current
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title)
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+            val muted = stageText(12.5f, 500)
+            // The whole instruction, never cut: it is what the other device's user has to follow.
+            Text(body, style = stageText(12f, 500, lineHeight = 1.4f), color = palette.muted, modifier = Modifier.padding(bottom = 12.dp))
+            when {
+                preparing -> Text(stringResource(R.string.settings_preparing_backup), style = muted, color = palette.muted)
+                state is CompanionServerState.Listening -> Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    state.qr?.let { qr ->
+                        Image(
+                            bitmap = qr.asImageBitmap(),
+                            contentDescription = stringResource(R.string.common_qr_code_companion_url),
+                            modifier = Modifier.size(120.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp),
+                        )
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.setup_enter_pin_browser), style = muted, color = palette.muted)
+                        Text(state.pin, style = stageText(30f, 800, 0.18.em), color = stageAccent.accent)
+                        Text(stringResource(R.string.setup_open_url), style = muted, color = palette.muted, modifier = Modifier.padding(top = 8.dp))
+                        state.urls.forEach { Text(it, style = stageText(13f, 700), color = palette.text) }
+                    }
+                }
+                state is CompanionServerState.Failed -> Text(state.failure.text(), style = muted, color = palette.danger)
+                state == CompanionServerState.Locked -> Text(stringResource(R.string.setup_companion_locked), style = muted, color = palette.danger)
+                else -> Text(stringResource(R.string.setup_opening_server), style = muted, color = palette.muted)
+            }
+        }
+        if (onRestart != null && (state is CompanionServerState.Failed || state == CompanionServerState.Locked)) {
+            StageMenuItem(
+                stringResource(if (state is CompanionServerState.Failed) R.string.settings_try_again else R.string.settings_new_pin),
+                onClick = onRestart,
+                icon = MobileIcons.Refresh,
+            )
+        }
+        StageMenuItem(stringResource(R.string.common_done), onClick = onDismiss, icon = MobileIcons.Check)
+    }
+}
+
+@Composable
+private fun CompanionFailure.text(): String = when (this) {
+    CompanionFailure.InvalidPort -> stringResource(R.string.setup_companion_invalid_port)
+    is CompanionFailure.PortInUse -> stringResource(R.string.setup_companion_port_in_use, port)
+    CompanionFailure.Unavailable -> stringResource(R.string.setup_companion_unavailable)
 }
 
 /** Everything the export needs, decided before the picker opens. */
@@ -183,9 +429,17 @@ private data class ExportRequest(
     val password: String?,
 )
 
+/** A sheet's switch row (48 dp): the label, what it covers, and the switch; the whole row toggles. */
+@Composable
+private fun SwitchRow(label: String, description: String?, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    StageSettingRow(title = label, subtitle = description, minHeight = 48.dp, onClick = { onToggle(!checked) }) {
+        StageSwitch(checked)
+    }
+}
+
 /**
- * Whose data, which parts of it, and whether the file is encrypted — all three in one sheet,
- * because they are one decision and a phone should not walk anybody through three screens for it.
+ * Whose data, which parts of it, and whether the file is encrypted — all three in one sheet, because they
+ * are one decision and a phone should not walk anybody through three screens for it.
  *
  * A locked profile that is not the one in use has to be unlocked before it can be ticked: its PIN is
  * what stops the person holding the phone from carrying its history off to another device.
@@ -202,28 +456,16 @@ private fun ExportSheet(
     var sections by remember { mutableStateOf(BackupManager.Section.entries.toSet()) }
     var password by remember { mutableStateOf("") }
     var pinFor by remember { mutableStateOf<ProfileEntity?>(null) }
+    val palette = LocalStagePalette.current
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_backup_export_title),
-    ) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = sheetListHeight())
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
-        ) {
-            Note(stringResource(R.string.settings_backup_selected_profiles))
-            Label(stringResource(R.string.settings_backup_which_profiles))
+    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.settings_backup_export_title)) {
+        StageSheetHeader(title = stringResource(R.string.settings_backup_export_title), subtitle = stringResource(R.string.settings_backup_selected_profiles))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            StageGroupLabel(stringResource(R.string.settings_backup_which_profiles))
             profiles.forEach { profile ->
                 val locked = profile.pinHash != null && profile.id != activeProfileId
-                CheckRow(
-                    label = if (profile.id == activeProfileId) {
-                        stringResource(R.string.settings_backup_profile_current, profile.name)
-                    } else {
-                        profile.name
-                    },
+                SwitchRow(
+                    label = if (profile.id == activeProfileId) stringResource(R.string.settings_backup_profile_current, profile.name) else profile.name,
                     description = if (locked) stringResource(R.string.settings_backup_pin_locked) else null,
                     checked = profile.id in profileIds,
                     onToggle = { on ->
@@ -235,33 +477,29 @@ private fun ExportSheet(
                     },
                 )
             }
-            Label(stringResource(R.string.settings_backup_what_backup))
+            StageGroupLabel(stringResource(R.string.settings_backup_what_backup))
             BackupManager.Section.entries.forEach { section ->
-                CheckRow(
+                SwitchRow(
                     label = stringResource(section.labelRes()),
                     description = stringResource(section.descriptionRes()),
                     checked = section in sections,
                     onToggle = { on -> sections = if (on) sections + section else sections - section },
                 )
             }
-            Label(stringResource(R.string.settings_backup_encrypt_title))
-            Note(stringResource(R.string.settings_backup_encrypt_message))
-            MobileTextField(
+            StageGroupLabel(stringResource(R.string.settings_backup_encrypt_title))
+            Text(stringResource(R.string.settings_backup_encrypt_message), style = stageText(11.5f, 500, lineHeight = 1.4f), color = palette.muted, modifier = Modifier.padding(horizontal = 12.dp))
+            StageSearchField(
                 value = password,
                 onValueChange = { password = it },
-                label = stringResource(R.string.settings_backup_password),
-                isPassword = true,
+                placeholder = stringResource(R.string.settings_backup_password),
+                icon = null,
                 imeAction = ImeAction.Done,
+                password = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             )
         }
-        SheetButtons(
-            confirm = stringResource(
-                if (password.isBlank()) {
-                    R.string.settings_backup_export_unencrypted
-                } else {
-                    R.string.settings_backup_encrypt_export
-                },
-            ),
+        StageConfirmItems(
+            confirm = stringResource(if (password.isBlank()) R.string.settings_backup_export_unencrypted else R.string.settings_backup_encrypt_export),
             confirmEnabled = profileIds.isNotEmpty() && sections.isNotEmpty(),
             onConfirm = { onExport(ExportRequest(sections, profileIds, password.takeIf { it.isNotBlank() })) },
             onDismiss = onDismiss,
@@ -292,41 +530,24 @@ private fun SealedPasswordSheet(
     onDismiss: () -> Unit,
 ) {
     var password by remember { mutableStateOf("") }
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_backup_enter_password),
-    ) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = sheetListHeight())
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-        ) {
-            Note(stringResource(R.string.settings_backup_encrypted_description))
-            MobileTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = stringResource(R.string.settings_backup_password),
-                isPassword = true,
-                imeAction = ImeAction.Done,
-                onImeDone = { if (password.isNotBlank()) onSubmit(password) },
-                isError = wrong,
-                supportingText = if (wrong) {
-                    stringResource(R.string.settings_backup_password_encrypted_mismatch)
-                } else {
-                    null
-                },
-            )
-        }
-        SheetButtons(
-            confirm = stringResource(R.string.settings_backup_unlock),
-            confirmEnabled = password.isNotBlank(),
-            // Kept open on purpose: a wrong password comes back to this same sheet with its message.
-            onConfirm = { onSubmit(password) },
-            onDismiss = onDismiss,
+    val palette = LocalStagePalette.current
+    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.settings_backup_enter_password)) {
+        StageSheetHeader(title = stringResource(R.string.settings_backup_enter_password), subtitle = stringResource(R.string.settings_backup_encrypted_description))
+        StageSearchField(
+            value = password,
+            onValueChange = { password = it },
+            placeholder = stringResource(R.string.settings_backup_password),
+            icon = null,
+            imeAction = ImeAction.Done,
+            onSearch = { if (password.isNotBlank()) onSubmit(password) },
+            password = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         )
+        if (wrong) {
+            Text(stringResource(R.string.settings_backup_password_encrypted_mismatch), style = stageText(11.5f, 600), color = palette.danger, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+        }
+        // Kept open on purpose: a wrong password comes back to this same sheet with its message.
+        ConfirmThenCancel(stringResource(R.string.settings_backup_unlock), password.isNotBlank(), { onSubmit(password) }, onDismiss)
     }
 }
 
@@ -349,20 +570,13 @@ private fun RestoreSheet(
     // for a file written elsewhere, and unticked — a phone's values are rarely a television's.
     var deviceSettings by remember(inspection) { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_backup_restore_title),
-    ) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = sheetListHeight())
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
-        ) {
-            Label(stringResource(R.string.settings_backup_what_restore))
+    val palette = LocalStagePalette.current
+    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.settings_backup_restore_title)) {
+        StageSheetHeader(title = stringResource(R.string.settings_backup_restore_title))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            StageGroupLabel(stringResource(R.string.settings_backup_what_restore))
             inspection.sections.forEach { section ->
-                CheckRow(
+                SwitchRow(
                     label = stringResource(section.labelRes()),
                     description = stringResource(section.descriptionRes()),
                     checked = section in sections,
@@ -370,7 +584,7 @@ private fun RestoreSheet(
                 )
             }
             if (inspection.fromOtherDevice && BackupManager.Section.SETTINGS in sections) {
-                CheckRow(
+                SwitchRow(
                     label = stringResource(R.string.settings_backup_device_settings),
                     description = stringResource(R.string.settings_backup_device_settings_desc),
                     checked = deviceSettings,
@@ -378,118 +592,67 @@ private fun RestoreSheet(
                 )
             }
             if (askPassword) {
-                Note(stringResource(R.string.settings_backup_saved_passwords_description))
-                MobileTextField(
+                Text(stringResource(R.string.settings_backup_saved_passwords_description), style = stageText(11.5f, 500, lineHeight = 1.4f), color = palette.muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                StageSearchField(
                     value = password,
                     onValueChange = { password = it },
-                    label = stringResource(R.string.settings_backup_password),
-                    isPassword = true,
-                    isError = wrongPassword,
-                    supportingText = if (wrongPassword) {
-                        stringResource(R.string.settings_backup_password_mismatch)
-                    } else {
-                        null
-                    },
+                    placeholder = stringResource(R.string.settings_backup_password),
+                    icon = null,
+                    imeAction = ImeAction.Done,
+                    password = true,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                 )
+                if (wrongPassword) {
+                    Text(stringResource(R.string.settings_backup_password_mismatch), style = stageText(11.5f, 600), color = palette.danger, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                }
             }
         }
-        SheetButtons(
-            confirm = stringResource(
-                if (askPassword && password.isBlank()) {
-                    R.string.settings_backup_skip_passwords
-                } else {
-                    R.string.settings_backup_restore_action
-                },
-            ),
-            confirmEnabled = sections.isNotEmpty(),
-            onConfirm = { onRestore(sections, password.takeIf { it.isNotBlank() }, deviceSettings) },
-            onDismiss = onDismiss,
+        // The view model closes the sheet when the restore is done, or keeps it for a wrong password.
+        ConfirmThenCancel(
+            stringResource(if (askPassword && password.isBlank()) R.string.settings_backup_skip_passwords else R.string.settings_backup_restore_action),
+            sections.isNotEmpty(),
+            { onRestore(sections, password.takeIf { it.isNotBlank() }, deviceSettings) },
+            onDismiss,
         )
     }
+}
+
+/** A sheet's ending whose confirm does not close it (the view model decides): ✓ confirm, then ✕ Cancel. */
+@Composable
+private fun ConfirmThenCancel(confirm: String, enabled: Boolean, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    StageMenuItem(confirm, onClick = onConfirm, icon = MobileIcons.Check, filled = enabled, enabled = enabled, modifier = Modifier.padding(top = 6.dp))
+    StageMenuItem(stringResource(R.string.common_cancel), onClick = onCancel, icon = MobileIcons.Close)
 }
 
 /** What happened, in the same words the television uses for it. */
 @Composable
 private fun OutcomeSheet(outcome: BackupViewModel.Outcome, onDismiss: () -> Unit) {
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_backup_title),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
-        ) {
+    val palette = LocalStagePalette.current
+    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.settings_backup_title)) {
+        StageSheetHeader(title = stringResource(R.string.settings_backup_title))
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val body = stageText(13f, 500, lineHeight = 1.45f)
             when (outcome) {
                 is BackupViewModel.Outcome.Exported -> Text(
                     stringResource(
-                        if (outcome.passwordsOmitted) {
-                            R.string.settings_backup_saved_to_without_passwords
-                        } else {
-                            R.string.settings_backup_saved_to
-                        },
+                        if (outcome.passwordsOmitted) R.string.settings_backup_saved_to_without_passwords else R.string.settings_backup_saved_to,
                         outcome.name,
                     ),
+                    style = body, color = palette.text,
                 )
                 is BackupViewModel.Outcome.Restored -> {
-                    Text(
-                        pluralStringResource(
-                            R.plurals.settings_backup_restored,
-                            outcome.summary.items,
-                            outcome.summary.items,
-                        ),
-                    )
+                    Text(pluralStringResource(R.plurals.settings_backup_restored, outcome.summary.items, outcome.summary.items), style = body, color = palette.text)
                     if (outcome.summary.skippedSources > 0) {
-                        Text(
-                            pluralStringResource(
-                                R.plurals.settings_backup_skipped_sources,
-                                outcome.summary.skippedSources,
-                                outcome.summary.skippedSources,
-                            ),
-                        )
+                        Text(pluralStringResource(R.plurals.settings_backup_skipped_sources, outcome.summary.skippedSources, outcome.summary.skippedSources), style = body, color = palette.muted)
                     }
-                    if (outcome.summary.invalidLocale) {
-                        Text(stringResource(R.string.settings_backup_invalid_locale))
-                    }
-                    Text(stringResource(R.string.settings_backup_restore_resync))
-                    Text(stringResource(R.string.settings_backup_restore_password_note))
+                    if (outcome.summary.invalidLocale) Text(stringResource(R.string.settings_backup_invalid_locale), style = body, color = palette.muted)
+                    Text(stringResource(R.string.settings_backup_restore_resync), style = body, color = palette.muted)
+                    Text(stringResource(R.string.settings_backup_restore_password_note), style = body, color = palette.muted)
                 }
-                is BackupViewModel.Outcome.Failed -> Text(stringResource(outcome.messageRes))
+                is BackupViewModel.Outcome.Failed -> Text(stringResource(outcome.messageRes), style = body, color = palette.danger)
             }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall, Alignment.End),
-        ) {
-            MobileButton(text = stringResource(R.string.common_ok), onClick = onDismiss)
-        }
-    }
-}
-
-/** A tick, its label and the line that says what it covers — the whole row toggles it. */
-@Composable
-internal fun CheckRow(
-    label: String,
-    description: String?,
-    checked: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(checked = checked, onCheckedChange = onToggle)
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-            if (description != null) {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        StageMenuItem(stringResource(R.string.common_ok), onClick = onDismiss, icon = MobileIcons.Check, filled = true)
     }
 }
 
@@ -508,31 +671,21 @@ internal fun SheetButtons(
         horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MobileButton(
+        StageButton(
             text = stringResource(R.string.common_cancel),
             onClick = onDismiss,
-            style = MobileButtonStyle.TEXT,
+            small = true,
         )
-        MobileButton(text = confirm, onClick = onConfirm, enabled = confirmEnabled)
+        StageButton(text = confirm, onClick = onConfirm, enabled = confirmEnabled, style = StageButtonStyle.PRIMARY)
     }
-}
-
-@Composable
-internal fun Label(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = MobileDimens.GapSmall),
-    )
 }
 
 @Composable
 internal fun Note(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = stageText(12f, 400),
+        color = LocalStagePalette.current.muted,
     )
 }
 

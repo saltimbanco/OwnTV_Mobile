@@ -2,33 +2,23 @@ package tv.own.owntv.mobile.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import tv.own.owntv.core.database.entity.EpisodeEntity
@@ -39,8 +29,11 @@ import tv.own.owntv.core.metadata.CastMember
 import tv.own.owntv.core.metadata.MetadataCast
 import tv.own.owntv.core.metadata.MetadataImages
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.theme.MobileCardShape
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageCastRow
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 import java.text.NumberFormat
 
 /** Provider and TMDB already merged: the sheet shows what it is given and asks nothing. */
@@ -62,137 +55,52 @@ data class MediaDetails(
  * the same sheet as every other long-press follow-up, so swiping it away is the way out and there is
  * no "press Back" line to print.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TmdbDetailsSheet(details: MediaDetails, onDismiss: () -> Unit) {
-    MobileBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = detailsHeight())
-                .verticalScroll(rememberScrollState()),
-        ) {
-            if (!details.backdropUrl.isNullOrBlank()) {
-                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+    val palette = LocalStagePalette.current
+    // Stage sheet, Home's ⓘ sheet shape: the poster (or an episode's still) beside the title, its line,
+    // the meta line and the genres in the accent; then OVERVIEW and the plot, CAST and the cast row.
+    MobileBottomSheet(onDismissRequest = onDismiss, title = details.title) {
+        Column(Modifier.heightIn(max = detailsHeight()).verticalScroll(rememberScrollState())) {
+            Row(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val art = details.posterUrl ?: details.backdropUrl
+                if (!art.isNullOrBlank()) {
+                    val still = details.posterUrl == null
                     AsyncImage(
-                        model = details.backdropUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    // The picture has to end in the sheet, not stop against it.
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(
-                                0.55f to Color.Transparent,
-                                1f to MaterialTheme.colorScheme.surfaceContainerLow,
-                            ),
-                        ),
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = MobileDimens.ScreenPaddingH),
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                if (!details.posterUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = details.posterUrl,
+                        model = art,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .width(POSTER_WIDTH)
-                            .aspectRatio(2f / 3f)
-                            .clip(MobileCardShape),
+                            .then(if (still) Modifier.size(112.dp, 63.dp) else Modifier.size(70.dp, 105.dp))
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(palette.cardSolid),
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        text = details.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
+                    Text(details.title, style = stageText(19f, 800), color = palette.text, maxLines = 3, overflow = TextOverflow.Ellipsis)
                     details.subtitle?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text(it, style = stageText(12f, 600), color = palette.muted, modifier = Modifier.padding(top = 2.dp))
                     }
                     if (details.metaLine.isNotBlank()) {
-                        Text(
-                            text = details.metaLine,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text(details.metaLine, style = stageText(12f, 600), color = palette.muted, modifier = Modifier.padding(top = 2.dp))
                     }
                     if (details.genres.isNotEmpty()) {
                         Text(
-                            text = details.genres.joinToString(stringResource(R.string.content_metadata_separator)),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
+                            details.genres.joinToString(stringResource(R.string.content_metadata_separator)),
+                            style = stageText(12f, 700),
+                            color = stageAccent.accent,
+                            modifier = Modifier.padding(top = 6.dp),
                         )
                     }
                 }
             }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(MobileDimens.ScreenPaddingH),
-                verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                details.plot?.takeIf { it.isNotBlank() }?.let { plot ->
-                    Text(
-                        text = stringResource(R.string.content_media_overview),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        text = plot,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (details.cast.isNotEmpty()) {
-                    Text(
-                        text = stringResource(R.string.content_media_cast),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    // Wrapping, not a sideways strip: every credited actor is reached by the scroll
-                    // the sheet already has, and nothing competes with it for the horizontal drag.
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                        verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                    ) {
-                        details.cast.forEach { member ->
-                            Column(
-                                modifier = Modifier.width(CAST_WIDTH),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                AsyncImage(
-                                    model = MetadataImages.profile(member.profilePath),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(CAST_PHOTO)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                                )
-                                Text(
-                                    text = member.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-                    }
-                }
+            details.plot?.takeIf { it.isNotBlank() }?.let { plot ->
+                StageGroupLabel(stringResource(R.string.content_media_overview))
+                Text(plot, style = stageText(12.5f, 500, lineHeight = 1.5f), color = palette.body, modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp))
+            }
+            if (details.cast.isNotEmpty()) {
+                StageGroupLabel(stringResource(R.string.content_media_cast))
+                StageCastRow(details.cast, contentPadding = PaddingValues(horizontal = 12.dp), modifier = Modifier.padding(top = 6.dp, bottom = 8.dp))
             }
         }
     }
@@ -290,7 +198,3 @@ internal fun jsonList(json: String?): List<String> {
 /** Taller than the pickers: this one is for reading, so it takes three quarters of the screen. */
 @Composable
 private fun detailsHeight() = (LocalConfiguration.current.screenHeightDp * 3 / 4).dp
-
-private val POSTER_WIDTH = 96.dp
-private val CAST_WIDTH = 76.dp
-private val CAST_PHOTO = 64.dp

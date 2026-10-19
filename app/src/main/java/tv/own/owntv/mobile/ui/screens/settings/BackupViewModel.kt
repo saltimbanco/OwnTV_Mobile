@@ -9,12 +9,16 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.own.owntv.core.backup.BackupManager
+import tv.own.owntv.core.companion.CompanionController
+import tv.own.owntv.core.companion.CompanionLink
+import tv.own.owntv.core.companion.CompanionServerState
 import tv.own.owntv.core.database.dao.ProfileDao
 import tv.own.owntv.core.database.entity.ProfileEntity
 import tv.own.owntv.core.profile.ProfileManager
@@ -36,6 +40,7 @@ class BackupViewModel(
     private val context: Context,
     profileDao: ProfileDao,
     settings: SettingsRepository,
+    private val companion: CompanionController,
 ) : ViewModel() {
 
     val profiles: StateFlow<List<ProfileEntity>> = profileDao.observeAll()
@@ -73,6 +78,53 @@ class BackupViewModel(
         val sealed: Boolean = false,
         val wrongPassword: Boolean = false,
     )
+
+    // ---- Remote: the television's companion server, core's. Another device on the same Wi-Fi
+    // opens the address, enters the PIN, and downloads this phone's backup or sends one to restore. ----
+
+    /** Idle / Starting / Listening with the PIN and QR / Failed / Locked, for the Remote sheets. */
+    val remoteState: StateFlow<CompanionServerState> get() = companion.state
+
+    /** Backups sent from another device; each one goes into [beginRestore]. */
+    val remoteBackups: Flow<File> get() = companion.backups
+
+    /** The backup is being written before the Remote server opens to serve it. */
+    var preparingRemote by mutableStateOf(false)
+        private set
+
+    fun startRemoteRestore() = companion.startForBackupRestore(CompanionLink.DEFAULT_PORT)
+
+    fun stopRemote() = companion.stop()
+
+    /** Writes the backup into the companion's folder, then serves it for another device to download. */
+    fun exportRemote(sections: Set<BackupManager.Section>, profileIds: Set<Long>, password: String?) {
+        if (busy) return
+        viewModelScope.launch {
+            busy = true
+            preparingRemote = true
+            backup.export(companion.backupExportDir, sections, password, profileIds).fold(
+                onSuccess = { path -> companion.startForBackupDownload(CompanionLink.DEFAULT_PORT, File(path)) },
+                onFailure = { outcome = Outcome.Failed(R.string.settings_backup_export_error) },
+            )
+            preparingRemote = false
+            busy = false
+        }
+    }
+
+    /** Writes the backup into the cache for the system share sheet; [onReady] gets the file to share. */
+    fun exportForShare(sections: Set<BackupManager.Section>, profileIds: Set<Long>, password: String?, onReady: (File) -> Unit) {
+        if (busy) return
+        viewModelScope.launch {
+            busy = true
+            // One shared backup at a time: the last one is gone by the time the next is written.
+            val dir = File(context.cacheDir, SHARE_DIR).apply { deleteRecursively(); mkdirs() }
+            backup.export(dir, sections, password, profileIds).fold(
+                onSuccess = { path -> onReady(File(path)) },
+                onFailure = { outcome = Outcome.Failed(R.string.settings_backup_export_error) },
+            )
+            busy = false
+        }
+    }
 
     fun verifyPin(profile: ProfileEntity, pin: String): Boolean = profileManager.verifyPin(profile, pin)
 
@@ -188,5 +240,8 @@ class BackupViewModel(
         /** Long enough that rotating the phone does not restart the profile query. */
         const val STOP_TIMEOUT_MS = 5_000L
         const val EXPORT_DIR = "backup-export"
+
+        /** Under the cache; the only folder `res/xml/share_paths.xml` lets the share sheet read. */
+        const val SHARE_DIR = "backup-share"
     }
 }

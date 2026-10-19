@@ -15,7 +15,7 @@ import tv.own.owntv.mobile.ui.theme.LocalMobileMotion
  * and the one tile that uses them — six signatures widened so that two of them can be read. Locals are
  * what a cross-cutting scope is for.
  *
- * Both are null wherever no transition is running (a preview, the theme gallery, a bottom sheet in its
+ * Both are null wherever no transition is running (a preview, a bottom sheet in its
  * own window), and [sharedPoster] then does nothing at all.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -44,6 +44,3 @@ fun Modifier.sharedPoster(key: String): Modifier {
         )
     }
 }
-
-/** The key both ends of the journey agree on: one item, one picture. */
-fun posterKey(tab: String, itemId: Long): String = "poster:$tab:$itemId"

@@ -32,7 +32,7 @@ import tv.own.owntv.core.repository.activeProfileSources
 import tv.own.owntv.core.settings.SettingsRepository
 
 /** One category row in the Customize screen (hidden rows stay visible here, marked, for unhiding).
- *  [categoryId] is null for a user's custom combined category (issue #87) — there is no provider
+ *  [categoryId] is null for a user's custom combined category — there is no provider
  *  row behind it. [providerName] is null when only one source is in scope. */
 data class CustomizeCatRow(
     val key: String,
@@ -146,7 +146,7 @@ class CustomizeViewModel(
                 ) { cats, cust, sources, profile ->
                     val providerNames = sources.associate { it.id to it.name }.takeIf { sourceIds.size > 1 }
                     val orderIndex = cust.categoryOrder.withIndex().associate { (i, k) -> k to i }
-                    // Provider folders + the user's custom combined categories (#87) in ONE list, so
+                    // Provider folders + the user's custom combined categories in ONE list, so
                     // hide/rename/reorder apply uniformly (their keys share the CustomizeKeys
                     // namespace). Custom rows carry categoryId = null and no provider name.
                     val visibleCustomCategories = if (profile?.isKids == true) {
@@ -222,6 +222,42 @@ class CustomizeViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsRepository.SortMode.PLAYLIST)
 
+    /** The single playlist picked in the shell, or null for "All playlists" — what [restoreSectionDefaults]
+     *  covers, so the question can name it. */
+    val restorePlaylistName: StateFlow<String?> = combine(ctx, settings.defaultSourceId) { c, id ->
+        c.sources.firstOrNull { it.id == id && id > 0 }?.name
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * ⋯ › Restore playlist defaults: puts the playlists this section shows back to what
+     * they provide — hidden categories and items show again, renames and category order are cleared, items moved
+     * out of their folders return and manual item orders are dropped. Other playlists, combined categories (and
+     * what is in them), Favorites and guide matches are left alone. Keys are "<sourceId>:<id>", so a playlist's
+     * entries are those whose prefix is one of the shown source ids; "custom:…" keys never match.
+     */
+    fun restoreSectionDefaults() {
+        val pid = ctx.value.profileId
+        if (pid < 0) return
+        viewModelScope.launch {
+            val type = _section.value
+            val ids = ctx.value.sourceIdsFor(type).toSet()
+            fun mine(key: String) = key.substringBefore(':').toLongOrNull() in ids
+            contentOrderDao.observeContextKeys(pid, type).first()
+                .filter { it != tv.own.owntv.core.database.entity.ContentOrderEntity.FAV_CONTEXT && mine(it) }
+                .forEach { contentOrderDao.clearContext(pid, type, it) }
+            customize.update(pid, type) {
+                it.copy(
+                    hiddenCategories = it.hiddenCategories.filterNot(::mine).toSet(),
+                    hiddenItems = it.hiddenItems.filterKeys { k -> !mine(k) },
+                    categoryNames = it.categoryNames.filterKeys { k -> !mine(k) },
+                    itemNames = it.itemNames.filterKeys { k -> !mine(k) },
+                    categoryOrder = it.categoryOrder.filterNot(::mine),
+                    movedFromOrigin = it.movedFromOrigin.filterKeys { k -> !mine(k) },
+                )
+            }
+        }
+    }
+
     fun setSort(mode: SettingsRepository.SortMode) {
         viewModelScope.launch {
             when (_section.value) {
@@ -242,7 +278,7 @@ class CustomizeViewModel(
     fun closeItems() { _selectedCategory.value = null }
 
     /** Data the items ViewModel needs to page the selected category. [categoryId] is null for a
-     *  custom combined category (issue #87) — the items screen then pages the membership join. */
+     *  custom combined category — the items screen then pages the membership join. */
     data class ItemsCtx(val categoryId: Long?, val mediaType: MediaType, val sourceIds: List<Long>)
 
     fun ctxForItems(): ItemsCtx? {
@@ -255,7 +291,7 @@ class CustomizeViewModel(
         )
     }
 
-    // --- custom combined categories (issue #87) ---
+    // --- custom combined categories ---
 
     /** Creates a custom category for the selected section — the "＋ New category" pill. */
     fun createCustomCategory(name: String) {
@@ -267,7 +303,7 @@ class CustomizeViewModel(
     }
 
     /**
-     * Deletes a custom combined category (issue #87). Room rows are cleared FIRST (membership +
+     * Deletes a custom combined category. Room rows are cleared FIRST (membership +
      * manual order inside it), then the DataStore definition — so the rail never shows a half-dead
      * category. The provider items themselves are never touched.
      */
@@ -356,7 +392,7 @@ class CustomizeViewModel(
 
     val rangeSelectedKeys: StateFlow<Set<String>> = span.selectedKeys
 
-    // --- bulk rename (issue #86) ---
+    // --- bulk rename ---
 
     /**
      * One-shot bulk-rename flow for the current section's category rows. Every accepted rename lands
@@ -392,5 +428,17 @@ class CustomizeViewModel(
         val byKey = rows.value.associateBy { it.key }
         bulk.start(keys.mapNotNull { byKey[it]?.let { row -> row.key to row.originalName } })
         return keys
+    }
+
+    /**
+     * Bulk-renames every category the list shows (the section and the visibility filter in force) —
+     * the toolbar's Bulk rename / ✨ Auto cleanup, which used to exist for items only; categories had
+     * just the long-press span. Works on the ORIGINAL names, like the span.
+     */
+    fun bulkRenameAll(autocleanup: Boolean) {
+        val entries = rows.value.map { it.key to it.originalName }
+        if (entries.isEmpty()) return
+        bulk.start(entries)
+        if (autocleanup) bulk.autoCleanup()
     }
 }

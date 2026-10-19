@@ -25,6 +25,7 @@ val downloadsModule = module {
             settings = get(),
             downloadManager = get(),
             vodTuner = get(),
+            tracker = get(),
         )
     }
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -23,6 +24,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import tv.own.owntv.core.content.AdultCategoryClassifier
 import tv.own.owntv.core.customize.CustomizationStore
+import tv.own.owntv.core.customize.restoreCategoryToDefault
+import tv.own.owntv.core.customize.planCategoryRestore
+import tv.own.owntv.core.customize.CategoryRestorePlan
 import tv.own.owntv.core.customize.CustomizeKeys
 import tv.own.owntv.core.customize.SectionCustomizations
 import tv.own.owntv.core.customize.CategoryRailEditor
@@ -43,10 +47,12 @@ import tv.own.owntv.core.database.entity.FavoriteEntity
 import tv.own.owntv.core.epg.EpgShift
 import tv.own.owntv.core.live.LiveEpgReader
 import tv.own.owntv.core.live.LiveKey
+import tv.own.owntv.core.live.liveCountFlow
 import tv.own.owntv.core.live.livePagingSource
 import tv.own.owntv.core.live.parseLiveKey
 import tv.own.owntv.core.live.serialize
 import tv.own.owntv.core.model.MediaType
+import tv.own.owntv.core.parser.XtEpgEntry
 import tv.own.owntv.core.player.ExternalPlayerLauncher
 import tv.own.owntv.core.repository.ActiveProfileSources
 import tv.own.owntv.core.repository.EpgRepository
@@ -55,12 +61,20 @@ import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.settings.SourceOverrides
 import tv.own.owntv.core.stalker.StreamUrlResolver
 import tv.own.owntv.core.sync.work.CatalogSyncScheduler
+import tv.own.owntv.core.ui.stage.PlaylistMark
+import tv.own.owntv.core.util.throttleLatest
 import tv.own.owntv.mobile.ui.components.ReorderItem
 import tv.own.owntv.mobile.ui.shell.StartupLiveSelection
 
 /** One chip in the strip above the channel list. [builtIn] labels are translated; the rest are the
  *  user's or the provider's own names, so they are carried as text. */
-data class LiveCategory(val key: LiveKey, val title: String? = null, val builtIn: BuiltIn? = null) {
+data class LiveCategory(
+    val key: LiveKey,
+    val title: String? = null,
+    val builtIn: BuiltIn? = null,
+    /** The playlist a provider folder comes from, for its mark in the categories sheet. */
+    val sourceId: Long? = null,
+) {
     enum class BuiltIn { ALL, FAVORITES, HISTORY, CATCHUP }
 }
 
@@ -73,7 +87,7 @@ data class LiveCategory(val key: LiveKey, val title: String? = null, val builtIn
  * needs: there is no preview pane to keep fed and no focused row to follow, so the guide is read in
  * one batch for the rows actually on screen instead of per channel as focus moves.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 class LiveViewModel(
     private val channelDao: ChannelDao,
     private val categoryDao: CategoryDao,
@@ -90,9 +104,9 @@ class LiveViewModel(
     private val externalPlayerLauncher: ExternalPlayerLauncher,
     private val streamUrlResolver: StreamUrlResolver,
     private val syncScheduler: CatalogSyncScheduler,
-    startupSelection: StartupLiveSelection,
+    private val startupSelection: StartupLiveSelection,
     epgDao: EpgDao,
-    /** The app-wide reader the Guide uses too (T18) — one now/next cache, not two. */
+    /** The app-wide reader the Guide uses too — one now/next cache, not two. */
     private val epgReader: LiveEpgReader,
 ) : ViewModel() {
 
@@ -136,7 +150,9 @@ class LiveViewModel(
 
     private val folderContextKeys: StateFlow<Map<Long, String>> = liveCategories
         .map { cats -> cats.associateBy({ it.id }, { CustomizeKeys.category(it) }) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        // Eagerly: only ever read as `.value` (the menu's Move, the pager's manual order), never collected —
+        // shared while-subscribed it stayed empty, and Move / Move to category never appeared in a folder.
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     /** Contexts that actually carry a manual order — core's paging query takes the cheap path for
      *  the rest, and the pager is rebuilt when a folder gains or loses one. */
@@ -167,16 +183,77 @@ class LiveViewModel(
             add(LiveCategory(LiveKey.Favorites, builtIn = LiveCategory.BuiltIn.FAVORITES))
             add(LiveCategory(LiveKey.History, builtIn = LiveCategory.BuiltIn.HISTORY))
             if (catchupCount > 0) add(LiveCategory(LiveKey.Catchup, builtIn = LiveCategory.BuiltIn.CATCHUP))
+            val sources = cats.associate { it.id to it.sourceId }
             folders.forEach { e ->
                 add(
                     LiveCategory(
                         key = e.categoryId?.let { LiveKey.Folder(it) } ?: LiveKey.Custom(e.customId!!),
                         title = e.displayName,
+                        sourceId = e.categoryId?.let(sources::get),
                     ),
                 )
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * The channel count beside every category in the sheet (the TV's railCounts): each fixed entry and
+     * custom category by the crumb's own query, every provider folder from one grouped query. Only
+     * collected while the sheet is open.
+     */
+    val categoryCounts: StateFlow<Map<LiveKey, Int>> = combine(ctx, hiddenCategoryIds, categories) { c, hidden, items -> Triple(c, hidden, items) }
+        .flatMapLatest { (c, hidden, items) ->
+            if (c.profileId < 0) return@flatMapLatest flowOf(emptyMap())
+            val single = items.filter { it.key !is LiveKey.Folder }.map { item ->
+                liveCountFlow(item.key, c.profileId, c.liveSourceIds, hidden, channelDao, customCategoryDao).map { mapOf(item.key to it) }
+            }
+            val folders = channelDao.observeCountsByCategory(c.liveSourceIds.ifEmpty { listOf(-1L) })
+                .map { rows -> rows.associate { LiveKey.Folder(it.categoryId) as LiveKey to it.itemCount } }
+            combine(single + folders) { parts -> parts.fold(emptyMap<LiveKey, Int>()) { acc, m -> acc + m } }.throttleLatest()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    /** Settings › Layout › Show counts. */
+    val sheetCounts: StateFlow<Boolean> = settings.sheetCounts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /** List or the guide grid — core's "Live TV opens in", remembered from the Guide view tool. */
+    val liveView: StateFlow<SettingsRepository.LiveView> = settings.liveView
+        .stateIn(viewModelScope, SharingStarted.Eagerly, SettingsRepository.LiveView.LIST)
+
+    fun toggleLiveView() {
+        val next = if (liveView.value == SettingsRepository.LiveView.GUIDE) SettingsRepository.LiveView.LIST else SettingsRepository.LiveView.GUIDE
+        viewModelScope.launch { settings.setLiveView(next) }
+    }
+
+    /** What restoring [key]'s category to the playlist default would undo (empty when nothing). */
+    suspend fun categoryRestorePlan(key: LiveKey): CategoryRestorePlan {
+        val contextKey = categoryContextKey(key) ?: return CategoryRestorePlan()
+        val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return CategoryRestorePlan()
+        return planCategoryRestore(customize, contentOrderDao, pid, MediaType.LIVE, contextKey, customCategoryDao) {
+            when (key) {
+                is LiveKey.Folder -> channelDao.snapshotByCategoryManual(key.id, pid, contextKey, Int.MAX_VALUE)
+                    .mapTo(HashSet()) { CustomizeKeys.channel(it) }
+                else -> customCategoryDao.stableItemKeys(pid, contextKey).toSet()
+            }
+        }
+    }
+
+    /** Back to the playlist's order and contents (core's restoreCategoryToDefault). */
+    fun restoreCategory(key: LiveKey) {
+        val contextKey = categoryContextKey(key) ?: return
+        viewModelScope.launch {
+            val pid = ctx.value.profileId.takeIf { it >= 0 } ?: return@launch
+            restoreCategoryToDefault(customize, contentOrderDao, pid, MediaType.LIVE, contextKey, categoryRestorePlan(key))
+        }
+    }
+
+    /** The content_order / movedFromOrigin context behind a category, or null for the fixed entries. */
+    private fun categoryContextKey(key: LiveKey): String? = when (key) {
+        is LiveKey.Folder -> folderContextKeys.value[key.id]
+        is LiveKey.Custom -> key.id
+        else -> null
+    }
 
     /** Hide and reorder a category from the strip, through the same editor Settings → Customize uses. */
     private val categoryEditor = CategoryRailEditor(customize, categoryDao, profileDao)
@@ -227,10 +304,50 @@ class LiveViewModel(
         .map { it.toSet() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    private val _nowPlaying = MutableStateFlow<Map<Long, String>>(emptyMap())
+    /**
+     * The Stage playlist mark per source, coloured by the playlist's position in the
+     * profile's list — the TV's rule. Empty with one playlist, like [providerNames].
+     */
+    val playlistMarks: StateFlow<Map<Long, PlaylistMark>> = ctx
+        .map { c ->
+            if (c.liveSourceIds.size < 2) emptyMap()
+            else c.sources.withIndex().associate { (i, s) -> s.id to PlaylistMark.of(s.name, i) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** "What's on now" for the rows on screen, keyed by channel id. */
-    val nowPlaying: StateFlow<Map<Long, String>> = _nowPlaying
+    /** The order tool: Provider (the playlist's own) or A–Z, one tap between them as on the TV. */
+    val sort: StateFlow<SettingsRepository.SortMode> = sortMode
+
+    fun toggleSort() {
+        viewModelScope.launch {
+            settings.setSortLive(
+                if (sortMode.value == SettingsRepository.SortMode.ALPHA) SettingsRepository.SortMode.PLAYLIST
+                else SettingsRepository.SortMode.ALPHA,
+            )
+        }
+    }
+
+    private val _query = MutableStateFlow("")
+
+    /** The search field above the list: filters the open category. */
+    val query: StateFlow<String> = _query
+
+    fun setQuery(text: String) {
+        _query.value = text
+    }
+
+    /** The open category's channel count, for the crumb ("· 9 channels"). */
+    val count: StateFlow<Int> = combine(_selected, ctx, hiddenCategoryIds) { key, c, hidden -> Triple(key, c, hidden) }
+        .flatMapLatest { (key, c, hidden) ->
+            if (c.profileId < 0) flowOf(0)
+            else liveCountFlow(key, c.profileId, c.liveSourceIds, hidden, channelDao, customCategoryDao).throttleLatest()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    private val _nowPlaying = MutableStateFlow<Map<Long, XtEpgEntry>>(emptyMap())
+
+    /** What is on now for the rows on screen, with its start and stop, keyed by channel id. */
+    val nowPlaying: StateFlow<Map<Long, XtEpgEntry>> = _nowPlaying
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
@@ -240,9 +357,13 @@ class LiveViewModel(
     val channels: Flow<PagingData<ChannelEntity>> =
         combine(_selected, ctx, custom, hiddenCategoryIds, ::Args)
             // A folder gaining or losing a manual order changes which query is correct, and the
-            // cheap one does not observe content_order — so the pager has to be rebuilt.
+            // cheap one does not observe content_order — so the pager has to be rebuilt. So does the
+            // order tool, and the search field (settled for a moment, so each letter is not a query).
             .combine(orderedContexts) { args, _ -> args }
-            .flatMapLatest { (key, c, cust, hidden) ->
+            .combine(sortMode) { args, _ -> args }
+            .combine(_query.debounce(SEARCH_DEBOUNCE_MS).map { it.trim() }.distinctUntilChanged()) { args, q -> args to q }
+            .flatMapLatest { (args, q) ->
+                val (key, c, cust, hidden) = args
                 if (c.profileId < 0) {
                     flowOf(PagingData.empty())
                 } else {
@@ -263,7 +384,7 @@ class LiveViewModel(
                             key = key,
                             profileId = c.profileId,
                             sourceIds = c.liveSourceIds,
-                            query = "",
+                            query = q,
                             sort = sortMode.value,
                             channelDao = channelDao,
                             customCategoryDao = customCategoryDao,
@@ -296,54 +417,34 @@ class LiveViewModel(
         }.map { ch -> cust.itemNames[CustomizeKeys.channel(ch)]?.let { ch.copy(name = it) } ?: ch }
     }
 
-    /**
-     * Set while this view model is serving More -> Favourites or More -> History rather than the
-     * browse section. Those screens are one folder each: the selection is theirs to fix, and it must
-     * not be persisted as the remembered category.
-     */
-    private var lockedKey: LiveKey? = null
-
-    /** What the browse section was showing before the pin, so [unlock] can put it back. */
-    private var previousKey: LiveKey? = null
-
-    fun lock(key: LiveKey) {
-        if (lockedKey == null) previousKey = _selected.value
-        lockedKey = key
-        _selected.value = key
-    }
-
-    /**
-     * Release the pin and put the browse section back where it was.
-     *
-     * **This is not optional bookkeeping.** On the television this view model is a single instance
-     * shared between the browse section and the More screens, so a pin that outlived the screen that
-     * took it froze the section's category rail — focusable, but every click a no-op. The screen that
-     * locks therefore unlocks on dispose.
-     */
-    fun unlock() {
-        val previous = previousKey ?: return
-        lockedKey = null
-        previousKey = null
-        _selected.value = previous
-    }
-
     init {
         viewModelScope.launch {
             if (settings.rememberCategoryLive.first()) {
                 parseLiveKey(settings.lastLiveCategory.first())?.let {
-                    if (lockedKey == null) _selected.value = it
+                    if (!startupApplied) _selected.value = it
                 }
             }
-            // "Start on: Favorites" outranks the remembered folder — it is what the user asked this
-            // launch to open on, and it applies to this launch only. A locked instance must not eat
-            // it: the request belongs to the Live TV tab.
-            if (lockedKey == null && startupSelection.consumeFavorites()) _selected.value = LiveKey.Favorites
+        }
+    }
+
+    private var startupApplied = false
+
+    /**
+     * "Start on: Favorites" outranks the remembered folder — it is what the user asked this launch to
+     * open on, and it applies to this launch only. Called by the Live TV tab itself: the TV Guide borrowing
+     * this list of categories must not eat it.
+     */
+    fun applyStartupSelection() {
+        if (startupSelection.consumeFavorites()) {
+            startupApplied = true
+            _selected.value = LiveKey.Favorites
         }
     }
 
     fun select(key: LiveKey) {
-        if (lockedKey != null || _selected.value == key) return
+        if (_selected.value == key) return
         _selected.value = key
+        _query.value = ""
         viewModelScope.launch { settings.setLastLiveCategory(key.serialize()) }
     }
 
@@ -354,10 +455,12 @@ class LiveViewModel(
      * guide rather than a screenful.
      */
     fun loadNowPlaying(visible: List<ChannelEntity>) {
-        val missing = visible.filter { it.id !in _nowPlaying.value }
+        // An entry whose programme has ended is as good as missing: the next one is read in its place.
+        val now = System.currentTimeMillis()
+        val missing = visible.filter { ch -> _nowPlaying.value[ch.id]?.let { it.stopMs <= now } ?: true }
         if (missing.isEmpty()) return
         viewModelScope.launch {
-            val found = epgReader.nowPlayingFor(missing, custom.value, epgOffset.value)
+            val found = epgReader.nowProgrammesFor(missing, custom.value, epgOffset.value)
             if (found.isEmpty()) return@launch
             // Capped like the guide's rowCache: scrolled-past channels are forgotten, and a
             // revisit simply re-reads them through the `missing` check above.
@@ -561,6 +664,7 @@ class LiveViewModel(
         const val PAGE_SIZE = 60
         const val MOVE_LIST_LIMIT = 5_000
         const val REFRESH_SPINNER_MS = 1_200L
+        const val SEARCH_DEBOUNCE_MS = 250L
         // "What's on now", one short string per answered channel. Capped — see loadNowPlaying.
         const val MAX_NOW_PLAYING = 500
     }

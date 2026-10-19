@@ -37,7 +37,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawWithContent
+import tv.own.owntv.mobile.ui.stage.drawOuterRing
+import tv.own.owntv.mobile.ui.stage.stageShadow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
@@ -47,9 +52,7 @@ import org.koin.compose.koinInject
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.theme.MobileCardShape
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
 import tv.own.owntv.mobile.ui.screens.live.LiveTuner
 import tv.own.owntv.player.OwnTVPlayer
 import tv.own.owntv.player.PlaybackEngine
@@ -88,7 +91,9 @@ private const val MAX_WINDOW_ASPECT = 2.5f
 
 /** Four buttons have to fit across the narrowest window, so they are smaller than a normal one. */
 private val BUTTON_SIZE = 32.dp
-private val BUTTON_ICON = 18.dp
+private val BUTTON_ICON = 20.dp
+
+private val WindowShape = RoundedCornerShape(16.dp)
 
 /**
  * What is playing, in a little window the user drags around the app.
@@ -182,7 +187,13 @@ fun FloatingMiniPlayer(
                     windowWidth = it.width.toFloat()
                     windowHeight = it.height.toFloat()
                 }
-                .clip(MobileCardShape)
+                // `.ph` floating window: 16 dp corners, a deep shadow and a 1 dp light rim.
+                .stageShadow(Color.Black.copy(alpha = 0.6f), 40.dp, 18.dp, WindowShape)
+                .drawWithContent {
+                    drawContent()
+                    drawOuterRing(Color.White.copy(alpha = 0.12f), 1.dp.toPx(), 16.dp.toPx())
+                }
+                .clip(WindowShape)
                 .background(Color.Black)
                 .windowGestures(
                     key = size,
@@ -243,14 +254,16 @@ fun FloatingMiniPlayer(
                 Row(
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f)),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    // 14 dp between the icons; four buttons (a film) pack tighter so they
+                    // still fit the smallest window.
+                    horizontalArrangement = Arrangement.spacedBy(if (isLive) 4.dp else 0.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // A live stream has nothing to skip through, so the space goes to the one thing
                     // the window cannot otherwise offer without a gesture: getting back to full screen.
                     if (isLive) {
-                        WindowButton(MobileIcons.OpenInFull, R.string.player_pip_expand, onExpand)
+                        WindowButton(MobileIcons.OpenInFull, R.string.player_pip_expand, onClick = onExpand)
                     } else {
                         WindowButton(MobileIcons.FastRewind, R.string.player_skip_back) {
                             engine.seekBy(-step)
@@ -260,13 +273,14 @@ fun FloatingMiniPlayer(
                         icon = if (playing) MobileIcons.Pause else MobileIcons.PlayArrow,
                         labelRes = R.string.settings_remote_action_play_pause,
                         onClick = engine::togglePlayPause,
+                        iconSize = 24.dp,
                     )
                     if (!isLive) {
                         WindowButton(MobileIcons.FastForward, R.string.player_skip_forward) {
                             engine.seekBy(step)
                         }
                     }
-                    WindowButton(MobileIcons.Close, R.string.content_close, onStop)
+                    WindowButton(MobileIcons.Close, R.string.content_close, onClick = onStop)
                 }
             }
         }
@@ -278,6 +292,7 @@ fun FloatingMiniPlayer(
 private fun WindowButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     labelRes: Int,
+    iconSize: Dp = BUTTON_ICON,
     onClick: () -> Unit,
 ) {
     IconButton(onClick = onClick, modifier = Modifier.size(BUTTON_SIZE)) {
@@ -285,7 +300,7 @@ private fun WindowButton(
             imageVector = icon,
             contentDescription = stringResource(labelRes),
             tint = Color.White,
-            modifier = Modifier.size(BUTTON_ICON),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
@@ -392,48 +407,43 @@ fun FloatingWindowMenu(
     onDismiss: () -> Unit,
 ) {
     MobileBottomSheet(onDismissRequest = onDismiss) {
-        MobileListRow(
-            title = stringResource(
+        StageMenuItem(
+            stringResource(
                 if (isFavorite) R.string.content_remove_favourite else R.string.content_add_favourite,
             ),
-            leading = {
-                Icon(
-                    imageVector = if (isFavorite) MobileIcons.Star else MobileIcons.StarBorder,
-                    contentDescription = null,
-                )
-            },
+            icon = if (isFavorite) MobileIcons.Favorite else MobileIcons.FavoriteBorder,
             onClick = {
                 onToggleFavorite()
                 onDismiss()
             },
         )
-        MobileListRow(
-            title = stringResource(R.string.player_tool_audio_only),
-            leading = { Icon(MobileIcons.MusicNote, contentDescription = null) },
+        StageMenuItem(
+            stringResource(R.string.player_tool_audio_only),
+            icon = MobileIcons.MusicNote,
             onClick = {
                 onAudioOnly()
                 onDismiss()
             },
         )
-        MobileListRow(
-            title = stringResource(R.string.player_sleep_timer),
-            leading = { Icon(MobileIcons.Bedtime, contentDescription = null) },
+        StageMenuItem(
+            stringResource(R.string.player_sleep_timer),
+            icon = MobileIcons.Bedtime,
             onClick = {
                 onDismiss()
                 onSleepTimer()
             },
         )
-        MobileListRow(
-            title = stringResource(R.string.player_pip_expand),
-            leading = { Icon(MobileIcons.OpenInFull, contentDescription = null) },
+        StageMenuItem(
+            stringResource(R.string.player_pip_expand),
+            icon = MobileIcons.OpenInFull,
             onClick = {
                 onDismiss()
                 onExpand()
             },
         )
-        MobileListRow(
-            title = stringResource(R.string.content_close),
-            leading = { Icon(MobileIcons.Close, contentDescription = null) },
+        StageMenuItem(
+            stringResource(R.string.content_close),
+            icon = MobileIcons.Close,
             onClick = {
                 onDismiss()
                 onStop()

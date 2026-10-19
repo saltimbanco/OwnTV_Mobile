@@ -1,18 +1,16 @@
 package tv.own.owntv.mobile.ui.player
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -29,9 +27,12 @@ import androidx.compose.ui.unit.dp
 import tv.own.owntv.core.live.CatchupJumps
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.components.StageConfirmItems
 import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageTool
 import java.text.SimpleDateFormat
 import java.util.TimeZone
 
@@ -70,26 +71,25 @@ fun CatchupSheet(options: CatchupOptions, onDismiss: () -> Unit) {
     val timeOnly = rememberTimeFormat("Hm")
     val withDay = rememberTimeFormat("EEEHm")
 
-    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.content_catchup_jump)) {
-        Text(
-            text = stringResource(R.string.content_catchup_jump_prompt),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-        )
+    val title = stringResource(R.string.content_catchup_jump)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title, subtitle = stringResource(R.string.content_catchup_jump_prompt))
         LazyColumn(Modifier.heightIn(max = sheetListHeight())) {
             items(options.offsetsSec, key = { it }) { offset ->
                 val at = CatchupJumps.instantFor(offset, nowMs)
                 val format = if (CatchupJumps.crossesDay(offset, nowMs, zone)) withDay else timeOnly
-                MobileListRow(
-                    title = format.format(at),
+                StageMenuItem(
+                    format.format(at),
                     onClick = { options.onPick(offset); onDismiss() },
+                    icon = MobileIcons.History,
                 )
             }
             item(key = "exact") {
-                MobileListRow(
-                    title = stringResource(R.string.content_catchup_jump_exact),
+                StageMenuItem(
+                    stringResource(R.string.content_catchup_jump_exact),
                     onClick = { exact = true },
+                    icon = MobileIcons.Schedule,
+                    chevron = true,
                 )
             }
         }
@@ -100,6 +100,9 @@ fun CatchupSheet(options: CatchupOptions, onDismiss: () -> Unit) {
  * The day and the time, typed. Every change is pushed through [CatchupJumps.clampToArchive], so the
  * picker simply stops at the live edge and at the far end of the recording rather than letting the
  * user choose a moment that can only fail.
+ *
+ * The clock is the system's time picker: Stage has no wheel of its own, and this one already follows
+ * the accent through the theme.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,40 +127,38 @@ private fun ExactTimeSheet(windowSec: Int, onPick: (Int) -> Unit, onDismiss: () 
         )
     }
 
-    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.content_catchup_jump_exact)) {
+    val title = stringResource(R.string.content_catchup_jump_exact)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title)
+        // A week's archive is more days than a phone is wide: the days scroll sideways.
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             (0 until days).forEach { daysAgo ->
-                FilterChip(
-                    selected = daysAgo == point.daysAgo,
+                StageTool(
                     onClick = {
                         point = CatchupJumps.clampToArchive(
                             point.copy(daysAgo = daysAgo), nowMs, zone, windowSec,
                         )
                     },
-                    label = { Text(dayFormat.format(nowMs - daysAgo * 24L * 3600 * 1000)) },
+                    label = dayFormat.format(nowMs - daysAgo * 24L * 3600 * 1000),
+                    on = daysAgo == point.daysAgo,
                 )
             }
         }
-        Column(
-            Modifier.fillMaxWidth().padding(MobileDimens.ScreenPaddingH),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
             TimePicker(state = time)
         }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = MobileDimens.ScreenPaddingH),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            TextButton(
-                onClick = { onPick(CatchupJumps.offsetSecOf(point, nowMs, zone)) },
-            ) { Text(stringResource(R.string.content_play)) }
-        }
+        StageConfirmItems(
+            confirm = stringResource(R.string.content_play),
+            confirmEnabled = true,
+            onConfirm = { onPick(CatchupJumps.offsetSecOf(point, nowMs, zone)) },
+            onDismiss = onDismiss,
+        )
     }
 }
 

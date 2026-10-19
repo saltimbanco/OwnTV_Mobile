@@ -1,5 +1,37 @@
 package tv.own.owntv.mobile.ui.screens.live
 
+import androidx.compose.foundation.layout.widthIn
+import tv.own.owntv.mobile.ui.screens.home.formatYear
+import tv.own.owntv.mobile.ui.player.CatchupOptions
+import tv.own.owntv.mobile.ui.player.CatchupSheet as JumpBackSheet
+import androidx.activity.compose.BackHandler
+import tv.own.owntv.mobile.ui.shell.LocalMiniRequested
+import androidx.compose.runtime.produceState
+import tv.own.owntv.core.customize.CategoryRestorePlan
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import tv.own.owntv.core.live.ProviderTags
+import tv.own.owntv.core.parser.XtEpgEntry
+import tv.own.owntv.core.settings.SettingsRepository
+import tv.own.owntv.core.ui.stage.PlaylistMark
+import tv.own.owntv.mobile.ui.components.rememberClockTick
+import tv.own.owntv.mobile.ui.screens.home.timeLeftText
+import tv.own.owntv.mobile.ui.shell.ProvidePageCrumb
+import tv.own.owntv.mobile.ui.shell.PageCrumb
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StagePlaylistMark
+import tv.own.owntv.mobile.ui.stage.StageProgress
+import tv.own.owntv.mobile.ui.stage.StageRadii
+import tv.own.owntv.mobile.ui.stage.StageRow
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageTag
+import tv.own.owntv.mobile.ui.stage.StageTool
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.components.MobileIcons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,18 +44,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -38,17 +68,15 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
+import tv.own.owntv.mobile.ui.screens.guide.LiveGuideGrid
+import tv.own.owntv.mobile.ui.screens.guide.LiveGuideTools
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.core.epg.displayLogoUrl
 import tv.own.owntv.core.live.LiveKey
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.CategoryPickerSheet
+import tv.own.owntv.mobile.ui.screens.home.groupedCountText
 import tv.own.owntv.mobile.ui.components.ChannelLogoImage
-import tv.own.owntv.mobile.ui.components.BrowseCategorySheet
-import tv.own.owntv.mobile.ui.components.FilterChipRow
-import tv.own.owntv.mobile.ui.components.MobileListRow
 import tv.own.owntv.mobile.ui.components.TwoPane
-import tv.own.owntv.mobile.ui.components.mobileGroupPlate
 import tv.own.owntv.mobile.ui.nav.isExpandedWidth
 import tv.own.owntv.mobile.ui.screens.ObeyScrollToTop
 import tv.own.owntv.mobile.ui.shell.LocalStreamOnScreen
@@ -69,42 +97,30 @@ import tv.own.owntv.mobile.ui.theme.MobileDimens
 @Composable
 fun LiveScreen(
     scrollToTop: SharedFlow<String>,
-    onOpenChannel: (channelId: Long, openCatchup: Boolean) -> Unit,
     onOpenPlayer: () -> Unit,
     modifier: Modifier = Modifier,
-    /**
-     * Pins the list to one folder and takes the chip strip away — how the Favourites and History
-     * screens show channels without a second copy of this list existing.
-     */
-    lockedKey: LiveKey? = null,
     vm: LiveViewModel = koinViewModel(),
 ) {
-    // Locking and unlocking are one pair: the pin belongs to this screen's lifetime, not to the view
-    // model's. On the television that view model is a single instance shared with the browse section,
-    // so a pin left behind froze its category rail. `DisposableEffect` (not `LaunchedEffect`) also
-    // means the pin is in place before the first frame, so the list never flashes the wrong folder.
     // Channels kept with "Add to Multiview" are spent by playing one. While any are waiting, a tap
     // plays rather than browses — see the tap handler below.
     val tuner: LiveTuner = koinInject()
     val multiviewSelection by tuner.multiviewSelection.collectAsStateWithLifecycle()
     val multiviewPending = multiviewSelection.isNotEmpty()
 
-    if (lockedKey != null) {
-        val pinned = lockedKey
-        DisposableEffect(pinned) {
-            vm.lock(pinned)
-            onDispose { vm.unlock() }
-        }
-    }
+    LaunchedEffect(Unit) { vm.applyStartupSelection() }
 
     val categories by vm.categories.collectAsStateWithLifecycle()
     val selected by vm.selected.collectAsStateWithLifecycle()
     val channels = vm.channels.collectAsLazyPagingItems()
     val nowPlaying by vm.nowPlaying.collectAsStateWithLifecycle()
     val favorites by vm.favoriteIds.collectAsStateWithLifecycle()
-    val providers by vm.providerNames.collectAsStateWithLifecycle()
+    val marks by vm.playlistMarks.collectAsStateWithLifecycle()
     val showNumbers by vm.showChannelNumbers.collectAsStateWithLifecycle()
     val refreshing by vm.refreshing.collectAsStateWithLifecycle()
+    val count by vm.count.collectAsStateWithLifecycle()
+    val sort by vm.sort.collectAsStateWithLifecycle()
+    val query by vm.query.collectAsStateWithLifecycle()
+    val providers by vm.providerNames.collectAsStateWithLifecycle()
 
     val listState = rememberLazyListState()
     listState.ObeyScrollToTop(route = "live", scrollToTop = scrollToTop)
@@ -112,19 +128,54 @@ fun LiveScreen(
     var menuFor by remember { mutableStateOf<ChannelEntity?>(null) }
     var categoryPicker by remember { mutableStateOf(false) }
     var categoryMenuFor by remember { mutableStateOf<LiveCategory?>(null) }
-    // Survives a rotation, so turning a tablet keeps the channel you were watching beside the list.
-    var previewing by rememberSaveable { mutableStateOf<Long?>(null) }
+    var restoreFor by remember { mutableStateOf<LiveCategory?>(null) }
+    var catchupFor by remember { mutableStateOf<ChannelEntity?>(null) }
+    var jumpBackOpen by remember { mutableStateOf(false) }
+    // Wide: the list on the left, the preview and its programme on the right — the same preview
+    // the phone draws on top, so a tap plays and a second tap is full screen there too.
     val twoPane = isExpandedWidth()
 
     // While the pane is showing the channel, the picture is already on screen, so the shell must not
     // also put a floating window over it. Cleared on the way out, or leaving Live TV with a channel
     // open would take the mini player away on every other screen too.
     val streamOnScreen = LocalStreamOnScreen.current
-    val paneHasChannel = twoPane && previewing != null
+    val playing by tuner.channel.collectAsStateWithLifecycle()
+    val playingNowNext by tuner.nowNext.collectAsStateWithLifecycle()
+    // A tap plays the channel in a preview (on top of Live TV on a phone, beside it when wide), instead
+    // of opening a channel page.
+    // Settings › Live TV › Live preview: off, a tap opens the channel full screen with no preview first.
+    val previewOn by koinInject<tv.own.owntv.core.settings.SettingsRepository>().livePreviewEnabled.collectAsStateWithLifecycle(true)
+    val showPreview = playing != null
+    val paneHasChannel = showPreview
     DisposableEffect(paneHasChannel) {
         streamOnScreen.value = paneHasChannel
         onDispose { streamOnScreen.value = false }
     }
+    // The preview is watching, as the channel page was, so leaving Live TV stops it — except for the
+    // two ways out meant to keep it: full screen, and the player's own mini-player button.
+    val miniRequested = LocalMiniRequested.current
+    var toFullscreen by remember { mutableStateOf(false) }
+    DisposableEffect(Unit) {
+        onDispose { if (!toFullscreen && !miniRequested.value) tuner.stop() }
+    }
+    // Back closes the preview first, and stops the stream with it.
+    BackHandler(enabled = showPreview) { tuner.stop() }
+    val openFullscreen = {
+        toFullscreen = true
+        // A preview becomes a watched channel only here (History, the media session).
+        tuner.promote()
+        onOpenPlayer()
+    }
+
+    // The header's crumb: "‹ Sky Cinema · 9 channels", a tap opens the categories. A locked
+    // list (Favourites, History) is one folder already and its page names it.
+    val categoryLabel = categories.firstOrNull { it.key == selected }?.label().orEmpty()
+    val liveView by vm.liveView.collectAsStateWithLifecycle()
+    // "Live TV opens in: Guide" draws the guide grid in place of the list.
+    val guideView = liveView == SettingsRepository.LiveView.GUIDE
+    val countText = if (guideView) stringResource(R.string.content_live_guide_view)
+    else groupedCountText(R.plurals.content_live_channel_count, count)
+    ProvidePageCrumb { owner -> PageCrumb(categoryLabel, countText, owner = owner) { categoryPicker = true } }
 
     // The guide is read for what is actually on screen. Watching the visible range rather than each
     // row means one batched query per scroll settle instead of one per row appearing.
@@ -136,35 +187,75 @@ fun LiveScreen(
             }
     }
 
+    val nowMs by rememberClockTick()
+    // Each clock tick re-reads the rows whose programme has just ended.
+    LaunchedEffect(nowMs) {
+        vm.loadNowPlaying(listState.layoutInfo.visibleItemsInfo.mapNotNull { channels.peek(it.index) })
+    }
+
     // Changing category scrolls back to the top: the position of the old list means nothing in the new one.
     LaunchedEffect(selected) { listState.scrollToItem(0) }
 
+    // The guide grid of Guide view reads through the TV Guide's own view model (its rows, its order).
+    val guideVm: tv.own.owntv.mobile.ui.screens.guide.GuideViewModel = koinViewModel()
+
     val listPane = @Composable {
     Column(Modifier.fillMaxSize()) {
-        if (lockedKey == null) Box(Modifier.fillMaxWidth()) {
-            FilterChipRow(
-                labels = categories.map { it.label() },
-                selectedIndex = categories.indexOfFirst { it.key == selected },
-                onSelect = { index -> categories.getOrNull(index)?.let { vm.select(it.key) } },
-                modifier = Modifier.padding(end = MobileDimens.TouchTarget),
-                // All, Favorites, History and Catch-up are not folders: there is nothing to hide or move.
-                onLongPress = { index ->
-                    categoryMenuFor = categories.getOrNull(index)?.takeIf { it.builtIn == null }
-                },
-                onLongPressLabel = stringResource(R.string.settings_customize_categories),
+        val current = playing
+        if (!twoPane && showPreview && current != null) {
+            LivePreview(
+                tuner = tuner,
+                channel = current,
+                nowNext = playingNowNext,
+                nowMs = nowMs,
+                onFullscreen = openFullscreen,
+                modifier = Modifier.padding(top = PREVIEW_TOP),
             )
-            IconButton(
-                onClick = { categoryPicker = true },
-                modifier = Modifier.align(Alignment.CenterEnd),
+        } else if (guideView) {
+            LiveGuideTools(
+                guide = guideVm,
+                onGuideView = vm::toggleLiveView,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = TOOLS_TOP, bottom = 12.dp),
+            )
+        } else {
+            // `.tools`: the search field takes the room, then the order tool (Provider / A–Z), then Guide view.
+            Row(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = TOOLS_TOP, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(MobileIcons.Search, stringResource(R.string.content_search_categories))
+                StageSearchField(
+                    value = query,
+                    onValueChange = vm::setQuery,
+                    placeholder = stringResource(R.string.content_search_in, categoryLabel),
+                    inline = true,
+                    modifier = Modifier.weight(1f),
+                )
+                StageTool(
+                    onClick = vm::toggleSort,
+                    icon = MobileIcons.Sort,
+                    label = stringResource(
+                        if (sort == SettingsRepository.SortMode.ALPHA) R.string.settings_sort_alpha else R.string.content_epg_sort_provider,
+                    ),
+                )
+                StageTool(
+                    onClick = vm::toggleLiveView,
+                    icon = MobileIcons.Guide,
+                    contentDescription = stringResource(R.string.content_live_guide_view),
+                )
             }
         }
         if (categoryPicker) {
-            CategoryPickerSheet(
-                labels = categories.map { it.label() },
-                selectedIndex = categories.indexOfFirst { it.key == selected },
-                onSelect = { index -> categories.getOrNull(index)?.let { vm.select(it.key) } },
+            val counts by vm.categoryCounts.collectAsStateWithLifecycle()
+            val showCounts by vm.sheetCounts.collectAsStateWithLifecycle()
+            LiveCategoriesSheet(
+                categories = categories,
+                selected = selected,
+                counts = counts,
+                showCounts = showCounts,
+                marks = marks,
+                onSelect = vm::select,
+                onHold = { categoryMenuFor = it },
                 onDismiss = { categoryPicker = false },
             )
         }
@@ -173,19 +264,32 @@ fun LiveScreen(
             onRefresh = vm::refresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (channels.itemCount == 0) {
-                EmptyChannels()
+            if (guideView) {
+                LiveGuideGrid(
+                    guide = guideVm,
+                    category = selected,
+                    onTune = { channel -> tuner.tune(channel.id) },
+                    onOpenPlayer = openFullscreen,
+                )
+            } else if (channels.itemCount == 0) {
+                EmptyChannels(query)
             } else {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize().mobileGroupPlate()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 6.dp),
+                ) {
                     items(count = channels.itemCount, key = channels.itemKey { it.id }) { index ->
                         val channel = channels[index]
                         if (channel != null) {
-                            ChannelRow(
+                            LiveChannelRow(
                                 channel = channel,
-                                number = channel.number?.takeIf { showNumbers && it > 0 },
-                                nowPlaying = nowPlaying[channel.id],
-                                providerName = providers[channel.sourceId],
+                                showNumber = showNumbers,
+                                now = nowPlaying[channel.id]?.takeIf { it.stopMs > nowMs },
+                                nowMs = nowMs,
+                                mark = marks[channel.sourceId],
                                 isFavorite = channel.id in favorites,
+                                current = showPreview && channel.id == playing?.id,
                                 // Beside the list the channel opens in the pane; on a phone it is
                                 // a screen of its own, which is the same screen either way.
                                 onClick = {
@@ -201,8 +305,10 @@ fun LiveScreen(
                                             tuner.selectWithoutPlaying(channel)
                                             onOpenPlayer()
                                         }
-                                        twoPane -> previewing = channel.id
-                                        else -> onOpenChannel(channel.id, false)
+                                        // The second tap on the playing channel is full screen.
+                                        channel.id == playing?.id -> openFullscreen()
+                                        !previewOn -> { tuner.tune(channel.id); openFullscreen() }
+                                        else -> tuner.preview(channel.id)
                                     }
                                 },
                                 onLongClick = { menuFor = channel },
@@ -219,20 +325,26 @@ fun LiveScreen(
         TwoPane(
             list = listPane,
             detail = {
-                val channelId = previewing
-                if (channelId == null) {
+                val current = playing
+                if (current == null) {
                     SelectAChannel()
                 } else {
-                    ChannelDetailScreen(
-                        channelId = channelId,
-                        openCatchup = false,
-                        onFullscreen = onOpenPlayer,
-                        // Back here empties the pane rather than leaving Live TV: the list is still
-                        // on screen, so the thing the user is finished with is the channel.
-                        onBack = { previewing = null },
+                    // The video at 16:9 across the pane (210 dp sideways, 345 on a tablet), the programme
+                    // under it; a short screen scrolls the pane rather than cutting the programme off.
+                    LivePreview(
+                        tuner = tuner,
+                        channel = current,
+                        nowNext = playingNowNext,
+                        nowMs = nowMs,
+                        onFullscreen = openFullscreen,
+                        wide = true,
+                        tablet = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp >= 600,
+                        modifier = Modifier.verticalScroll(rememberScrollState()).padding(top = TOOLS_TOP),
                     )
                 }
             },
+            // Half and half (list 390 of 791 dp).
+            listShare = 0.5f,
             modifier = modifier,
         )
     } else {
@@ -245,30 +357,68 @@ fun LiveScreen(
             selected = selected,
             isFavorite = channel.id in favorites,
             originName = categories.firstOrNull { it.key == selected }?.label().orEmpty(),
+            providerName = providers[channel.sourceId],
             vm = vm,
-            onOpenCatchup = { onOpenChannel(channel.id, true) },
+            // On a phone the archive opens here, over the preview, as the channel page used to open it.
+            onOpenCatchup = {
+                tuner.tune(channel.id)
+                catchupFor = channel
+            },
             onDismiss = { menuFor = null },
         )
     }
 
     categoryMenuFor?.let { category ->
-        BrowseCategorySheet(
-            title = category.label(),
-            onHide = { vm.hideCategory(category.key) },
+        val name = remember(category) { ProviderTags.parse(category.title.orEmpty()).name }
+        LiveCategoryMenu(
+            title = name,
+            custom = category.key is LiveKey.Custom,
             onMove = { kind -> vm.moveCategory(category.key, kind) },
+            onHide = { vm.hideCategory(category.key) },
+            onRestore = { categoryMenuFor = null; restoreFor = category },
             onDismiss = { categoryMenuFor = null },
+        )
+    }
+    catchupFor?.let { channel ->
+        CatchupSheet(
+            channelName = channel.name,
+            load = tuner::catchupProgrammes,
+            onPick = tuner::playCatchup,
+            onJumpBack = { catchupFor = null; jumpBackOpen = true },
+            onDismiss = { catchupFor = null },
+        )
+    }
+    if (jumpBackOpen) {
+        JumpBackSheet(
+            options = CatchupOptions(
+                offsetsSec = tuner.jumpOptions(),
+                windowSec = tuner.archiveWindowSec(),
+                onPick = tuner::jumpBackTo,
+            ),
+            onDismiss = { jumpBackOpen = false },
+        )
+    }
+    restoreFor?.let { category ->
+        val plan by produceState<CategoryRestorePlan?>(null, category.key) { value = vm.categoryRestorePlan(category.key) }
+        CategoryRestoreConfirm(
+            title = remember(category) { ProviderTags.parse(category.title.orEmpty()).name },
+            custom = category.key is LiveKey.Custom,
+            plan = plan,
+            onRestore = { vm.restoreCategory(category.key) },
+            onDismiss = { restoreFor = null },
         )
     }
 }
 
 /** The chip's text: a translated label for the four built-in lists, the stored name otherwise. */
 @Composable
-private fun LiveCategory.label(): String = when (builtIn) {
+internal fun LiveCategory.label(): String = when (builtIn) {
     LiveCategory.BuiltIn.ALL -> stringResource(R.string.content_category_all_channels)
     LiveCategory.BuiltIn.FAVORITES -> stringResource(R.string.content_category_favorites)
-    LiveCategory.BuiltIn.HISTORY -> stringResource(R.string.content_category_history)
+    LiveCategory.BuiltIn.HISTORY -> stringResource(R.string.content_category_recently_watched)
     LiveCategory.BuiltIn.CATCHUP -> stringResource(R.string.content_catchup)
-    null -> title.orEmpty()
+    // A provider folder by its name alone: "DE| PRIME ᴿᴬᵂ" is "PRIME" (its tags are drawn as tags).
+    null -> ProviderTags.parse(title.orEmpty()).name
 }
 
 /** The preview pane before a channel is picked — the television's own sentence for the same panel. */
@@ -277,99 +427,104 @@ private fun SelectAChannel() {
     Box(Modifier.fillMaxSize().padding(MobileDimens.GapLarge), contentAlignment = Alignment.Center) {
         Text(
             text = stringResource(R.string.content_preview_select_channel),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = stageText(15f, 400),
+            color = LocalStagePalette.current.muted,
             textAlign = TextAlign.Center,
         )
     }
 }
 
+/** Nothing in the open category, or nothing matching the search — the TV's two sentences. */
 @Composable
-private fun EmptyChannels() {
+private fun EmptyChannels(query: String) {
     Box(Modifier.fillMaxSize().padding(MobileDimens.GapLarge), contentAlignment = Alignment.Center) {
         Text(
-            text = stringResource(R.string.content_no_channels_here),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = if (query.isNotBlank()) stringResource(R.string.content_no_channels_found, query.trim()) else stringResource(R.string.content_no_channels_here),
+            style = stageText(13.5f, 500),
+            color = LocalStagePalette.current.muted,
             textAlign = TextAlign.Center,
         )
     }
 }
 
 /**
- * One channel: its number, its logo, its name, and what is on it now.
- *
- * The second line is deliberately shared between the programme title and the playlist name — a
- * phone row has one line to spare, and which of the two is worth showing depends on whether the
- * user has a guide and more than one playlist.
+ * `.chrow`: 66 dp — the number (28 wide, 13 / 600 dim), the logo (52 × 38, no plate unless its ink
+ * would vanish), the provider's name without its marks (14.5 / 700), "programme · time left" (12 muted)
+ * and a 3 dp progress line at 70%; then the provider tags, ↺ for catch-up, ♥ when a favourite and the
+ * playlist mark. [current] is the playing channel (`.fx` + `.selbar`).
  */
 @Composable
-private fun ChannelRow(
+internal fun LiveChannelRow(
     channel: ChannelEntity,
-    number: Int?,
-    nowPlaying: String?,
-    providerName: String?,
+    showNumber: Boolean,
+    now: XtEpgEntry?,
+    nowMs: Long,
+    mark: PlaylistMark?,
     isFavorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    current: Boolean = false,
 ) {
-    val separator = stringResource(R.string.content_epg_bits_separator)
-    val subtitle = listOfNotNull(nowPlaying, providerName).takeIf { it.isNotEmpty() }?.joinToString(separator)
-
-    MobileListRow(
-        title = channel.name,
-        subtitle = subtitle,
-        leading = { ChannelLogo(channel, number) },
-        trailing = {
-            Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny)) {
-                if (channel.catchup) {
-                    Icon(
-                        imageVector = MobileIcons.History,
-                        contentDescription = stringResource(R.string.content_catchup),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(TRAILING_ICON),
-                    )
-                }
-                if (isFavorite) {
-                    Icon(
-                        imageVector = MobileIcons.Star,
-                        contentDescription = stringResource(R.string.content_category_favorites),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(TRAILING_ICON),
-                    )
-                }
-            }
-        },
+    val palette = LocalStagePalette.current
+    val accent = stageAccent.accent
+    val name = remember(channel.name) { ProviderTags.parse(channel.name) }
+    StageRow(
         onClick = onClick,
         onLongClick = onLongClick,
-    )
-}
-
-/** The logo, with the channel number under it when the Channel numbers setting is on. */
-@Composable
-private fun ChannelLogo(channel: ChannelEntity, number: Int?) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        ChannelLogoImage(
-            url = channel.displayLogoUrl,
-            modifier = Modifier.size(LOGO_SIZE),
-            fallback = {
-                Icon(
-                    imageVector = MobileIcons.LiveTv,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(LOGO_SIZE),
-                )
-            },
-        )
-        if (number != null) {
+        current = current,
+        selected = current,
+        height = 66.dp,
+    ) {
+        if (showNumber) {
             Text(
-                text = number.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                channel.number?.takeIf { it > 0 }?.let(::formatYear).orEmpty(),
+                style = stageText(13f, 600).copy(textAlign = TextAlign.End, fontFeatureSettings = "tnum"),
+                color = palette.dim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                // 28 dp by design; a playlist with five-digit numbers widens it rather than cutting them.
+                modifier = Modifier.widthIn(min = 28.dp),
             )
+        }
+        Box(Modifier.size(52.dp, 38.dp).clip(RoundedCornerShape(StageRadii.Plate)), contentAlignment = Alignment.Center) {
+            ChannelLogoImage(
+                url = channel.displayLogoUrl,
+                modifier = Modifier.fillMaxSize(),
+                plateOn = palette.page,
+                fallback = { StageIcon(MobileIcons.LiveTv, 19.dp, palette.dim) },
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(name.name, style = stageText(14.5f, 700), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (now != null) {
+                val left = timeLeftText(((now.stopMs - nowMs).coerceAtLeast(0) + 59_999) / 60_000)
+                Text(
+                    now.title + stringResource(R.string.content_epg_bits_separator) + left,
+                    style = stageText(12f, 400),
+                    color = if (current) palette.body else palette.muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+                val span = (now.stopMs - now.startMs).coerceAtLeast(1)
+                StageProgress(
+                    (nowMs - now.startMs).toFloat() / span,
+                    Modifier.padding(top = 6.dp).fillMaxWidth(0.7f),
+                    thin = true,
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            name.tags.forEach { StageTag(it) }
+            if (channel.catchup) StageIcon(MobileIcons.Catchup, 14.dp, palette.dim)
+            if (isFavorite) StageIcon(MobileIcons.Favorite, 14.dp, accent)
+            mark?.let { StagePlaylistMark(it) }
         }
     }
 }
 
-private val LOGO_SIZE = 32.dp
-private val TRAILING_ICON = 18.dp
+/** The room between the crumb and the tools (`.tools` at 128 under a 102 dp header). */
+private val TOOLS_TOP = 26.dp
+
+/** The room between the crumb and the preview (`.video` at 122). */
+private val PREVIEW_TOP = 20.dp

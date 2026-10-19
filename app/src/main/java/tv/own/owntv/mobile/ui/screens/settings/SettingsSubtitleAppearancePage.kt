@@ -13,14 +13,18 @@ import tv.own.owntv.core.settings.SubtitleStyle
 import tv.own.owntv.core.theme.AppFontFamily
 import tv.own.owntv.core.theme.parseAccentHex
 import tv.own.owntv.mobile.R
+import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.mobile.ui.components.ColorPickerSheet
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
-import tv.own.owntv.mobile.ui.screens.settings.customize.selectedTick
 import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import androidx.compose.ui.semantics.Role
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.stage.StageField
 
 /** Which appearance picker is open. One at a time, so one nullable holds them all. */
 private enum class SubtitleSheet { SIZE, FONT, COLOR, POSITION, BACKGROUND }
@@ -49,58 +53,53 @@ fun SettingsSubtitleAppearancePage(
 
     SettingsPage(modifier) {
         settingsGroup(key = "sub-style") {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.settings_subtitle_appearance),
                 subtitle = stringResource(R.string.settings_subtitle_appearance_description),
-                checked = enabled,
-                onCheckedChange = { on -> vm.edit { setSubtitleStyleEnabled(on) } },
-            )
+                role = Role.Switch,
+                onClick = { vm.edit { setSubtitleStyleEnabled(!enabled) } },
+            ) { StageSwitch(enabled) }
         }
         if (enabled) {
             settingsGroup(key = "sub-size") {
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_size),
                     subtitle = stringResource(R.string.settings_subtitle_size_description),
-                    value = stringResource(subSizeLabelRes(scale)),
                     onClick = { sheet = SubtitleSheet.SIZE },
-                )
+                ) { StageRowValue(stringResource(subSizeLabelRes(scale)), StageChevron.DOWN) }
 
                 // The face a subtitle is drawn in, both by the engine and by this app's own subtitle
                 // layer. The row was missing while all six font files were already in the APK, so a
                 // choice made on the television and synced here had nothing to act on.
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_font),
                     subtitle = stringResource(R.string.settings_choose_font),
-                    value = font?.let { stringResource(it.labelRes()) }
-                        ?: stringResource(R.string.settings_subtitle_default),
                     onClick = { sheet = SubtitleSheet.FONT },
-                )
+                ) { StageRowValue(font?.let { stringResource(it.labelRes()) }
+                        ?: stringResource(R.string.settings_subtitle_default), StageChevron.DOWN) }
 
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_color_short),
                     subtitle = stringResource(R.string.settings_subtitle_color_description),
-                    value = subColorLabel(color),
                     onClick = { sheet = SubtitleSheet.COLOR },
-                )
+                ) { StageRowValue(subColorLabel(color), StageChevron.DOWN) }
 
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_position_short),
                     subtitle = stringResource(R.string.settings_subtitle_position_description),
-                    value = stringResource(position.labelRes()),
                     onClick = { sheet = SubtitleSheet.POSITION },
-                )
+                ) { StageRowValue(stringResource(position.labelRes()), StageChevron.DOWN) }
 
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_background_transparency),
                     subtitle = stringResource(R.string.settings_subtitle_background_description),
-                    value = subBackgroundLabel(background),
                     onClick = { sheet = SubtitleSheet.BACKGROUND },
-                )
+                ) { StageRowValue(subBackgroundLabel(background), StageChevron.DOWN) }
             }
             // Puts all four back to Default in one press, so a look that went wrong does not have to
             // be undone option by option.
             settingsGroup(key = "sub-reset") {
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_subtitle_reset_all),
                     subtitle = stringResource(R.string.settings_subtitle_use_default),
                     onClick = {
@@ -209,15 +208,13 @@ private fun SubtitleColorSheet(
     var hexInput by remember { mutableStateOf(color.removePrefix("#")) }
     var hexError by remember { mutableStateOf(false) }
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_subtitle_color),
-    ) {
-        MobileListRow(
-            title = stringResource(R.string.settings_subtitle_default),
-            subtitle = stringResource(R.string.settings_subtitle_color_default_description),
-            trailing = selectedTick(!SubtitleStyle.hasColor(color)),
-            selected = !SubtitleStyle.hasColor(color),
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.settings_subtitle_color))
+        ChoiceItem(
+            label = stringResource(R.string.settings_subtitle_default),
+            description = stringResource(R.string.settings_subtitle_color_default_description),
+            on = !SubtitleStyle.hasColor(color),
+            recommended = false,
             onClick = {
                 hexInput = ""
                 hexError = false
@@ -225,22 +222,14 @@ private fun SubtitleColorSheet(
             },
         )
         SUB_COLOR_PRESETS.forEach { (labelRes, hex) ->
-            MobileListRow(
-                title = stringResource(labelRes),
-                trailing = selectedTick(color.equals(hex, ignoreCase = true)),
-                selected = color.equals(hex, ignoreCase = true),
-                onClick = {
-                    hexInput = hex.removePrefix("#")
-                    hexError = false
-                    onColor(hex)
-                },
-            )
+            ChoiceRow(stringResource(labelRes), color.equals(hex, ignoreCase = true)) {
+                hexInput = hex.removePrefix("#")
+                hexError = false
+                onColor(hex)
+            }
         }
-        MobileListRow(
-            title = stringResource(R.string.settings_color_picker),
-            onClick = onOpenPicker,
-        )
-        MobileTextField(
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_color_picker), onClick = onOpenPicker, icon = MobileIcons.Palette)
+        StageField(
             value = hexInput,
             onValueChange = { typed -> hexInput = typed.take(6); hexError = false },
             label = stringResource(R.string.settings_subtitle_hex),
@@ -252,7 +241,7 @@ private fun SubtitleColorSheet(
             },
             modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
         )
-        MobileButton(
+        StageButton(
             text = stringResource(R.string.settings_apply),
             onClick = {
                 val hex = "#" + hexInput.trim().removePrefix("#").uppercase()
@@ -265,6 +254,7 @@ private fun SubtitleColorSheet(
                 }
             },
             modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+            style = StageButtonStyle.PRIMARY,
         )
     }
 }

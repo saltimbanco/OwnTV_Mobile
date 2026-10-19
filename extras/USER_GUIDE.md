@@ -17,28 +17,27 @@ stop where something looks useful.
 A fresh install walks you through the same steps as the television:
 
 ```
-Welcome  →  Text size  →  Disclaimer  →  Set up OwnTV  →  Profile  →  Add a playlist  →  Import
+Welcome  →  Display  →  Disclaimer  →  Set up OwnTV  →  Profile  →  Add a playlist  →  Import  →  All set
 ```
 
 1. **Welcome** — the language picker is on this screen: one of 26, or **System default**. Tap
    **Get started**.
-2. **Text size** — interface zoom and font size, with a sample that resizes as you adjust, and the
-   **App icon** colour.
+2. **Display** — interface zoom and font size, with a sample that resizes as you adjust, the
+   **App icon**, and whether Live TV shows a preview.
 3. **Disclaimer** — OwnTV is a player; you bring the sources.
 4. **Set up OwnTV** — **New profile**, **Restore a backup**, or **From another device** (copy
    everything off a television you already have — see below).
 5. **Profile** — name, avatar, and optionally a **Kids** profile or a PIN.
-6. **Add a playlist** — **New**, **Existing** (only when another profile already has one), or
-   **Import** a backup file. **Skip for now** is a valid answer.
-7. **New** opens the form straight away — Xtream, M3U or Stalker. A phone has a keyboard, so there is
-   no remote-entry step here; that exists on the television, and your phone is what fills it in
-   (see [Setting up the television too?](#-setting-up-the-television-too)).
-8. **Import** runs. Unlike the television, the phone does **not** offer the TV guide afterwards —
-   add it yourself at [Settings → Sources → EPG sources](#-add-guide-data).
+6. **Add a playlist** — **Remote** (type it on a computer or another device's browser), **Type it
+   here** (Xtream, M3U or Stalker), **Import** a backup file, or **Existing** (only when another
+   profile already has one). **Skip for now** is a valid answer.
+7. **Import** runs, counting channels, films and series as they arrive.
+8. **All set** — **Add a TV guide** goes straight to
+   [Settings → Sources & guide → EPG sources](#-add-guide-data); the guide is never added for you.
 
 ### 📺 Coming from the television?
 **Where:** step 4 → **From another device**, or **Restore a backup**
-No file needed for the first one: on the television open **⋯ More → Local sync** and turn **Sync
+No file needed for the first one: on the television open **More → Local sync** and turn **Sync
 mode** on, then pick **From another device** here. The phone finds it on the network or scans its
 code, you type the 6-digit PIN once, tick what to bring across, and see exactly what will change
 before it changes. A phone being set up only ever *receives* — nothing on the television is altered.
@@ -46,20 +45,24 @@ A backup made on the TV also restores here, encrypted ones included — and **Re
 what to bring back before it applies anything, so you can take the playlists and leave the old
 device's settings behind. The app opens once the restore is complete and starts downloading the
 restored playlists straight away. Later on, the full two-way version lives at
-⋯ More → [Local sync](#-local-sync-with-your-tv).
+More → [Local sync](#-local-sync-with-your-tv).
 
 ---
 
 ## 🧭 Getting around
 
-**On a phone** — a bottom bar: Home · Live TV · Guide · Library · ⋯ More.
-**On a tablet, or a phone held sideways** — the bar becomes a rail down the left, with more room, and
-Live TV, the Library and Settings open **two panes** side by side.
+**On a phone** — a bottom bar: Home · Live TV · Sports · TV Guide · Library (Movies | Series at its top).
+**On a tablet, or a phone held sideways** — the bar becomes a floating rail down the left (with
+Downloads and More too), Live TV puts the preview beside the list, and Movies and Series show the
+picked title on a card beside the posters.
+
+Each page has its title and, under it, where you are — **"‹ Sky Cinema · 9 channels"**. Tap that line
+to change category. Top right: the **playlist** button, **search** and **your avatar**, which opens **More**.
 
 - **Tap the tab you are already on** — or long-press it — to jump that list back to the top.
-- **⋯ More** holds Downloads, Recordings, Favourites, History, Backup, Local sync, Profiles, the
-  error log, About and **Settings**.
-- The **playlist chip** in the top bar switches which playlist the whole app is showing.
+- **More** (tap your avatar) holds your profile and **Switch**, **Settings**, Downloads, Favourites,
+  History, Backup, Local sync, the error log and About.
+- The **playlist button** at the top right switches which playlist the whole app is showing.
 
 ---
 
@@ -78,17 +81,47 @@ Live TV, the Library and Settings open **two panes** side by side.
 | **Press and hold** | 2× speed while your finger is down |
 | **Two-finger tap** | Mute / unmute |
 
-**Too sensitive?** **Settings → Playback → Mobile → Gesture sensitivity** changes how far a value
+**Too sensitive?** **Settings → Watching & recording → Gesture sensitivity** changes how far a value
 moves per centimetre of finger, without changing how far you must travel to start a gesture.
+
+---
+
+## 🏆 Sports
+
+**Where:** the **Sports** tab. Nothing is followed at first: tap **Sports and leagues** (or go to
+**Settings → App → Sports → Sports and leagues**), tap a sport and switch on its leagues.
+**Sport buttons → All sports** fetches every league instead, which takes longer.
+
+- **The Sports page** — two rows of buttons filter it: sports (and ★ My teams), then that sport's
+  leagues; **⟳** at the end rebuilds the sports data (the status pill says **Rebuilding sports…**).
+  Rows: **Live now**, **Sport on your channels** (from your guide) and **Starting soon**.
+  Tap a match to open it; **long-press** to follow a side or set a reminder.
+- **A match** — score, venue, and the tabs **Watch live · Timeline · Stats · Line-ups · Table · Form ·
+  Broadcasts**. In **Watch live**, **Find channels** lists the channels in your guide that show it, from
+  30 minutes before kick-off. **Filter channels** narrows them by language, country, picture and
+  playlist; **Strict filtering** hides the rest, and **Remember for every match** keeps the choice.
+  Tap a channel to watch full screen; **Back** returns to the match. **Long-press** a channel for
+  **Always use for …**. **Broadcasts** lists the channels found, one per row by country.
+- **Live score card** on a match keeps its score in your notifications until full time.
+- **In the player** — the score shows under the channel name while the controls are up, and
+  **Other channels** switches to another channel showing the same match.
+- **Your own order** — in Sports and leagues, **long-press** a sport or a switched-on league →
+  **Move**, then the arrows and **Save**. The Sports page and the Home row follow it.
+- **Settings → App → Sports** — auto rebuild, live refresh, filters, My teams, **Goal alerts** (also
+  when OwnTV is closed: goals, kick-off and full time, half time, red cards; for My teams or every
+  followed league) and match reminders. A reminder with a channel found shows OwnTV's own prompt while
+  the app is open.
 
 ---
 
 ## 📥 Playlists & sources
 
 ### ➕ Add a playlist
-**Where:** Settings → Sources → **Playlists** → Add, or the first-run wizard
+**Where:** Settings → Sources & guide → **Playlists** → Add, or the first-run wizard
 **Xtream** (server, user, password), **M3U** (a URL, or a file picked with your phone's file picker),
 or **Stalker/Ministra** (portal URL + MAC, with optional Serial Number, Device IDs and Signature).
+An M3U link of the form `…/get.php?username=…&password=…` is really an Xtream account: when the
+provider's server confirms it, it is added as **Xtream**, with movies and series in their own tabs.
 Under **User-Agent** there is an optional **Referer** — leave it empty unless your provider asks
 for one; it is then sent with every stream of that playlist.
 
@@ -100,18 +133,18 @@ phone. It shows a QR code and a 6-digit PIN; scan it, fill the form in your brow
 it works from any phone on the same Wi-Fi, this app installed or not.
 
 ### ℹ️ Info & Re-test
-**Where:** Settings → Sources → Playlists → tap a playlist → **Info**
+**Where:** Settings → Sources & guide → Playlists → tap a playlist → **Info**
 Whether the account is alive, when it expires, and **how many streams your provider allows** —
 measured once at the first sync. **Re-test** re-measures it; it warns first, because it stops
 anything playing and takes a few minutes.
 
 ### ⚡ What to sync, and running it in the background
-**Where:** while adding, and Settings → Sources → Playlists → Edit
+**Where:** while adding, and Settings → Sources & guide → Playlists → Edit
 Choose per section whether Live, Movies and Series are fetched. A big import offers **Run in
 background** so you can start using the app immediately; a status pill shows progress.
 
 ### 🗂️ Several playlists
-**Where:** the playlist chip in the top bar
+**Where:** the playlist button at the top right
 Show them all merged, or narrow the whole app to one. Rows carry the provider's name when more than
 one is loaded.
 
@@ -125,9 +158,11 @@ your phone's date & time** — Stalker validates timestamps.
 
 ### ▶️ Watch a channel
 **Where:** Live TV → tap a channel
-A phone opens the channel's own screen — the picture in a 16:9 box with the guide and sibling
-channels below. **Tap the picture**, or turn the phone sideways, for full screen. On a tablet the
-channel plays in the pane beside the list.
+The channel plays in a **preview at the top** of the list, with what is on now and next — muted
+unless Settings → Live TV → **Preview sound** is on. **Tap the same channel again**, or the picture,
+for full screen. Back closes the preview. Sideways or on a tablet the preview sits beside the list.
+A channel on **Home**, in **Favourites** or in **History** plays full screen straight away; one found
+in **Search** opens Live TV with it in the preview.
 
 ### ⭐ The long-press menu
 **Where:** long-press any channel
@@ -135,8 +170,10 @@ Favourite · Rename · Hide · Match EPG · EPG offset · Move · Move to catego
 **Add to Multiview** · Catch-up · Play in another app. Inside a custom category: **Remove from this category**.
 
 ### 🏷️ Categories
-Chips above the list, with a search button for providers with hundreds of them.
-**Long-press a category chip** to hide or move it without going to Settings.
+**Tap the line under the title** for the categories sheet: Favourites, Recently watched, Catch-up,
+All channels, then your provider's groups with counts and a search field.
+**Long-press a category** to hide or move it, or **Restore to playlist default** — hidden channels
+come back, moved ones return and the order resets; it tells you what will change first.
 
 ### 🔧 Compatibility mode
 **Where:** full-screen player → the **⇄** engine button
@@ -144,20 +181,20 @@ If a channel stutters or won't open, one press flips it to the other engine and 
 channel's choice.
 
 ### 🏛️ Which engine channels start on
-**Where:** Settings → Playback → Video player → Player → **Live TV player**
+**Where:** Settings → Player → **Live TV player**
 **ExoPlayer, then mpv** (default) · **mpv, then ExoPlayer** · **ExoPlayer only** · **mpv only**, with
 a **per playlist** override below it.
 
 > **A channel that won't play is worked through every combination** — each engine on each stream
 > format, up to four, each tried once. Then it stops and tells you.
-> **Give up after** (Settings → Playback → Video player → Live tuning) bounds how long that may take, and
+> **Give up after** (Settings → Live TV) bounds how long that may take, and
 > **Give up after, per playlist** gives one provider its own time.
 
 ---
 
 ## 🗓️ TV Guide — three shapes
 
-**Where:** the **Guide** tab → the **tune** button (top right) → View
+**Where:** the **TV Guide** tab → the **order** button in the tools row → View
 
 | Shape | Best for |
 |---|---|
@@ -173,7 +210,7 @@ as **Guide days to keep** is set to — and there's a search box.
 **Record**, **Record every showing** and **Favourite**.
 
 ### ➕ Add guide data
-**Where:** Settings → Sources → **EPG sources**
+**Where:** Settings → Sources & guide → **EPG sources**
 **The guide is opt-in, and the phone never offers it by itself** — if you have no programme names,
 this is why. Add XMLTV feeds here, **Fill from playlist** to take the URL your playlist already
 carries, set a User-Agent, pick a refresh interval — which can be **every N days** — and choose
@@ -206,11 +243,11 @@ Drag the live bar back, tap the rewind button, or use **Go back to…** for a li
 returns.
 
 ### ⏸️ Pause and rewind channels without catch-up
-**Where:** **Settings → Playback → Video Player Settings → Live TV → Pause and rewind live TV**
+**Where:** **Settings → Live TV → Pause and rewind live TV**
 Off by default. While you watch a channel full screen, OwnTV saves it on this phone and plays it
 from that copy, so it still looks live — and you can **pause**, rewind and go forward on channels
 whose provider keeps no archive. Pause, the rewind button, forward (once you are behind), the bar and **Go live** work as on a catch-up channel. A dark stretch on the bar is a moment the connection
-dropped; playback jumps over it.
+dropped; playback jumps over it. If your internet drops, saving waits and carries on when it is back; the channel picks up by itself.
 
 - **Rewind length:** 15 (default), 30, 45 or 60 minutes. At least **1 GB** of the phone's storage always
   stays free; the oldest part goes first.
@@ -243,7 +280,7 @@ status pill shows one running even over the player.
 ## 🔲 Multiview
 
 **Where:** the **Multiview** button in the player, or long-press channels → **Add to Multiview**
-*(Turn it on first: Settings → Playback → Video player → Multiview.)*
+*(Turn it on first: Settings → Watching & recording → Multiview.)*
 
 | Gesture | Does |
 |---|---|
@@ -259,20 +296,21 @@ Leaving the app stops the tiles.
 
 ---
 
-## 🎬 Library — films & shows
+## 🎬 Movies & Series
 
 ### 🖼️ Browse
-**Where:** the **Library** tab
-Movies and Series as one screen with a segmented control (a tablet gets them as separate rail items).
-**Pinch to resize** the posters, or use the **Size** slider. A part-watched film carries a progress
+**Where:** the **Movies** and **Series** tabs
+Search, sort, and **Grid | List** in the tools row; the line under the title picks the category.
+**Pinch to resize** the posters, or use **Poster size** in the sort sheet. A part-watched film carries a progress
 bar, in the grid and the list alike; a show carries the bar of its latest part-watched episode.
 
 ### ▶️ A film or a show
 Tap for its page: backdrop, cast, chips, **Resume** or **Play**, favourite, download, season chips
-and episode progress. A show **opens on the episode you last watched**.
+(**Specials** last, when the show has them) and episode progress. A show **opens on the episode you last watched**; one you have not started
+plays from Season 1 Episode 1, with **Specials** after the last season.
 
 Starting something part-watched anywhere else — a **Continue watching** row, the hero card, an
-episode in a series — asks **Resume or start over?** Settings → Video player → Resume & auto-play → **Resume playback**
+episode in a series — asks **Resume or start over?** Settings → Watching & recording → **Resume playback**
 changes that to always resuming, or always starting from the beginning. A film you left in the first
 ten seconds never asks.
 
@@ -284,7 +322,7 @@ TMDB details · Trailer · Play in another app.
 
 ## 🎬 TMDB metadata
 
-**Where:** Settings → Content → **Metadata**
+**Where:** Settings → Content & metadata → **Metadata (TMDB)**
 Posters, plots, cast and trailers. **Metadata source** picks provider-only, provider + TMDB, or TMDB
 only; **Language** sets the language of plots and artwork, separately from the app's own language.
 
@@ -296,39 +334,45 @@ connection** so you can prove a key or a self-hosted server works.
 ## 🔎 Search · 🕐 History · ⭐ Favourites
 
 ### 🔎 Search
-**Where:** the magnifying glass in the top bar
-One field over channels, films and shows, grouped with a count for each. Recent searches are kept,
+**Where:** the magnifying glass at the top right
+One field over channels, films and shows, grouped with a count for each. Once you type, filter
+chips — **Live TV / TV Shows / Movies / Series** — narrow the results; tap to turn one on or off,
+several at once, none for everything. Recent searches are kept,
 and three chips offer **Continue watching**, **Unwatched favourites** and **Channels**.
-Long-press a result to favourite, download or hide it.
-**On TV** lists programmes from the stored guide whose title matches, on now or within the next 12
+**TV Shows** lists programmes from the stored guide whose title matches, on now or within the next 12
 hours, with the channel and time; tap one to open that channel.
 Every match is listed, up to 500 of each kind, so a word your provider carries hundreds of — "CNN",
 say — doesn't need a narrower search to reach the rest. Words match from their start, and a dash
 or other mark counts as a gap: "Spider-M" finds every Spider-Man.
 
 ### ⭐ Favourites & 🕐 History
-**Where:** ⋯ More → Favourites / History
+**Where:** More → Favourites / History
 Long-press a history row to remove it; **Clear** wipes it by type.
 
 ---
 
 ## 📥 Downloads & recordings
 
-**Where:** ⋯ More → **Downloads**
+**Where:** More → **Downloads**
 Three tabs — **Live TV** (your recordings), **Movies**, **Series** — with a free-space bar, a
 measured transfer rate, and pause · resume · retry · delete per item. Downloads keep running when you
-leave the app.
+leave the app. A download adds connections, up to eight, while each makes it faster, never more than
+your playlist allows. A failed one says why (account busy, connection lost, not enough space, …), and
+a finished one whose file is gone says **File missing**.
+On a playlist that allows one stream, pressing Play during a download pauses it and asks **Pause
+download and watch** or **Keep downloading**, with **Don't ask again**; change the answer later under
+**Watching while downloading** in the download options.
 
 ### 📂 Choose where they are saved
-**Where:** Settings → Content → Downloads → **Download folder**
+**Where:** Settings → App → **Download folder**
 Pick any folder with your phone's own folder picker, an SD card included. **Export** copies a
 finished download or recording anywhere you like. If that folder goes missing — a card removed, or
 permission withdrawn — downloads go to OwnTV's own folder until it is back, and the Downloads screen
 says so.
 
 ### 📶 Wi-Fi only
-**Where:** Settings → Network
-**Download on Wi-Fi only**, and a **data saver** that refuses to start a stream on mobile data.
+**Where:** Settings → App → **Downloads on Wi-Fi only**, and Settings → Player → **Data saver**, which
+refuses to start a stream on mobile data.
 
 ---
 
@@ -360,7 +404,7 @@ Every gesture above also has a button on the control bar:
 **Back stops the stream.** The mini-player button and the swipe down are what keep it playing.
 
 ### 🪟 The mini player
-**Where:** Settings → Playback → Mobile → **Mini player**
+**Where:** Settings → Watching & recording → **Mini-player**
 - **Floating window** (default) — drag it anywhere, **pinch** to resize between three sizes, it snaps
   to the edges, **double-tap** to go full screen, **long-press** for its menu, swipe it down to stop.
 - **Docked bar** — above the tabs, with the title and transport buttons.
@@ -370,7 +414,7 @@ Sound-only and casting always use the docked bar: there is no picture for a wind
 ### 📱 Picture-in-Picture
 Press **Home** while watching full screen and the picture follows you into the system's own floating
 window, over other apps, with skip and play/pause buttons. Turn it off in
-**Settings → Playback → Mobile**.
+**Settings → Watching & recording → Picture-in-picture**.
 
 ### 🎧 Sound only
 **Where:** the headphones button in the player, or the floating window's menu
@@ -382,7 +426,7 @@ channel. A **sleep timer** lives in the same menu — and on the full-screen pla
 
 ## 📺 Cast to a television
 
-**Where:** the cast button in the top bar or the player
+**Where:** the cast button at the top right or the player
 Appears only when there is a receiver on your network. The television plays the stream itself, so
 the phone's lock screen and notification then drive *it*.
 
@@ -393,7 +437,7 @@ the phone's lock screen and notification then drive *it*.
 
 ## 🔄 Local sync with your TV
 
-**Where:** ⋯ More → **Local sync**
+**Where:** More → **Local sync**
 Swap playlists, profiles, favourites, history and resume positions with the television over your own
 Wi-Fi. No account, no cloud, no file.
 
@@ -413,12 +457,12 @@ Both devices open Local sync  →  pair (scan the QR, or pick from the list)
 
 ## 👥 Profiles
 
-**Where:** ⋯ More → **Profiles**
+**Where:** More → **Profiles**
 Each has its own favourites, history, resume points and layout. Add a **PIN**, or make it a **kids
 profile** to hide adult content everywhere. Pick one of ten drawn avatars — or **a photo of your
-own**, which the television cannot offer.
+own**, already while creating the profile.
 
-**Where a profile opens:** Settings → App → **Start on** — Home, the last channel, Favourites, or one
+**Where a profile opens:** Settings → App → **App startup** — Home, the last channel, Favourites, or one
 chosen channel.
 
 ---
@@ -437,21 +481,23 @@ now** switches at once: OwnTV closes and opens again by itself, on Home, with th
 **Later** switches when you next leave the app. Some launchers take a moment
 to show the new icon, and a few move it from the home screen to the app list.
 
-**Glass Effect** has its own page: presets including **Aurora**, transparency, frost, and which
-surfaces get it. Real frost needs Android 12+.
+**Glass & background** (Settings → Appearance) picks the background — **Stage**, a **picture** from
+your phone, or **Plain** — its look, darkening and blur, the accent light, and the **Glass** switch
+with its opacity. Real frost needs Android 12+.
 
 ### 🔤 Fonts & size
-**Where:** Settings → Appearance → **Fonts**, and the zoom/text sliders
+**Where:** Settings → Appearance → **Fonts & text size**, **Popup size** and **UI zoom**
 Six font families for the interface and for popups, and interface zoom.
 
 ### 🗂️ Customize
-**Where:** Settings → Content → **Customize categories**
+**Where:** Settings → Content & metadata → **Customize categories & items**
 Hide, rename, reorder and regroup categories and items, with **bulk rename** (rules, automatic
-cleanup, a review step and restore-originals), **custom categories**, span selection, and an optional
+cleanup, a review step and restore-originals — for category names too, from the categories page),
+**custom categories**, span selection, and an optional
 **PIN lock**.
 
 ### 🏠 Home & layout
-**Where:** Settings → Layout → **Home**
+**Where:** Settings → Layout → **Home screen**
 Reorder or hide Home rows — including **Favourite movies** and **Favourite series**, which open the
 film or show — switch channel rows between cards and *On now*, and choose whether Now
 Trending is the detailed hero or a plain poster row.
@@ -460,35 +506,37 @@ Trending is the detailed hero or a plain poster row.
 
 ## ⚙️ Settings worth knowing
 
-Settings is a list of groups, each opening its own page. There's a **search box** at the top, and
-**Quick toggles** you build yourself by **long-pressing any switch to pin it**.
+Settings is twelve group cards, each opening its own page. There's a **search box** at the top that
+finds any setting by its name, and **Quick** holds the rows you pin yourself by **long-pressing a row**.
 
 | Setting | Where | Why |
 |---|---|---|
-| **Live TV player** (+ per playlist) | Playback → Video player → Player | Which engine opens a channel |
-| **Give up after** (+ per playlist) | Playback → Video player → Live tuning | Bounds how long a dead channel can spin |
-| **Movies & Series player** (+ per playlist) | Playback → Video player → Player | Which engine opens films and episodes |
+| **Live TV player** (+ per playlist) | Player | Which engine opens a channel |
+| **Give up after** (+ per playlist) | Live TV | Bounds how long a dead channel can spin |
+| **Movies & Series player** (+ per playlist) | Player | Which engine opens films and episodes |
+| **Catch-up time zone** | Sources & guide | **Automatic** (default) uses the Xtream panel's own zone; Device or a fixed offset otherwise |
 | **Catch-up time zone per playlist** | Sources & guide | One provider's archive on a different clock (quarter-hour zones included) |
-| **Live latency** (+ per playlist) | Playback → Video player → Live tuning | Closer to live, or steadier |
-| **Pre-buffer** (+ per playlist) | Playback → Video player → Live tuning | Collect a few seconds first on a flaky provider |
-| **Multiview** | Playback → Video player → Multiview | Off by default; also sets the tile ceiling |
-| **Record what I'm watching** | Playback → Recording | Adds the Record button to the player |
-| **Auto frame rate** | Playback → Video player → Picture | Off by default; full screen, seamless switches only; warns where the display can't be asked |
-| **Film buffer** · **Network timeout** · **Reconnect attempts** | Playback → Video player → Streaming | Films, episodes and catch-up on a bad line. Auto / 1 = as before |
-| **Reset saved live TV player choices** · **Forget learned stream fixes** | Playback → Video player → Player | Undo per-channel player choices; forget what the player learned about a provider |
-| **Dolby and DTS passthrough** · **Night mode** · **Volume leveling** | Playback → Video player → Sound | Send Dolby/DTS undecoded (on) or decode in the app; turn loud scenes down; even out loudness between channels. Night mode and leveling work on both engines |
-| **Maximum video quality** · **Maximum quality on mobile data** | Playback → Video player → Picture | The highest picture played when a stream offers several; the mobile-data limit follows a Wi-Fi ⇄ mobile switch while playing |
-| **Tunneled playback** | Playback → Video player → Picture | Experimental, off. Only on phones that support it; turns itself off after a failure |
-| **Preferred audio / subtitle language** | Playback → Video player → Languages & subtitles | Per profile, 50 languages. **Original language** (audio) plays a film or series in the language it was made in, when the stream has it |
-| **Subtitle appearance** | Playback → Subtitle appearance | Size, **font**, colour, position, background |
-| **Gesture sensitivity** | Playback → Mobile | How far a value moves per centimetre of finger |
-| **Background playback** | Playback → Mobile | Keep the sound when the app leaves the screen |
-| **Data saver** | Network | Refuse to stream on mobile data |
+| **Live latency** (+ per playlist) | Live TV | Closer to live, or steadier |
+| **Pre-buffer** (+ per playlist) | Live TV | Collect a few seconds first on a flaky provider |
+| **Multiview** | Watching & recording | Off by default; also sets the tile ceiling |
+| **Record what I'm watching** | Watching & recording | Adds the Record button to the player |
+| **Auto frame rate** | Picture | Off by default; full screen, seamless switches only; warns where the display can't be asked |
+| **Film buffer** · **Network timeout** · **Reconnect attempts** | Player | Films, episodes and catch-up on a bad line. Auto / 1 = as before |
+| **Reset saved live TV player choices** · **Forget learned stream fixes** | Player | Undo per-channel player choices; forget what the player learned about a provider |
+| **Dolby and DTS passthrough** · **Night mode** · **Volume leveling** | Sound & subtitles | Send Dolby/DTS undecoded (on) or decode in the app; turn loud scenes down; even out loudness between channels. Night mode and leveling work on both engines |
+| **Maximum video quality** · **Maximum quality on mobile data** | Picture | The highest picture played when a stream offers several; the mobile-data limit follows a Wi-Fi ⇄ mobile switch while playing |
+| **Software decoding above 1080p** | Picture | Off. Lets 4K play in software when hardware decoding is off or fails; only for a fast phone |
+| **Tunneled playback** | Picture | Experimental, off. Only on phones that support it; turns itself off after a failure |
+| **Preferred audio / subtitle language** | Sound & subtitles | Per profile, 50 languages. **Original language** (audio) plays a film or series in the language it was made in, when the stream has it |
+| **Subtitle appearance** | Sound & subtitles | Size, **font**, colour, position, background |
+| **Gesture sensitivity** | Watching & recording | How far a value moves per centimetre of finger |
+| **Background playback** | Watching & recording | Keep the sound when the app leaves the screen |
+| **Data saver** | Player | Refuse to stream on mobile data |
 | **Check for updates** | App | On startup, or on demand |
-| **Error log** | ⋯ More → Error log | Recent playback failures, exportable |
+| **Error log** | More → Error log | Recent playback failures, exportable |
 
 ### 💾 Backup & restore
-**Where:** ⋯ More → **Backup & Restore**
+**Where:** More → **Backup & Restore**
 One `.own` file with your profiles, sources, settings and downloaded subtitles, **optionally
 encrypted with your own password**. Choose which profiles travel. Restores a television backup too.
 
@@ -499,16 +547,17 @@ encrypted with your own password**. Choose which profiles travel. Restores a tel
 | Problem | Try this |
 |---|---|
 | A channel stutters or won't open | The **⇄** button in the player — compatibility mode |
-| Channel won't play at all | It already tried every engine and format. See ⋯ More → **Error log** |
+| Channel won't play at all | It already tried every engine and format. See More → **Error log** |
 | "Too many connections" | Wait — OwnTV counts down and retries by itself |
 | The screen keeps sleeping | Only if nothing is playing; check the channel actually started |
 | Stalker portal refuses the login | Re-check the MAC and your phone's **date & time** |
-| Guide is blank | Settings → Sources → **EPG sources** — add a feed, sync it, then **Auto-match** |
-| Downloads won't start | Settings → Network — **Download on Wi-Fi only** may be on |
+| Guide is blank | Settings → Sources & guide → **EPG sources** — add a feed, sync it, then **Auto-match** |
+| A series says "Could not load the episodes" | The provider refused the episode list; the code in brackets (e.g. HTTP 407) says why. Stop any other stream on the account and open the series again |
+| Downloads won't start | Settings → App — **Downloads on Wi-Fi only** may be on |
 | Nothing casts | The receiver has to decode it; raw MPEG-TS channels cannot be cast |
 | Update won't install | Android asks you to allow installs from OwnTV the first time |
 
-**Still stuck?** ⋯ More → **Error log** exports a report. Bring it to
+**Still stuck?** More → **Error log** exports a report. Bring it to
 [t.me/owntvplayer](https://t.me/owntvplayer).
 
 ---

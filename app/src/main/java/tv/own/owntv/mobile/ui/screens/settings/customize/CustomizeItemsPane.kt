@@ -7,17 +7,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,8 +21,7 @@ import androidx.paging.compose.itemKey
 import tv.own.owntv.core.customize.SpanSelector
 import tv.own.owntv.core.model.MediaType
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.screens.settings.SettingsPage
+import tv.own.owntv.mobile.ui.stage.StageTool
 import tv.own.owntv.mobile.ui.screens.settings.settingsNote
 
 /**
@@ -44,6 +37,8 @@ fun CustomizeItemsPane(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The page's crumb stays while a folder is open: "‹ Settings · Content & metadata".
+    tv.own.owntv.mobile.ui.screens.settings.SettingsCrumb(null, tv.own.owntv.mobile.ui.screens.settings.SettingsGroup.CONTENT)
     val catInfo by vm.catInfo.collectAsStateWithLifecycle()
     val items = vm.items.collectAsLazyPagingItems()
     val visibilityFilter by vm.visibilityFilter.collectAsStateWithLifecycle()
@@ -61,19 +56,11 @@ fun CustomizeItemsPane(
     var rangeEnd by remember { mutableStateOf<CustomizeItemRow?>(null) }
     var showFilter by remember { mutableStateOf(false) }
 
-    SettingsPage(modifier) {
+    tv.own.owntv.mobile.ui.screens.settings.SettingsStagePage(modifier) {
         item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth().padding(end = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MobileIcons.ArrowBack,
-                        contentDescription = stringResource(R.string.settings_customize_back),
-                    )
-                }
-                Text(categoryName, style = MaterialTheme.typography.titleMedium)
+            // The folder this level shows, as a tool that goes back to the folders (the page keeps its own title).
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 6.dp)) {
+                StageTool(onClick = onBack, icon = MobileIcons.ArrowBack, label = categoryName, contentDescription = stringResource(R.string.settings_customize_back))
             }
         }
         settingsNote(mediaType.itemsDescriptionRes())
@@ -82,31 +69,19 @@ fun CustomizeItemsPane(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                AssistChip(
+                StageTool(
                     onClick = { showFilter = true },
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.settings_customize_filter_button,
-                                stringResource(visibilityFilter.labelRes()),
-                            ),
-                        )
-                    },
+                    icon = MobileIcons.VisibilityOff,
+                    label = plainLabel(stringResource(R.string.settings_customize_filter_button, stringResource(visibilityFilter.labelRes()))),
                 )
                 // Renaming a whole folder of films or shows at once is the only practical way to
                 // clean up a provider's naming; channels are renamed one at a time instead.
                 if (mediaType != MediaType.LIVE) {
-                    AssistChip(
-                        onClick = { vm.bulkRenameAll(autocleanup = false) },
-                        label = { Text(stringResource(R.string.settings_customize_rename_items)) },
-                    )
-                    AssistChip(
-                        onClick = { vm.bulkRenameAll(autocleanup = true) },
-                        label = { Text(stringResource(R.string.settings_bulk_rename_auto_cleanup)) },
-                    )
+                    StageTool(onClick = { vm.bulkRenameAll(autocleanup = false) }, label = stringResource(R.string.settings_customize_rename_items))
+                    StageTool(onClick = { vm.bulkRenameAll(autocleanup = true) }, label = stringResource(R.string.settings_bulk_rename_auto_cleanup))
                 }
             }
         }
@@ -126,9 +101,13 @@ fun CustomizeItemsPane(
             key = items.itemKey { it.key },
         ) { index ->
             val row = items[index] ?: return@items
-            MobileListRow(
+            // A Stage row: a tick while it is in a span, the span itself drawn as the current rows.
+            val inSpan = row.key in selectedKeys
+            tv.own.owntv.mobile.ui.stage.StageSettingRow(
                 title = row.displayName,
                 subtitle = row.provenance(),
+                icon = if (inSpan) tv.own.owntv.mobile.ui.components.MobileIcons.Check else null,
+                current = inSpan,
                 onClick = {
                     when {
                         anchorKey == null -> menuFor = row
@@ -141,8 +120,6 @@ fun CustomizeItemsPane(
                     }
                 },
                 onLongClick = { menuFor = row },
-                leading = spanTick(row.key in selectedKeys),
-                selected = row.key in selectedKeys,
             )
         }
     }

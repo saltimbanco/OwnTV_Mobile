@@ -5,7 +5,6 @@ import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 import tv.own.owntv.core.live.LiveArchiveUrls
 import tv.own.owntv.core.live.LiveEpgReader
-import tv.own.owntv.mobile.ui.screens.live.ChannelDetailViewModel
 import tv.own.owntv.mobile.ui.screens.live.LiveTuner
 import tv.own.owntv.mobile.ui.screens.live.LiveViewModel
 
@@ -13,7 +12,7 @@ import tv.own.owntv.mobile.ui.screens.live.LiveViewModel
  * Live TV's view models, and the tuner they share.
  *
  * The tuner is a `single` on purpose: it is what is playing, and what is playing outlives the screen
- * that started it — the channel screen, the full screen player and the mini player all read this one
+ * that started it — Live TV's preview, the full screen player and the mini player all read this one
  * object. The two guide helpers are plain core classes with no module of their own, so they are
  * assembled here rather than reached for by type.
  */
@@ -41,14 +40,14 @@ val liveModule = module {
             userDataWriter = get(),
             cast = get(),
             recordings = get(),
-            // L2 - live's second engine, its own instance for the whole session. See PlayerModule
+            // Live's second engine, its own instance for the whole session. See PlayerModule
             // for why it is not one of Multiview's pooled tiles.
             exo = get(),
             forceMpvStore = get(),
             player = get(),
             watchSession = get(),
+            downloadWatchGuard = get(),
         )
     }
     viewModelOf(::LiveViewModel)
-    viewModelOf(::ChannelDetailViewModel)
 }

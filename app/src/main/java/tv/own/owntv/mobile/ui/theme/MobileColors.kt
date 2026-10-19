@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import tv.own.owntv.mobile.R
 import tv.own.owntv.core.theme.AccentColor
@@ -44,42 +43,6 @@ fun accentOnVideo(accent: AccentColor, customAccent: String = ""): Color {
         ?.let { accentRolesFromSeed(it, isDark = true) }
         ?: accent.roles(isDark = true)
     return Color(roles.primary)
-}
-
-/**
- * The colour each of the four glass materials becomes with the Glass Effect off.
- *
- * Three of them are the shell's per-region fills rather than M3 container steps, because that is
- * what the TV app paints and the two apps are one product: the navigation takes the rail colour,
- * the page takes the content colour, a row takes the detail-pane colour. The elevation ladder is
- * greyer and flattens the regions into each other, which is the look those three exist to avoid.
- */
-@Immutable
-data class MobileSurfaceTones(
-    /** Dialogs, sheets and toasts — the TV app's own dialog fill. */
-    val floating: Color,
-    /** Bars, rails and the mini player. */
-    val chrome: Color,
-    /** Page panels and the detail backdrop. */
-    val container: Color,
-    /** Cards and rows. */
-    val inline: Color,
-)
-
-fun mobileSurfaceTones(isDark: Boolean): MobileSurfaceTones = if (isDark) {
-    MobileSurfaceTones(
-        floating = Color(OwnTVPalette.DarkSurfaceContainerHigh),
-        chrome = Color(OwnTVPalette.DarkRailPanel),
-        container = Color(OwnTVPalette.DarkContentPanel),
-        inline = Color(OwnTVPalette.DarkPreviewPanel),
-    )
-} else {
-    MobileSurfaceTones(
-        floating = Color(OwnTVPalette.LightSurfaceContainerHigh),
-        chrome = Color(OwnTVPalette.LightRailPanel),
-        container = Color(OwnTVPalette.LightContentPanel),
-        inline = Color(OwnTVPalette.LightPreviewPanel),
-    )
 }
 
 fun mobileColorScheme(

@@ -1,5 +1,6 @@
 package tv.own.owntv.mobile.ui.player
 
+import androidx.compose.runtime.produceState
 import tv.own.owntv.core.database.entity.ChannelEntity
 import tv.own.owntv.mobile.ui.components.CategoryPickerSheet
 import android.content.pm.ActivityInfo
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +58,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import tv.own.owntv.mobile.MainActivity
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.cast.CastController
 import tv.own.owntv.mobile.playback.PipController
@@ -70,7 +69,16 @@ import tv.own.owntv.core.subtitles.SubtitleController
 import tv.own.owntv.mobile.ui.screens.ContentActions
 import tv.own.owntv.mobile.ui.setup.copyPickedFile
 import tv.own.owntv.mobile.ui.theme.LocalAccentOnVideo
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
+import tv.own.owntv.mobile.ui.components.MobileBottomSheet
+import tv.own.owntv.mobile.ui.screens.settings.SheetText
+import tv.own.owntv.mobile.ui.screens.settings.StageConfirmSheet
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.semantics.Role
 import tv.own.owntv.mobile.ui.screens.library.VodTuner
 import tv.own.owntv.mobile.ui.screens.live.LiveTuner
 import tv.own.owntv.player.ErrorInfo
@@ -112,10 +120,12 @@ fun PlayerScreen(
     actions: ContentActions = koinInject(),
     subtitles: SubtitleController = koinInject(),
     cast: CastController = koinInject(),
+    downloadWatchGuard: tv.own.owntv.core.download.DownloadWatchGuard = koinInject(),
 ) {
     val player = tuner.player
+    val downloadWatchPrompt by downloadWatchGuard.prompt.collectAsStateWithLifecycle()
 
-    // L2 - live now has two engines. `liveOnExo` says which one holds the picture, so the stage knows
+    // Live now has two engines. `liveOnExo` says which one holds the picture, so the stage knows
     // whose surface to draw and the HUD's engine button knows which way it flips.
     val liveOnExo by tuner.liveOnExo.collectAsStateWithLifecycle()
 
@@ -155,6 +165,7 @@ fun PlayerScreen(
     // playing", and the spinner over a deliberately paused picture reads as a stall. The television
     // has always drawn this from `buffering`; so does this now.
     val buffering by activeEngine.buffering.collectAsStateWithLifecycle()
+    val stalledSinceMs by activeEngine.stalledSinceMs.collectAsStateWithLifecycle()
     // Only the stream that never had a picture — a radio channel — reaches this screen without one.
     // The user's own sound-only choice cannot, see below.
     val audioOnlyMedia by activeEngine.audioOnlyMedia.collectAsStateWithLifecycle()
@@ -197,7 +208,7 @@ fun PlayerScreen(
         }
         if (multiviewPickFor == null) multiviewCategory = null
     }
-    // Channels kept from the Live list (B5's second entry point). Playing any channel is what says
+    // Channels kept from the Live list (the second way into the grid). Playing any channel is what says
     // "now": the grid opens with them already in it, and the selection is spent.
     val multiviewSelection by tuner.multiviewSelection.collectAsStateWithLifecycle()
     LaunchedEffect(channel?.id, multiviewSelection.size, multiviewEnabled) {
@@ -206,7 +217,7 @@ fun PlayerScreen(
             val kept = multiviewSelection
             tuner.clearMultiviewSelection()
             // BOTH engines, exactly as the HUD button does. This is the *other* way into the grid —
-            // the one the owner actually uses — and it stopped only mpv, so a channel playing on the
+            // the one most used — and it stopped only mpv, so a channel playing on the
             // ExoPlayer engine carried on underneath: a second sound, and a connection spent on a
             // stream nobody could see.
             player.stop()
@@ -275,7 +286,7 @@ fun PlayerScreen(
     val replaying by tuner.replaying.collectAsStateWithLifecycle()
     val isLive = channel != null && !replaying
 
-    // "Go back to…", for a live channel whose provider keeps an archive — or its own saved copy (N4),
+    // "Go back to…", for a live channel whose provider keeps an archive — or its own saved copy,
     // which exists only once the tune has started saving. Recomputed per channel, since the depth of
     // the archive is the channel's, not the playlist's.
     val hasLocalCopy by tuner.hasLocalCopy.collectAsStateWithLifecycle()
@@ -285,21 +296,55 @@ fun PlayerScreen(
         }
     }
 
-    // N4 — back on a channel whose saved copy was kept: continue from there, or stay live.
+    // Back on a channel whose saved copy was kept: continue from there, or stay live.
     val timeshiftResumeAt by tuner.timeshiftResumeAt.collectAsStateWithLifecycle()
     if (timeshiftResumeAt != null) {
-        AlertDialog(
-            modifier = Modifier.glassDialogWindow(),
-            onDismissRequest = tuner::dismissTimeshiftResume,
-            title = { Text(stringResource(R.string.player_timeshift_resume_title)) },
-            text = { Text(stringResource(R.string.player_timeshift_resume_message)) },
-            confirmButton = {
-                TextButton(onClick = tuner::resumeTimeshift) { Text(stringResource(R.string.common_resume)) }
-            },
-            dismissButton = {
-                TextButton(onClick = tuner::dismissTimeshiftResume) { Text(stringResource(R.string.player_go_live)) }
-            },
+        // Resume clears the offer itself, so the sheet's dismiss after it is a no-op.
+        StageConfirmSheet(
+            title = stringResource(R.string.player_timeshift_resume_title),
+            text = stringResource(R.string.player_timeshift_resume_message),
+            confirm = stringResource(R.string.common_resume),
+            onConfirm = tuner::resumeTimeshift,
+            onDismiss = tuner::dismissTimeshiftResume,
+            cancel = stringResource(R.string.player_go_live),
         )
+    }
+
+    // A one-stream playlist a download was using: core has paused the download and asks what next.
+    // Dismissing is watching — the picture is already on and the download stays paused.
+    downloadWatchPrompt?.let { p ->
+        var rememberAnswer by remember(p) { mutableStateOf(false) }
+        MobileBottomSheet(
+            onDismissRequest = { downloadWatchGuard.answer(watch = true, remember = rememberAnswer) },
+        ) {
+            StageSheetHeader(stringResource(R.string.content_download_watch_title))
+            SheetText(stringResource(R.string.content_download_watch_body, p.playlistName))
+            StageMenuItem(
+                stringResource(R.string.content_download_watch_remember),
+                onClick = { rememberAnswer = !rememberAnswer },
+                checked = rememberAnswer,
+                role = Role.Checkbox,
+            )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StageButton(
+                    onClick = {
+                        downloadWatchGuard.answer(watch = false, remember = rememberAnswer)
+                        // Stopped, not left playing in the mini player: the download needs the stream.
+                        tuner.stop()
+                        vodTuner.stop()
+                        onExit()
+                    },
+                    text = stringResource(R.string.content_download_watch_keep),
+                    modifier = Modifier.weight(1f),
+                )
+                StageButton(
+                    onClick = { downloadWatchGuard.answer(watch = true, remember = rememberAnswer) },
+                    text = stringResource(R.string.content_download_watch_watch),
+                    style = StageButtonStyle.PRIMARY,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 
     // The automatic advance, made visible. The engine starts the next episode eight seconds before the
@@ -322,6 +367,13 @@ fun PlayerScreen(
     // Pure except for the channel (and the cast route) it reads: recompute on those, not on ticks.
     val archiveWindowSec = remember(isLive, channel?.id, castDevice) { tuner.archiveWindowSec() }
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
+    // Sports Hub: the extras exist only while the playing channel is one of the match's it was started from.
+    val sportsPlayback: tv.own.owntv.mobile.ui.screens.sports.SportsPlayback = koinInject()
+    val sportsSession by sportsPlayback.session.collectAsStateWithLifecycle()
+    val sportsConfig by koinInject<tv.own.owntv.core.settings.SettingsRepository>().activeSportsConfig
+        .collectAsStateWithLifecycle(tv.own.owntv.core.sports.SportsConfig())
+    val matchSession = sportsSession?.takeIf { s -> isLive && s.options.any { it.channel.id == channel?.id } }
+    var otherChannels by remember { mutableStateOf(false) }
     // Closing the sheet forgets which category was open, so the next press starts at the categories.
     LaunchedEffect(sheet) { if (sheet != PlayerSheet.CHANNELS) playerCategory = null }
     val recordWatchingEnabled by settings.recordWhatImWatching.collectAsStateWithLifecycle(initialValue = false)
@@ -613,7 +665,27 @@ fun PlayerScreen(
         } else if (buffering && !noPicture) {
             // On the same material as every other message over the picture, rather than a bare ring.
             PlayerToast(Modifier.align(Alignment.Center)) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp))
+                    // As on the TV, a live channel that had been playing and has stalled for
+                    // 10 s says so under the spinner; gone as soon as the picture returns.
+                    val stalledSince = stalledSinceMs
+                    if (isLive && stalledSince != null) {
+                        val showNotice by produceState(false, stalledSince) {
+                            kotlinx.coroutines.delay(RECONNECT_NOTICE_AFTER_MS - (android.os.SystemClock.elapsedRealtime() - stalledSince))
+                            value = true
+                        }
+                        if (showNotice) {
+                            Text(
+                                stringResource(R.string.player_reconnecting),
+                                style = tv.own.owntv.mobile.ui.stage.stageText(14f, 600),
+                                color = Color(0xFFE6ECE9),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(top = 14.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -628,7 +700,8 @@ fun PlayerScreen(
             logoUrl = channel?.displayLogoUrl ?: film?.posterUrl,
             // Nothing is drawn over the picture in the little window: it is a thumbnail, and the
             // system draws its own buttons on top of it.
-            visible = controlsVisible && !inPip,
+            // Held sideways the channel list is a panel over the picture alone: the controls step aside.
+            visible = controlsVisible && !inPip && !(sheet == PlayerSheet.CHANNELS && landscape),
             isLive = isLive,
             offsetSec = offsetSecState,
             archiveWindowSec = archiveWindowSec,
@@ -637,7 +710,7 @@ fun PlayerScreen(
             timelineProgrammes = timelineProgrammes,
             channelNumber = channel?.number?.takeIf { showChannelNumbers },
             liveOnExo = liveOnExo,
-            // L3 - offered only where a swap makes sense. Rewound into the archive, a swap would
+            // Offered only where a swap makes sense. Rewound into the archive, a swap would
             // re-open the channel at the live edge and throw the user out of the rewind; a protected
             // channel has only one engine that can obtain its key, so swapping would trade a playing
             // picture for a guaranteed failure. `isLive` already excludes a replay.
@@ -688,7 +761,7 @@ fun PlayerScreen(
                     // The fullscreen stream goes first: tile 1 opens its own engine, and a playlist
                     // that allows two streams would otherwise be asked for three.
                     val current = channel
-                    // BOTH engines. Live plays on the ExoPlayer engine (L2) whenever that is the
+                    // BOTH engines. Live plays on the ExoPlayer engine whenever that is the
                     // chosen engine, and stopping only mpv left that stream running behind the grid —
                     // audible, and holding one of the provider's connections, while a tile played the
                     // same or another channel over the top of it. Two sounds at once.
@@ -726,16 +799,30 @@ fun PlayerScreen(
             },
             onToast = { toast = it },
             gestureScrubMs = scrubFraction?.takeIf { duration > 0 }?.let { (it * duration).toLong() },
-            // H1 — Report is offered only while Info is open, the television's rule on both apps.
+            // Report is offered only while Info is open, the television's rule on both apps.
             infoOpen = sheet == PlayerSheet.INFO,
-            // D3 — live channels only, and only once the setting is on. Null hides the button.
+            // Live channels only, and only once the setting is on. Null hides the button.
             onRecordThis = if (recordWatchingEnabled && isLive && channel != null) {
                 { tuner.togglePlayerRecording() }
             } else {
                 null
             },
             recordingThis = playerRecording != null,
+            matchLine = matchSession?.takeIf { sportsConfig.scoreInInfoBar }?.let { session ->
+                { tv.own.owntv.mobile.ui.screens.sports.MatchScoreLine(sportsPlayback, session.match, sportsConfig.spoilerFree) }
+            },
+            onOtherChannels = matchSession?.takeIf { it.options.size > 1 }?.let { { otherChannels = true } },
         )
+        if (otherChannels) {
+            val session = matchSession
+            if (session == null) otherChannels = false
+            else tv.own.owntv.mobile.ui.screens.sports.OtherChannelsSheet(
+                session = session,
+                playingId = channel?.id,
+                onSwitch = { tuner.switchTo(it); otherChannels = false },
+                onDismiss = { otherChannels = false },
+            )
+        }
 
         // Independent of the controls, so it still appears after they have faded out on their own.
         if (showNextCard) {
@@ -781,7 +868,7 @@ fun PlayerScreen(
                 grid.releaseAll()
                 multiview = null
                 multiviewPickFor = null
-                // Leaving the grid leaves *playback*, by the owner's decision (2026-09-13).
+                // Leaving the grid leaves *playback*, by design.
                 //
                 // It used to promote whichever tile had the sound to the single stream. In use that
                 // is wrong twice over: a grid is put away by someone who has finished watching, and
@@ -874,6 +961,7 @@ fun PlayerScreen(
             sheet = open,
             player = activeEngine,
             channels = if (open == PlayerSheet.CHANNELS) playerChannels else siblings,
+            channelsTitle = playerCategories.firstOrNull { it.first == playerCategory }?.second,
             brightness = brightness,
             onBrightness = { setBrightness(it) },
             onPickChannel = { tuner.switchTo(it) },
@@ -1025,3 +1113,6 @@ private class Carry {
     var volume = 0f
     var speedBefore = 1.0
 }
+
+/** How long a live stall lasts before the player says it is reconnecting (the TV's value). */
+private const val RECONNECT_NOTICE_AFTER_MS = 10_000L

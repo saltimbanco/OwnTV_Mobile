@@ -291,7 +291,7 @@ internal fun MobileLiveTimeline(
     accent: Color,
     onScrub: (deltaSec: Int) -> Unit,
     modifier: Modifier = Modifier,
-    /** N4 — wall-clock holes in a saved copy, drawn as dark stretches the rewind jumps over. */
+    /** Wall-clock holes in a saved copy, drawn as dark stretches the rewind jumps over. */
     gaps: () -> List<LongRange> = { emptyList() },
 ) {
     var dragging by remember { mutableStateOf(false) }
@@ -368,7 +368,7 @@ internal fun MobileLiveTimeline(
                             .background(accent),
                     )
                 }
-                // N4 — where the saved copy has no picture (the connection dropped): dark, so a jump over
+                // Where the saved copy has no picture (the connection dropped): dark, so a jump over
                 // it is expected rather than a surprise.
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                     liveGapSpans(gaps(), liveEdgeMs).forEach { span ->

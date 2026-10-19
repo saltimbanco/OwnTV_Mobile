@@ -1,6 +1,7 @@
 package tv.own.owntv.mobile.ui.screens.settings.customize
 
 import tv.own.owntv.mobile.ui.components.MobileIcons
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,14 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,8 +30,18 @@ import tv.own.owntv.core.customize.BulkRenameSession
 import tv.own.owntv.core.customize.RenameRules
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
+import tv.own.owntv.mobile.ui.components.sheetListHeight
+import tv.own.owntv.mobile.ui.screens.settings.SheetText
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.StageTool
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 
 /** Which field of a rule row a nested picker is editing. */
 private enum class RuleField { TYPE, PLACEMENT, VALUE }
@@ -52,8 +57,8 @@ private enum class RuleField { TYPE, PLACEMENT, VALUE }
 fun BulkRenameFlow(session: BulkRenameSession) {
     when (session.screen.collectAsStateWithLifecycle().value) {
         BulkRenameSession.Screen.CHOICE -> BulkChoiceSheet(session)
-        BulkRenameSession.Screen.BUILDER -> BulkRuleBuilderDialog(session)
-        BulkRenameSession.Screen.REVIEW -> BulkReviewDialog(session)
+        BulkRenameSession.Screen.BUILDER -> BulkRuleBuilderSheet(session)
+        BulkRenameSession.Screen.REVIEW -> BulkReviewSheet(session)
         BulkRenameSession.Screen.RESTORE_CONFIRM -> ConfirmDialog(
             title = stringResource(R.string.settings_bulk_rename_restore_title),
             message = stringResource(R.string.settings_bulk_rename_restore_description),
@@ -61,17 +66,11 @@ fun BulkRenameFlow(session: BulkRenameSession) {
             onConfirm = { session.confirmRestore() },
             onDismiss = { session.backToChoice() },
         )
-        BulkRenameSession.Screen.REFUSED -> AlertDialog(
-            modifier = Modifier.glassDialogWindow(),
-            onDismissRequest = { session.dismissRefused() },
-            title = { Text(stringResource(R.string.settings_bulk_rename_too_many_title)) },
-            text = { Text(stringResource(R.string.settings_bulk_rename_too_many_description)) },
-            confirmButton = {
-                TextButton(onClick = { session.dismissRefused() }) {
-                    Text(stringResource(R.string.common_ok))
-                }
-            },
-        )
+        BulkRenameSession.Screen.REFUSED -> MobileBottomSheet(onDismissRequest = { session.dismissRefused() }) {
+            StageSheetHeader(stringResource(R.string.settings_bulk_rename_too_many_title))
+            SheetText(stringResource(R.string.settings_bulk_rename_too_many_description))
+            StageMenuItem(stringResource(R.string.common_ok), onClick = { session.dismissRefused() }, icon = MobileIcons.Check, filled = true)
+        }
         BulkRenameSession.Screen.NONE -> Unit
     }
 }
@@ -80,34 +79,20 @@ fun BulkRenameFlow(session: BulkRenameSession) {
 @Composable
 private fun BulkChoiceSheet(session: BulkRenameSession) {
     val count = session.entries.collectAsStateWithLifecycle().value.size
-    MobileBottomSheet(
-        onDismissRequest = { session.close() },
-        title = stringResource(R.string.settings_bulk_rename_title),
-    ) {
-        Text(
-            pluralStringResource(R.plurals.settings_bulk_rename_selected, count, count),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    MobileBottomSheet(onDismissRequest = { session.close() }) {
+        StageSheetHeader(
+            title = stringResource(R.string.settings_bulk_rename_title),
+            subtitle = pluralStringResource(R.plurals.settings_bulk_rename_selected, count, count),
         )
-        MobileListRow(
-            title = stringResource(R.string.settings_bulk_rename_add_rule),
-            onClick = { session.openBuilder() },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_bulk_rename_auto_cleanup),
-            onClick = { session.autoCleanup() },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_bulk_rename_restore_original),
-            onClick = { session.requestRestore() },
-        )
+        StageMenuItem(stringResource(R.string.settings_bulk_rename_add_rule), onClick = { session.openBuilder() }, icon = MobileIcons.Add)
+        StageMenuItem(stringResource(R.string.settings_bulk_rename_auto_cleanup), onClick = { session.autoCleanup() }, icon = MobileIcons.Edit)
+        StageMenuItem(stringResource(R.string.settings_bulk_rename_restore_original), onClick = { session.requestRestore() }, icon = MobileIcons.History)
     }
 }
 
 /** Rows of "add/remove this text before/after the name", plus the two matching options. */
 @Composable
-private fun BulkRuleBuilderDialog(session: BulkRenameSession) {
+private fun BulkRuleBuilderSheet(session: BulkRenameSession) {
     val rules by session.rules.collectAsStateWithLifecycle()
     val options by session.options.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf(rules) }
@@ -139,117 +124,94 @@ private fun BulkRuleBuilderDialog(session: BulkRenameSession) {
         session.submitRules(out, RenameRules.Options(trimLeftovers = trim, ignoreCase = ignoreCase))
     }
 
-    AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = { session.backToChoice() },
-        title = { Text(stringResource(R.string.settings_bulk_rename_rules_title)) },
-        text = {
-            Column(
-                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+    MobileBottomSheet(onDismissRequest = { session.backToChoice() }) {
+        StageSheetHeader(stringResource(R.string.settings_bulk_rename_rules_title))
+        SheetText(stringResource(R.string.settings_bulk_rename_rules_description))
+        Column(
+            Modifier.heightIn(max = sheetListHeight()).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            draft.forEachIndexed { i, rule ->
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    StageTool(
+                        onClick = { editing = i to RuleField.TYPE },
+                        value = stringResource(
+                            if (rule.action == RenameRules.Action.ADD) {
+                                R.string.settings_bulk_rename_action_add
+                            } else {
+                                R.string.settings_bulk_rename_action_remove
+                            },
+                        ),
+                    )
+                    StageTool(
+                        onClick = { editing = i to RuleField.PLACEMENT },
+                        value = stringResource(
+                            if (rule.placement == RenameRules.Placement.PREFIX) {
+                                R.string.settings_bulk_rename_before
+                            } else {
+                                R.string.settings_bulk_rename_after
+                            },
+                        ),
+                    )
+                    StageTool(
+                        onClick = { editing = i to RuleField.VALUE },
+                        modifier = Modifier.weight(1f),
+                        value = rule.autoLabel?.let { stringResource(it.labelRes()) }
+                            ?: rule.value.ifBlank { stringResource(R.string.settings_bulk_rename_value_example) },
+                    )
+                    StageTool(
+                        onClick = { draft = draft.toMutableList().apply { removeAt(i) } },
+                        icon = MobileIcons.Close,
+                        contentDescription = stringResource(R.string.common_delete),
+                    )
+                }
+            }
+            StageMenuItem(
+                stringResource(R.string.settings_bulk_rename_add_another_rule),
+                onClick = {
+                    draft = draft + RenameRules.Rule(
+                        RenameRules.Action.ADD,
+                        RenameRules.Placement.PREFIX,
+                        "",
+                    )
+                },
+                icon = MobileIcons.Add,
+            )
+            StageSettingRow(
+                title = stringResource(R.string.settings_bulk_rename_trim_spaces),
+                minHeight = 48.dp,
+                role = Role.Switch,
+                onClick = { trim = !trim },
+            ) { StageSwitch(trim) }
+            StageSettingRow(
+                title = stringResource(R.string.settings_bulk_rename_ignore_case),
+                minHeight = 48.dp,
+                role = Role.Switch,
+                onClick = { ignoreCase = !ignoreCase },
+            ) { StageSwitch(ignoreCase) }
+            errorRes?.let {
                 Text(
-                    stringResource(R.string.settings_bulk_rename_rules_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(it),
+                    style = stageText(11.5f, 600),
+                    color = LocalStagePalette.current.danger,
+                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
-                draft.forEachIndexed { i, rule ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        AssistChip(
-                            onClick = { editing = i to RuleField.TYPE },
-                            label = {
-                                Text(
-                                    stringResource(
-                                        if (rule.action == RenameRules.Action.ADD) {
-                                            R.string.settings_bulk_rename_action_add
-                                        } else {
-                                            R.string.settings_bulk_rename_action_remove
-                                        },
-                                    ),
-                                )
-                            },
-                        )
-                        AssistChip(
-                            onClick = { editing = i to RuleField.PLACEMENT },
-                            label = {
-                                Text(
-                                    stringResource(
-                                        if (rule.placement == RenameRules.Placement.PREFIX) {
-                                            R.string.settings_bulk_rename_before
-                                        } else {
-                                            R.string.settings_bulk_rename_after
-                                        },
-                                    ),
-                                )
-                            },
-                        )
-                        AssistChip(
-                            onClick = { editing = i to RuleField.VALUE },
-                            modifier = Modifier.weight(1f),
-                            label = {
-                                Text(
-                                    text = rule.autoLabel?.let { stringResource(it.labelRes()) }
-                                        ?: rule.value.ifBlank {
-                                            stringResource(R.string.settings_bulk_rename_value_example)
-                                        },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                        )
-                        IconButton(onClick = { draft = draft.toMutableList().apply { removeAt(i) } }) {
-                            Icon(
-                                imageVector = MobileIcons.Close,
-                                contentDescription = stringResource(R.string.common_delete),
-                            )
-                        }
-                    }
-                }
-                TextButton(
-                    onClick = {
-                        draft = draft + RenameRules.Rule(
-                            RenameRules.Action.ADD,
-                            RenameRules.Placement.PREFIX,
-                            "",
-                        )
-                    },
-                ) { Text(stringResource(R.string.settings_bulk_rename_add_another_rule)) }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = trim,
-                        onClick = { trim = !trim },
-                        label = { Text(stringResource(R.string.settings_bulk_rename_trim_spaces)) },
-                    )
-                    FilterChip(
-                        selected = ignoreCase,
-                        onClick = { ignoreCase = !ignoreCase },
-                        label = { Text(stringResource(R.string.settings_bulk_rename_ignore_case)) },
-                    )
-                }
-                errorRes?.let {
-                    Text(
-                        stringResource(it),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { submit() }) {
-                Text(stringResource(R.string.settings_bulk_rename_apply))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = { session.backToChoice() }) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
+        }
+        // Apply moves on to the review itself, so it is not followed by the sheet's dismiss (that is "back").
+        StageMenuItem(
+            stringResource(R.string.settings_bulk_rename_apply),
+            onClick = { submit() },
+            icon = MobileIcons.Check,
+            filled = true,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        StageMenuItem(stringResource(R.string.common_cancel), onClick = { session.backToChoice() }, icon = MobileIcons.Close)
+    }
 
     val target = editing
     when (target?.second) {
@@ -301,100 +263,102 @@ private fun BulkRuleBuilderDialog(session: BulkRenameSession) {
 
 /** Every proposed name, with Apply and Decline on each row and on the batch as a whole. */
 @Composable
-private fun BulkReviewDialog(session: BulkRenameSession) {
+private fun BulkReviewSheet(session: BulkRenameSession) {
     val rows by session.preview.collectAsStateWithLifecycle()
-    AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = { session.done() },
-        title = { Text(stringResource(R.string.settings_bulk_rename_review)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    stringResource(R.string.settings_bulk_rename_review_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                val changed = rows.count { !it.unchanged }
-                val unchanged = rows.count { it.unchanged }
-                val duplicates = rows.count { it.duplicate }
-                Text(
-                    pluralStringResource(R.plurals.settings_bulk_rename_will_change, changed, changed),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Text(
-                    pluralStringResource(R.plurals.settings_bulk_rename_unchanged_count, unchanged, unchanged),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    pluralStringResource(R.plurals.settings_bulk_rename_duplicates_count, duplicates, duplicates),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                LazyColumn(
-                    Modifier.heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    items(rows, key = { it.key }) { row ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
+    val palette = LocalStagePalette.current
+    val accent = stageAccent.accent
+    MobileBottomSheet(onDismissRequest = { session.done() }) {
+        StageSheetHeader(
+            title = stringResource(R.string.settings_bulk_rename_review),
+            subtitle = stringResource(R.string.settings_bulk_rename_review_description),
+        )
+        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val changed = rows.count { !it.unchanged }
+            val unchanged = rows.count { it.unchanged }
+            val duplicates = rows.count { it.duplicate }
+            Text(
+                pluralStringResource(R.plurals.settings_bulk_rename_will_change, changed, changed),
+                style = stageText(12.5f, 700),
+                color = palette.text,
+            )
+            Text(
+                pluralStringResource(R.plurals.settings_bulk_rename_unchanged_count, unchanged, unchanged),
+                style = stageText(12.5f, 700),
+                color = palette.muted,
+            )
+            Text(
+                pluralStringResource(R.plurals.settings_bulk_rename_duplicates_count, duplicates, duplicates),
+                style = stageText(12.5f, 700),
+                color = palette.danger,
+            )
+            LazyColumn(
+                Modifier.heightIn(max = 300.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(rows, key = { it.key }) { row ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                row.oldName,
+                                style = stageText(13.5f, 600),
+                                color = palette.text,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = when {
+                                    row.blankRejected -> stringResource(R.string.settings_bulk_rename_blank_rejected)
+                                    row.unchanged -> stringResource(R.string.settings_bulk_rename_unchanged)
+                                    else -> stringResource(R.string.settings_bulk_rename_result, row.newName)
+                                },
+                                style = stageText(11.5f, 500),
+                                color = when {
+                                    row.duplicate -> palette.danger
+                                    row.unchanged -> palette.muted
+                                    else -> accent
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (row.duplicate) {
                                 Text(
-                                    row.oldName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    stringResource(R.string.settings_bulk_rename_duplicate),
+                                    style = stageText(11.5f, 500),
+                                    color = palette.danger,
                                 )
-                                Text(
-                                    text = when {
-                                        row.blankRejected -> stringResource(R.string.settings_bulk_rename_blank_rejected)
-                                        row.unchanged -> stringResource(R.string.settings_bulk_rename_unchanged)
-                                        else -> stringResource(R.string.settings_bulk_rename_result, row.newName)
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = when {
-                                        row.duplicate -> MaterialTheme.colorScheme.error
-                                        row.unchanged -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        else -> MaterialTheme.colorScheme.primary
-                                    },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                if (row.duplicate) {
-                                    Text(
-                                        stringResource(R.string.settings_bulk_rename_duplicate),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                }
                             }
-                            if (!row.unchanged) {
-                                TextButton(onClick = { session.applyRows(setOf(row.key)) }) {
-                                    Text(stringResource(R.string.settings_bulk_rename_apply))
-                                }
-                                TextButton(onClick = { session.declineRows(setOf(row.key)) }) {
-                                    Text(stringResource(R.string.settings_bulk_rename_decline))
-                                }
-                            }
+                        }
+                        if (!row.unchanged) {
+                            StageButton(onClick = { session.applyRows(setOf(row.key)) }, text = stringResource(R.string.settings_bulk_rename_apply), small = true)
+                            StageButton(
+                                onClick = { session.declineRows(setOf(row.key)) },
+                                text = stringResource(R.string.settings_bulk_rename_decline),
+                                style = StageButtonStyle.PLAIN,
+                                small = true,
+                            )
                         }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { session.applyAll() }) {
-                        Text(stringResource(R.string.settings_bulk_rename_apply_all))
-                    }
-                    TextButton(onClick = { session.declineAll() }) {
-                        Text(stringResource(R.string.settings_bulk_rename_decline_all))
-                    }
-                    TextButton(onClick = { session.editRules() }) {
-                        Text(stringResource(R.string.settings_bulk_rename_edit_rules))
-                    }
-                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { session.done() }) { Text(stringResource(R.string.common_done)) }
-        },
-    )
+            // Three batch actions are wider than a phone held upright: the row scrolls rather than cutting one off.
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                StageButton(onClick = { session.applyAll() }, text = stringResource(R.string.settings_bulk_rename_apply_all), small = true)
+                StageButton(onClick = { session.declineAll() }, text = stringResource(R.string.settings_bulk_rename_decline_all), small = true)
+                StageButton(onClick = { session.editRules() }, text = stringResource(R.string.settings_bulk_rename_edit_rules), small = true)
+            }
+        }
+        StageMenuItem(
+            stringResource(R.string.common_done),
+            onClick = { session.done() },
+            icon = MobileIcons.Check,
+            filled = true,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
 }
 
 private fun RenameRules.AutoLabel.labelRes() = when (this) {

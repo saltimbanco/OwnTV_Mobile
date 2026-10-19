@@ -1,19 +1,9 @@
 package tv.own.owntv.mobile.ui.screens.settings
 
 import androidx.annotation.StringRes
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.flow.Flow
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileSwitch
 
 /**
  * A switch that can be lifted to the top of the settings root.
@@ -55,6 +45,12 @@ val QUICK_TOGGLES: List<QuickToggle> = listOf(
         { it.hwDecoding },
         { setHwDecoding(it) },
         default = true,
+    ),
+    QuickToggle(
+        "vp_sw_above_1080p",
+        R.string.settings_software_decode_above_1080p,
+        { it.softwareDecodeAbove1080p },
+        { setSoftwareDecodeAbove1080p(it) },
     ),
     QuickToggle(
         "vp_hdr",
@@ -134,72 +130,6 @@ val QUICK_TOGGLES: List<QuickToggle> = listOf(
         { setDetailedDiagnostics(it) },
     ),
 )
-
-/**
- * A switch row that offers "Pin to Quick" on a long press.
- *
- * Every pinnable setting is drawn by this one composable, on its own page and again in Quick, so the
- * two can never show different states — there is only one row.
- */
-@Composable
-fun QuickSwitchRow(
-    vm: SettingsViewModel,
-    toggle: QuickToggle,
-    modifier: Modifier = Modifier,
-    subtitle: String? = null,
-) {
-    val checked = toggle.flow(vm.settings).pref(toggle.default)
-    val pinned = vm.settings.quickPinnedKeys.pref(emptyList())
-    var menu by remember { mutableStateOf(false) }
-
-    MobileListRow(
-        title = stringResource(toggle.titleRes),
-        subtitle = subtitle,
-        modifier = modifier,
-        onClick = { vm.edit { toggle.set(this, !checked) } },
-        onLongClick = { menu = true },
-        trailing = {
-            MobileSwitch(checked = checked)
-        },
-    )
-
-    if (menu) {
-        val at = pinned.indexOf(toggle.key)
-        val isPinned = at >= 0
-        val close = { menu = false }
-        // Moving rewrites the whole stored list, keys this app has no row for included, so an order
-        // set on the phone is the order the television shows too.
-        val move = { to: Int ->
-            val next = pinned.toMutableList().apply { add(to, removeAt(at)) }
-            vm.edit { setQuickPinnedKeys(next) }
-            close()
-        }
-        MobileBottomSheet(onDismissRequest = close, title = stringResource(toggle.titleRes)) {
-            MobileListRow(
-                title = stringResource(
-                    if (isPinned) R.string.settings_row_menu_unpin else R.string.settings_row_menu_pin,
-                ),
-                onClick = {
-                    val next = if (isPinned) pinned - toggle.key else pinned + toggle.key
-                    vm.edit { setQuickPinnedKeys(next) }
-                    close()
-                },
-            )
-            if (at > 0) {
-                MobileListRow(
-                    title = stringResource(R.string.settings_row_menu_move_up),
-                    onClick = { move(at - 1) },
-                )
-            }
-            if (isPinned && at < pinned.lastIndex) {
-                MobileListRow(
-                    title = stringResource(R.string.settings_row_menu_move_down),
-                    onClick = { move(at + 1) },
-                )
-            }
-        }
-    }
-}
 
 /** The pinnable switch stored under [key]. Every key passed here is one of [QUICK_TOGGLES]. */
 fun quickToggle(key: String): QuickToggle =

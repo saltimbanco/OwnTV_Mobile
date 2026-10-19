@@ -1,25 +1,17 @@
 package tv.own.owntv.mobile.ui.setup
 
-import tv.own.owntv.mobile.ui.components.MobileIcons
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,8 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -43,32 +36,51 @@ import tv.own.owntv.core.backup.BackupManager
 import tv.own.owntv.core.database.entity.SourceEntity
 import tv.own.owntv.core.setup.SourceImporter
 import tv.own.owntv.core.setup.displayText
+import tv.own.owntv.core.sync.ImportStage
 import tv.own.owntv.core.sync.detailText
 import tv.own.owntv.core.sync.importProgressDisplay
 import tv.own.owntv.core.sync.primaryText
+import tv.own.owntv.core.sync.progressCounts
 import tv.own.owntv.core.sync.remainderText
 import tv.own.owntv.core.sync.summaryText
 import tv.own.owntv.core.sync.warningText
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.profiles.ProfileEditorSheet
-import tv.own.owntv.mobile.ui.screens.settings.CheckRow
-import tv.own.owntv.mobile.ui.screens.settings.Label
-import tv.own.owntv.mobile.ui.screens.settings.SheetButtons
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.screens.home.formatCount
+import tv.own.owntv.mobile.ui.screens.settings.SetupLocalSyncStep
 import tv.own.owntv.mobile.ui.screens.settings.descriptionRes
 import tv.own.owntv.mobile.ui.screens.settings.labelRes
-import tv.own.owntv.mobile.ui.screens.settings.SetupLocalSyncStep
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.stageBackground
+import tv.own.owntv.mobile.ui.stage.stageText
 
 /**
- * The television's own sequence, name for name. See `SetupWizardSteps.kt` for why the TV's two
- * "chooser" steps have no counterpart here.
+ * Where an "Add a source" from Settings enters the flow (Add a source picks the way there itself): the form ("Type it
+ * here", pre-filled when Remote sent one), the backup picker, or another profile's playlists.
  */
+enum class SetupEntry { ADD_CONTENT, FORM, IMPORT, EXISTING }
+
+/** What the finished wizard leaves for the shell (the TV's `PendingShellRequest`): the last step's Add a TV guide. */
+object SetupHandoff {
+    var addEpg by mutableStateOf(false)
+        private set
+
+    fun requestAddEpg() { addEpg = true }
+
+    /** Read once by EPG sources, which then opens its Add. */
+    fun takeAddEpg(): Boolean = addEpg.also { addEpg = false }
+}
+
 private enum class Step {
     WELCOME, DISPLAY_SIZE, DISCLAIMER, CHOICE, SYNC_DEVICE, CREATE_PROFILE, ADD_CONTENT, EXISTING, FORM, IMPORTING, RESTORE
 }
@@ -76,26 +88,33 @@ private enum class Step {
 /**
  * Getting content onto the phone: type a playlist in, or bring everything back from a backup.
  *
- * **The first run is the television's wizard**, in its order and with its words — Welcome, the
- * disclaimer, start-fresh-or-restore, the profile, then where the content comes from. Opening the
- * same flow later from "Add a playlist" starts at *Add content* instead: the greeting, the disclaimer
- * and the profile step all belong to a first run and would be in the way of the one thing that user
- * came to do.
+ * **The first run is the television's wizard**, in its order and with its words — Welcome, Display,
+ * the disclaimer, start-fresh-or-restore, the profile, then where the content comes from, Importing and All set.
+ * Opening the same flow later from Settings' Add a source starts at the way that page chose instead.
  */
 @Composable
 fun SetupFlow(
     onDone: (profileId: Long?) -> Unit,
     modifier: Modifier = Modifier,
     onCancel: (() -> Unit)? = null,
+    entry: SetupEntry = SetupEntry.ADD_CONTENT,
 ) {
     val vm: SetupViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
     val progress by vm.progress.collectAsStateWithLifecycle()
     // No way to cancel means there is nothing behind this flow, which is exactly what a first run is.
     val firstRun = onCancel == null
-    var step by rememberSaveable(firstRun) {
-        mutableStateOf(if (firstRun) Step.WELCOME else Step.ADD_CONTENT)
+    val entryStep = when {
+        firstRun -> Step.WELCOME
+        entry == SetupEntry.FORM -> Step.FORM
+        entry == SetupEntry.IMPORT -> Step.RESTORE
+        entry == SetupEntry.EXISTING -> Step.EXISTING
+        else -> Step.ADD_CONTENT
     }
+    var step by rememberSaveable(firstRun) { mutableStateOf(entryStep) }
+    // A submission from Remote, read once by the form it pre-fills.
+    val remotePayload by vm.remotePayload.collectAsStateWithLifecycle()
+    val remoteInitial = remember(remotePayload) { remotePayload?.toFormValues() }
     // Refreshed on every arrival at Add content, because restoring a backup on the way here can
     // create the very profiles whose playlists this step offers to share.
     var existing by remember { mutableStateOf<List<SourceEntity>>(emptyList()) }
@@ -106,24 +125,22 @@ fun SetupFlow(
     }
     // Where "Try again" and "Cancel" return to: the form for a new playlist, the list for a shared one.
     var importOrigin by rememberSaveable { mutableStateOf(Step.FORM) }
+    // The playlist being imported, for "Importing <name>"; null when linking existing playlists.
+    var importName by rememberSaveable { mutableStateOf<String?>(null) }
     // Where Back from the backup picker returns to — the first-run choice, or Add content.
     var backupOrigin by rememberSaveable { mutableStateOf(Step.ADD_CONTENT) }
+    // Entered straight on Import: the picker opens at once, as the Import card promised.
+    var openedPicker by rememberSaveable { mutableStateOf(false) }
 
     // The picked file, and what the user chose to take out of it. Both `null` until each is
     // answered, which is what drives the sheet below: a file with no choice yet is the question.
-    //
-    // Setup used to restore everything, full stop — the tick-list existed in Settings → Backup &
-    // Restore and in the local-sync step, and only the one screen where a restore is most likely
-    // took the whole file without asking. "My playlists but not that device's settings" was not
-    // expressible here.
     var restoreFile by remember { mutableStateOf<java.io.File?>(null) }
     var restoreSections by remember { mutableStateOf<Set<BackupManager.Section>?>(null) }
     // "Hardware settings from the other device" — answered with the sections, carried like them.
     var restoreDeviceSettings by remember { mutableStateOf(false) }
 
     // The name field is optional, and the television has always filled a blank one in rather than
-    // storing an empty string. Without this the playlist has no name anywhere it is shown — the top
-    // bar's selector renders as a bare pill, and the playlist picker offers a row with no label.
+    // storing an empty string. Without this the playlist has no name anywhere it is shown.
     val defaultProfileName = stringResource(R.string.setup_default_profile)
     val defaultIptvName = stringResource(R.string.setup_default_iptv)
     val defaultPlaylistName = stringResource(R.string.setup_name_default_playlist)
@@ -131,7 +148,7 @@ fun SetupFlow(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Picking the file no longer starts the restore — it asks what to take out of it first.
+    // Picking the file does not start the restore — it asks what to take out of it first.
     val pickBackup = rememberBackupFilePicker { uri ->
         scope.launch {
             copyPickedFile(context, uri, context.cacheDir)?.let {
@@ -144,7 +161,14 @@ fun SetupFlow(
     // Back walks the wizard backwards rather than out of the app. From the very first step there is
     // nowhere to go unless the caller gave us somewhere, and an install with no playlist has nothing
     // behind it at all.
-    val atStart = step == (if (firstRun) Step.WELCOME else Step.ADD_CONTENT)
+    val atStart = step == entryStep
+    // Back from the step this flow was entered on leaves it, back to Settings' Add a source.
+    val leave: () -> Unit = { vm.reset(); onCancel?.invoke() }
+    val backFromForm: () -> Unit = { if (entryStep == Step.FORM) leave() else { vm.reset(); step = Step.ADD_CONTENT } }
+    val backFromRestore: () -> Unit = {
+        vm.reset(); restoreFile = null; restoreSections = null
+        if (entryStep == Step.RESTORE) leave() else step = backupOrigin
+    }
     BackHandler(enabled = !atStart || onCancel != null) {
         when (step) {
             Step.WELCOME -> onCancel?.invoke()
@@ -158,53 +182,46 @@ fun SetupFlow(
             // Not `onCancel?.invoke()`: `firstRun` IS `onCancel == null`, so this branch is only
             // reached when there is one, and the compiler knows it.
             Step.ADD_CONTENT -> if (firstRun) step = Step.CREATE_PROFILE else onCancel()
-            Step.EXISTING -> step = Step.ADD_CONTENT
-            Step.FORM -> { vm.reset(); step = Step.ADD_CONTENT }
-            Step.RESTORE -> { vm.reset(); step = backupOrigin }
+            Step.EXISTING -> if (entryStep == Step.EXISTING) leave() else step = Step.ADD_CONTENT
+            Step.FORM -> backFromForm()
+            Step.RESTORE -> backFromRestore()
             Step.IMPORTING -> Unit // the buttons on that screen decide; a stray swipe must not abandon a sync
         }
     }
+
+    LaunchedEffect(Unit) {
+        if (entryStep == Step.RESTORE && !openedPicker) { openedPicker = true; pickBackup() }
+        if (entryStep == Step.EXISTING) existing = runCatching { vm.availableExistingSources() }.getOrDefault(emptyList())
+    }
+    // Read once: a later "Type it here" must not be filled from an old submission.
+    LaunchedEffect(step) { if (step != Step.FORM && remotePayload != null) vm.consumeRemotePayload() }
 
     Box(modifier = modifier.fillMaxSize()) {
         when (step) {
             Step.WELCOME -> WelcomeStep(onNext = { step = Step.DISPLAY_SIZE })
             // Before the disclaimer, which is the first screen that is mostly words: if the text is
-            // too small to read, that is the screen it first hurts on (#179).
-            Step.DISPLAY_SIZE -> DisplaySizeStep(
-                onNext = { step = Step.DISCLAIMER },
-                onBack = { step = Step.WELCOME },
-            )
-            Step.DISCLAIMER -> DisclaimerStep(
-                onAgree = { step = Step.CHOICE },
-                onBack = { step = Step.DISPLAY_SIZE },
-            )
-            // The first decision: start fresh, or bring everything back. Restoring first is why the
-            // profile step comes after this one — a restore brings its own profiles, and creating one
-            // beforehand would only be something for the restore to sit beside.
-            Step.CHOICE -> SetupChoice(
+            // too small to read, that is the screen it first hurts on.
+            Step.DISPLAY_SIZE -> DisplaySizeStep(onNext = { step = Step.DISCLAIMER }, onBack = { step = Step.WELCOME })
+            Step.DISCLAIMER -> DisclaimerStep(onAgree = { step = Step.CHOICE }, onBack = { step = Step.DISPLAY_SIZE })
+            Step.CHOICE -> SetupChoiceStep(
                 onCreateProfile = { step = Step.CREATE_PROFILE },
                 onRestore = { backupOrigin = Step.CHOICE; step = Step.RESTORE; pickBackup() },
                 onSyncDevice = { step = Step.SYNC_DEVICE },
-                onCancel = onCancel,
+                onBack = { step = Step.DISCLAIMER },
             )
             // A sync brings whole profiles with it, exactly as a restored backup does, so it finishes
             // the same way the RESTORE step does rather than inventing a second ending.
-            Step.SYNC_DEVICE -> SetupLocalSyncStep(
-                onRestored = { vm.finish(onDone) },
+            Step.SYNC_DEVICE -> SetupLocalSyncStep(onRestored = { vm.finish(onDone) }, onBack = { step = Step.CHOICE })
+            Step.CREATE_PROFILE -> ProfileStep(
+                onCreate = { name, avatar, kids, pin, picture ->
+                    vm.createProfile(name.ifBlank { defaultProfileName }, avatar, kids, pin, picture) { step = Step.ADD_CONTENT }
+                },
                 onBack = { step = Step.CHOICE },
             )
-            Step.CREATE_PROFILE -> ProfileEditorSheet(
-                initial = null,
-                takenNames = emptySet(),
-                onConfirm = { name, avatar, kids, pin ->
-                    vm.createProfile(name.ifBlank { defaultProfileName }, avatar, kids, pin) {
-                        step = Step.ADD_CONTENT
-                    }
-                },
-                onDismiss = { step = Step.CHOICE },
-            )
             Step.ADD_CONTENT -> AddContentStep(
+                vm = vm,
                 hasExisting = existing.isNotEmpty(),
+                onRemoteReceived = { importOrigin = Step.FORM; step = Step.FORM },
                 onNew = { importOrigin = Step.FORM; step = Step.FORM },
                 onExisting = { step = Step.EXISTING },
                 onImport = { backupOrigin = Step.ADD_CONTENT; step = Step.RESTORE; pickBackup() },
@@ -215,38 +232,41 @@ fun SetupFlow(
                 sources = existing,
                 onAdd = { ids ->
                     vm.linkExisting(ids)
+                    importName = null
                     importOrigin = Step.EXISTING
                     step = Step.IMPORTING
                 },
-                onBack = { step = Step.ADD_CONTENT },
+                onBack = { if (entryStep == Step.EXISTING) leave() else step = Step.ADD_CONTENT },
             )
-            Step.FORM -> AddSourceForm(
-                onStartXtream = { name, server, user, pass, ua, referer, refresh, live, movies, series, hls ->
-                    vm.startXtream(
-                        name.ifBlank { defaultIptvName },
-                        server, user, pass, ua, referer, refresh, live, movies, series, hls,
-                    )
-                    step = Step.IMPORTING
-                },
-                onStartM3u = { name, url, ua, referer, refresh ->
-                    vm.startM3u(name.ifBlank { defaultPlaylistName }, url, ua, referer, refresh)
-                    step = Step.IMPORTING
-                },
-                onStartStalker = { name, portal, mac, serial, dev1, dev2, sig, ua, referer, refresh, live, movies, series ->
-                    vm.startStalker(
-                        name.ifBlank { defaultPortalName },
-                        portal, mac, serial, dev1, dev2, sig, ua, referer, refresh, live, movies, series,
-                    )
-                    step = Step.IMPORTING
-                },
-                // Every other step gets its insets from [SetupPage]; the form has its own scrolling
-                // column, and without this its first line sat under the status bar's clock.
-                modifier = Modifier.statusBarsPadding(),
-            )
+            Step.FORM -> Column(Modifier.fillMaxSize().then(if (firstRun) Modifier.stageBackground() else Modifier).statusBarsPadding()) {
+                // "Type it here", from the wizard or Settings' Add a source: the page's own title and the way back.
+                FormHeader(firstRun = firstRun, onBack = backFromForm)
+                AddSourceForm(
+                    // Remote's submission fills the form; the user still presses Start import.
+                    initial = remoteInitial,
+                    onStartXtream = { name, server, user, pass, ua, referer, refresh, live, movies, series, hls ->
+                        importName = name.ifBlank { defaultIptvName }
+                        vm.startXtream(importName!!, server, user, pass, ua, referer, refresh, live, movies, series, hls)
+                        step = Step.IMPORTING
+                    },
+                    onStartM3u = { name, url, ua, referer, refresh ->
+                        importName = name.ifBlank { defaultPlaylistName }
+                        vm.startM3u(importName!!, url, ua, referer, refresh)
+                        step = Step.IMPORTING
+                    },
+                    onStartStalker = { name, portal, mac, serial, dev1, dev2, sig, ua, referer, refresh, live, movies, series ->
+                        importName = name.ifBlank { defaultPortalName }
+                        vm.startStalker(importName!!, portal, mac, serial, dev1, dev2, sig, ua, referer, refresh, live, movies, series)
+                        step = Step.IMPORTING
+                    },
+                )
+            }
             Step.IMPORTING -> ImportProgress(
                 state = state,
-                progressText = progress?.importProgressDisplay(),
+                progress = progress,
+                name = importName,
                 onContinue = { vm.finish(onDone) },
+                onAddGuide = { SetupHandoff.requestAddEpg(); vm.finish(onDone) },
                 onRunInBackground = { vm.continueInBackground(onDone) },
                 onRetry = { vm.reset(); step = importOrigin },
                 onCancel = { vm.cancelImport(); step = importOrigin },
@@ -254,6 +274,7 @@ fun SetupFlow(
             Step.RESTORE -> {
                 RestoreBackup(
                     state = state,
+                    wizardStep = if (backupOrigin == Step.CHOICE) WizardStep.PROFILE else WizardStep.PLAYLIST,
                     // The same choice the sheet took, carried across the password question: a sealed
                     // file is chosen from before it can be opened, so the answer has to outlive it.
                     onPassword = { file, password ->
@@ -261,7 +282,7 @@ fun SetupFlow(
                     },
                     onContinue = { vm.finish(onDone) },
                     onPickAgain = { vm.reset(); restoreFile = null; restoreSections = null; pickBackup() },
-                    onBack = { vm.reset(); restoreFile = null; restoreSections = null; step = backupOrigin },
+                    onBack = backFromRestore,
                 )
                 // A file is picked and nothing has been asked of it yet — so ask, over the top.
                 val picked = restoreFile
@@ -272,11 +293,7 @@ fun SetupFlow(
                             restoreDeviceSettings = deviceSettings
                             vm.importBackup(picked, sections, deviceSettings)
                         },
-                        onDismiss = {
-                            vm.reset()
-                            restoreFile = null
-                            step = backupOrigin
-                        },
+                        onDismiss = backFromRestore,
                     )
                 }
             }
@@ -284,132 +301,101 @@ fun SetupFlow(
     }
 }
 
-@Composable
-private fun SetupChoice(
-    onCreateProfile: () -> Unit,
-    onRestore: () -> Unit,
-    onSyncDevice: () -> Unit,
-    onCancel: (() -> Unit)?,
-) {
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_set_up_owntv),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.setup_setup_choice_description),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        // The television's own label, and it has to be: this row leads to the profile editor, not to
-        // a playlist form. Calling it "Add a playlist" described the step after next and left the
-        // profile step looking like it had arrived by mistake.
-        MobileListRow(
-            title = stringResource(R.string.setup_new_profile),
-            subtitle = stringResource(R.string.setup_create_profile_add_sources),
-            leading = { Icon(MobileIcons.Person, contentDescription = null) },
-            onClick = onCreateProfile,
-        )
-        MobileListRow(
-            title = stringResource(R.string.setup_restore_backup),
-            subtitle = stringResource(R.string.setup_import_profiles_playlists),
-            leading = { Icon(MobileIcons.Restore, contentDescription = null) },
-            onClick = onRestore,
-        )
-        MobileListRow(
-            title = stringResource(R.string.setup_sync_device),
-            subtitle = stringResource(R.string.setup_sync_device_description),
-            leading = { Icon(MobileIcons.Sync, contentDescription = null) },
-            onClick = onSyncDevice,
-        )
-        if (onCancel != null) {
-            MobileButton(
-                text = stringResource(R.string.common_cancel),
-                onClick = onCancel,
-                style = MobileButtonStyle.TEXT,
-            )
-        }
-    }
-}
-
-/** The import, from the first request to "All set!" or the reason it stopped. */
+/**
+ * "Importing <name>" with the sweeping bar and a row for each part of the catalogue as it arrives, Cancel
+ * and Run in background; then "All set!" with what arrived and Add a TV guide; or the failure with Back and Try
+ * again. The rows say what is known — counts so far, and Done once a part has finished — never a total.
+ */
 @Composable
 private fun ImportProgress(
     state: SourceImporter.ImportState,
-    progressText: tv.own.owntv.core.sync.SyncProgressDisplay?,
+    progress: ImportStage?,
+    name: String?,
     onContinue: () -> Unit,
+    onAddGuide: () -> Unit,
     onRunInBackground: () -> Unit,
     onRetry: () -> Unit,
     onCancel: () -> Unit,
 ) {
     val resources = LocalContext.current.resources
-    SetupPage {
-        when (state) {
-            is SourceImporter.ImportState.Success -> {
-                Text(
-                    text = stringResource(R.string.setup_all_set),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                state.counts?.let { Detail(it.summaryText(resources, includeEpg = true)) }
-                state.warnings.warningText(resources)?.let { Detail(it) }
-                state.remainder.remainderText(resources)?.let { Detail(it) }
-                MobileButton(
-                    text = stringResource(R.string.setup_continue),
-                    onClick = onContinue,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            is SourceImporter.ImportState.Failed -> {
-                Text(
-                    text = stringResource(R.string.setup_import_failed),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Detail(state.failure.displayText(resources))
-                Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                    MobileButton(
-                        text = stringResource(R.string.common_back),
-                        onClick = onCancel,
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                    MobileButton(text = stringResource(R.string.setup_try_again_caps), onClick = onRetry)
-                }
-            }
-            else -> {
-                CircularProgressIndicator()
-                Text(
-                    text = stringResource(R.string.setup_importing_catalog),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = progressText?.primaryText(resources)
-                        ?: stringResource(R.string.setup_preparing_catalog),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Detail(
-                    progressText?.detailText(resources)
-                        ?: stringResource(R.string.setup_preparing_catalog),
-                )
-                // A full catalog takes minutes, and nobody should have to watch a spinner for them.
-                // Leaving is the first-class action here; Cancel is the quiet one, because it throws
-                // the import away.
-                Detail(stringResource(R.string.setup_watching_during_import))
-                MobileButton(
-                    text = stringResource(R.string.setup_run_in_background),
-                    onClick = onRunInBackground,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                MobileButton(
-                    text = stringResource(R.string.common_cancel),
-                    onClick = onCancel,
-                    style = MobileButtonStyle.TEXT,
-                )
-            }
+    when (state) {
+        is SourceImporter.ImportState.Success -> WizardFrame(
+            step = WizardStep.READY,
+            title = stringResource(R.string.setup_all_set),
+            sub = listOfNotNull(
+                state.counts?.summaryText(resources, includeEpg = true),
+                state.warnings.warningText(resources),
+                state.remainder.remainderText(resources),
+            ).joinToString("\n"),
+            next = stringResource(R.string.setup_continue),
+            onNext = onContinue,
+            onBack = null,
+        ) {
+            StageSettingRow(
+                title = stringResource(R.string.setup_add_guide),
+                icon = MobileIcons.Guide,
+                subtitle = stringResource(R.string.setup_add_guide_line),
+                onClick = onAddGuide,
+            ) { StageRowValue("", StageChevron.FORWARD) }
+        }
+        is SourceImporter.ImportState.Failed -> WizardFrame(
+            step = WizardStep.PLAYLIST,
+            title = stringResource(R.string.setup_import_failed),
+            sub = state.failure.displayText(resources),
+            next = stringResource(R.string.setup_try_again_caps),
+            onNext = onRetry,
+            onBack = onCancel,
+        )
+        else -> WizardFrame(
+            step = WizardStep.PLAYLIST,
+            title = name?.let { stringResource(R.string.setup_importing_title, it) } ?: stringResource(R.string.setup_importing_catalog),
+            sub = stringResource(R.string.setup_watching_during_import),
+            // A full catalogue takes minutes, and nobody should have to watch it: leaving is the first-class
+            // action. Cancel throws the import away, so it says so rather than "Back".
+            next = stringResource(R.string.setup_run_in_background),
+            onNext = onRunInBackground,
+            onBack = onCancel,
+            backLabel = stringResource(R.string.common_cancel),
+        ) {
+            WizardSweepBar()
+            ImportRows(progress)
+        }
+    }
+}
+
+/** One row per part being fetched: its count so far, and Done once it has finished; or what is happening first. */
+@Composable
+private fun ImportRows(progress: ImportStage?) {
+    val resources = LocalContext.current.resources
+    val counts = progress?.progressCounts()
+    if (counts == null || !counts.hasItems) {
+        val display = progress?.importProgressDisplay()
+        val title = display?.primaryText(resources) ?: stringResource(R.string.setup_preparing_catalog)
+        StageSettingRow(
+            title = title,
+            icon = MobileIcons.Download,
+            // While connecting core's two lines are the same sentence; say it once.
+            subtitle = display?.detailText(resources)?.takeIf { it != title },
+            role = null,
+        )
+        return
+    }
+    val parts = listOf(
+        Triple(R.string.setup_live_tv, MobileIcons.LiveTv, Triple(counts.live, counts.liveActive, R.plurals.sync_count_channels)),
+        Triple(R.string.setup_movies, MobileIcons.Movie, Triple(counts.movies, counts.moviesActive, R.plurals.sync_count_movies)),
+        Triple(R.string.setup_series, MobileIcons.Series, Triple(counts.series, counts.seriesActive, R.plurals.sync_count_series)),
+    )
+    parts.forEach { (title, icon, part) ->
+        val (count, active, plural) = part
+        if (count == 0 && !active) return@forEach
+        StageSettingRow(
+            title = stringResource(title),
+            icon = icon,
+            subtitle = pluralStringResource(plural, count, formatCount(count)),
+            current = active,
+            role = null,
+        ) {
+            if (!active) StageRowValue(stringResource(R.string.common_done))
         }
     }
 }
@@ -417,13 +403,10 @@ private fun ImportProgress(
 private val allSections: Set<BackupManager.Section> get() = BackupManager.Section.entries.toSet()
 
 /**
- * What to take out of the backup file, before any of it is applied.
- *
- * Every section is offered rather than only the ones the file holds, which is what
- * Settings → Backup & Restore can do: that screen has already opened the container, and this one
- * has not — a sealed file says nothing about its contents until the password arrives, and asking
- * for the password before the user has said what they want would be the wrong order. Ticking a
- * section the file does not carry simply restores nothing for it.
+ * What to take out of the backup file, before any of it is applied — every section, not only the ones the file
+ * holds: a sealed file says nothing about its contents until the password arrives, and asking for the password
+ * before the user has said what they want would be the wrong order. Ticking a section the file does not carry
+ * simply restores nothing for it.
  */
 @Composable
 private fun RestoreSectionsSheet(
@@ -431,44 +414,52 @@ private fun RestoreSectionsSheet(
     onDismiss: () -> Unit,
 ) {
     var sections by remember { mutableStateOf(allSections) }
-    // Offered whatever the file is — it has not been opened yet — and unticked. A backup of this very
-    // phone gets its hardware settings back regardless; this is only about another device's.
+    // Unticked: a backup of this very phone gets its hardware settings back regardless; this is about another device's.
     var deviceSettings by remember { mutableStateOf(false) }
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_backup_restore_title),
-    ) {
-        Column(
-            modifier = Modifier
-                .heightIn(max = sheetListHeight())
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
-            verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
-        ) {
-            Label(stringResource(R.string.settings_backup_what_restore))
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        StageSheetHeader(stringResource(R.string.settings_backup_restore_title))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            StageGroupLabel(stringResource(R.string.settings_backup_what_restore))
             BackupManager.Section.entries.forEach { section ->
-                CheckRow(
-                    label = stringResource(section.labelRes()),
-                    description = stringResource(section.descriptionRes()),
-                    checked = section in sections,
-                    onToggle = { on -> sections = if (on) sections + section else sections - section },
-                )
+                val on = section in sections
+                StageSettingRow(
+                    title = stringResource(section.labelRes()),
+                    subtitle = stringResource(section.descriptionRes()),
+                    onClick = { sections = if (on) sections - section else sections + section },
+                    role = Role.Switch,
+                    minHeight = 48.dp,
+                ) { StageSwitch(on) }
             }
             if (BackupManager.Section.SETTINGS in sections) {
-                CheckRow(
-                    label = stringResource(R.string.settings_backup_device_settings),
-                    description = stringResource(R.string.settings_backup_device_settings_desc),
-                    checked = deviceSettings,
-                    onToggle = { deviceSettings = it },
-                )
+                StageSettingRow(
+                    title = stringResource(R.string.settings_backup_device_settings),
+                    subtitle = stringResource(R.string.settings_backup_device_settings_desc),
+                    onClick = { deviceSettings = !deviceSettings },
+                    role = Role.Switch,
+                    minHeight = 48.dp,
+                ) { StageSwitch(deviceSettings) }
             }
         }
-        SheetButtons(
-            confirm = stringResource(R.string.settings_backup_restore_action),
-            confirmEnabled = sections.isNotEmpty(),
-            onConfirm = { onConfirm(sections, deviceSettings) },
-            onDismiss = onDismiss,
+        // A first run with no playlists restored has nothing to play (the TV's same warning).
+        if (sections.isNotEmpty() && BackupManager.Section.SOURCES !in sections) {
+            Text(
+                stringResource(R.string.settings_backup_no_sources_warning),
+                style = stageText(12.5f, 600),
+                color = LocalStagePalette.current.warn,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            )
+        }
+        // Confirm does not dismiss: answering is what closes the sheet, and dismissing means leaving.
+        val enabled = sections.isNotEmpty()
+        StageMenuItem(
+            stringResource(R.string.settings_backup_restore_action),
+            onClick = { onConfirm(sections, deviceSettings) },
+            icon = MobileIcons.Check,
+            filled = enabled,
+            enabled = enabled,
+            modifier = Modifier.padding(top = 6.dp),
         )
+        StageMenuItem(stringResource(R.string.common_cancel), onClick = onDismiss, icon = MobileIcons.Close)
     }
 }
 
@@ -476,153 +467,137 @@ private fun RestoreSectionsSheet(
 @Composable
 private fun RestoreBackup(
     state: SourceImporter.ImportState,
+    wizardStep: WizardStep,
     onPassword: (java.io.File, String?) -> Unit,
     onContinue: () -> Unit,
     onPickAgain: () -> Unit,
     onBack: () -> Unit,
 ) {
     val resources = LocalContext.current.resources
-    SetupPage {
-        when (state) {
-            is SourceImporter.ImportState.NeedPassword -> {
-                var password by remember(state.file, state.retry) { mutableStateOf("") }
-                Text(
-                    text = stringResource(
-                        if (state.retry) R.string.setup_wrong_backup_password else R.string.setup_enter_backup_password,
-                    ),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Detail(
-                    stringResource(
-                        when {
-                            state.retry && state.sealed -> R.string.setup_password_mismatch_sealed
-                            state.retry -> R.string.setup_password_mismatch
-                            state.sealed -> R.string.setup_backup_encrypted_prompt
-                            else -> R.string.setup_backup_passwords_encrypted_prompt
-                        },
-                    ),
-                )
-                MobileTextField(
+    when (state) {
+        is SourceImporter.ImportState.NeedPassword -> {
+            var password by remember(state.file, state.retry) { mutableStateOf("") }
+            WizardFrame(
+                step = wizardStep,
+                title = stringResource(if (state.retry) R.string.setup_wrong_backup_password else R.string.setup_enter_backup_password),
+                sub = stringResource(
+                    when {
+                        state.retry && state.sealed -> R.string.setup_password_mismatch_sealed
+                        state.retry -> R.string.setup_password_mismatch
+                        state.sealed -> R.string.setup_backup_encrypted_prompt
+                        else -> R.string.setup_backup_passwords_encrypted_prompt
+                    },
+                ),
+                next = stringResource(R.string.setup_restore),
+                onNext = { onPassword(state.file, password) },
+                nextEnabled = password.isNotBlank(),
+                onBack = onBack,
+                // A sealed container is nothing but ciphertext: skipping the password would restore an empty
+                // backup, so that way out is not offered.
+                extraLeft = if (state.sealed) emptyList() else listOf(stringResource(R.string.setup_skip_no_passwords) to { onPassword(state.file, null) }),
+            ) {
+                StageSearchField(
                     value = password,
                     onValueChange = { password = it },
-                    label = stringResource(R.string.setup_backup_password),
-                    isPassword = true,
+                    placeholder = stringResource(R.string.setup_backup_password),
+                    icon = null,
+                    password = true,
                     imeAction = ImeAction.Done,
-                    onImeDone = { if (password.isNotBlank()) onPassword(state.file, password) },
+                    onSearch = { if (password.isNotBlank()) onPassword(state.file, password) },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                    MobileButton(
-                        text = stringResource(R.string.common_back),
-                        onClick = onBack,
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                    // A sealed container is nothing but ciphertext: skipping the password would
-                    // restore an empty backup, so that way out is not offered.
-                    if (!state.sealed) {
-                        MobileButton(
-                            text = stringResource(R.string.setup_skip_no_passwords),
-                            onClick = { onPassword(state.file, null) },
-                            style = MobileButtonStyle.SECONDARY,
-                        )
-                    }
-                    MobileButton(
-                        text = stringResource(R.string.setup_restore),
-                        onClick = { onPassword(state.file, password) },
-                        enabled = password.isNotBlank(),
-                    )
-                }
-            }
-            is SourceImporter.ImportState.Success -> {
-                Text(
-                    text = stringResource(R.string.setup_all_set),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                state.restoredItems?.let {
-                    Detail(pluralStringResource(R.plurals.setup_restored_items, it, it))
-                }
-                if (state.passwordsOmitted) Detail(stringResource(R.string.setup_passwords_omitted))
-                state.skippedSources.takeIf { it > 0 }?.let {
-                    Detail(pluralStringResource(R.plurals.setup_skipped_sources, it, it))
-                }
-                if (state.invalidLocale) Detail(stringResource(R.string.setup_invalid_locale))
-                MobileButton(
-                    text = stringResource(R.string.setup_continue),
-                    onClick = onContinue,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            is SourceImporter.ImportState.Failed -> {
-                Text(
-                    text = stringResource(R.string.setup_restore_failed),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Detail(state.failure.displayText(resources))
-                Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                    MobileButton(
-                        text = stringResource(R.string.common_back),
-                        onClick = onBack,
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                    MobileButton(text = stringResource(R.string.setup_try_again_caps), onClick = onPickAgain)
-                }
-            }
-            else -> {
-                CircularProgressIndicator()
-                Text(
-                    text = stringResource(R.string.setup_restoring),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                // The picker is a separate activity: cancelling it leaves this screen with nothing
-                // happening, so there is always a way back and a way to pick another file.
-                Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                    MobileButton(
-                        text = stringResource(R.string.common_back),
-                        onClick = onBack,
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                    MobileButton(
-                        text = stringResource(R.string.setup_pick_backup_file),
-                        onClick = onPickAgain,
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                }
             }
         }
+        is SourceImporter.ImportState.Success -> WizardFrame(
+            step = WizardStep.READY,
+            title = stringResource(R.string.setup_all_set),
+            sub = listOfNotNull(
+                state.restoredItems?.let { pluralStringResource(R.plurals.setup_restored_items, it, it) },
+                if (state.passwordsOmitted) stringResource(R.string.setup_passwords_omitted) else null,
+                state.skippedSources.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.setup_skipped_sources, it, it) },
+                if (state.invalidLocale) stringResource(R.string.setup_invalid_locale) else null,
+            ).joinToString("\n"),
+            next = stringResource(R.string.setup_continue),
+            onNext = onContinue,
+            onBack = null,
+        )
+        is SourceImporter.ImportState.Failed -> WizardFrame(
+            step = wizardStep,
+            title = stringResource(R.string.setup_restore_failed),
+            sub = state.failure.displayText(resources),
+            next = stringResource(R.string.setup_try_again_caps),
+            onNext = onPickAgain,
+            onBack = onBack,
+        )
+        // The picker is a separate activity: cancelling it leaves this screen with nothing happening, so
+        // there is always a way back and a way to pick another file.
+        else -> WizardFrame(
+            step = wizardStep,
+            title = stringResource(R.string.setup_restoring),
+            sub = null,
+            next = stringResource(R.string.setup_pick_backup_file),
+            onNext = onPickAgain,
+            onBack = onBack,
+        )
     }
 }
 
-/** One column, centred, scrolling — every step of this flow is short enough to fit but must still
- *  survive a keyboard and a small screen in landscape. */
-@Composable
-fun SetupPage(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            // safeDrawing already holds status + navigation room; imePadding holds the keyboard.
-            // Do not add navigationBarsPadding on top: it double-counts the gesture bar.
-            .safeDrawingPadding()
-            .verticalScroll(rememberScrollState())
-            .imePadding()
-            .padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapLarge),
-        verticalArrangement = Arrangement.spacedBy(MobileDimens.GapMedium, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        content()
-    }
-}
+/** A Remote submission as the form's own values (the TV fills its Add Source screen the same way). */
+private fun tv.own.owntv.core.companion.CompanionPayload.toFormValues(): SourceFormValues = SourceFormValues(
+    kind = when (type) {
+        tv.own.owntv.core.model.SourceType.M3U -> SourceKind.M3U
+        tv.own.owntv.core.model.SourceType.STALKER -> SourceKind.STALKER
+        else -> SourceKind.XTREAM
+    },
+    name = name,
+    urlOrServer = if (type == tv.own.owntv.core.model.SourceType.STALKER) portalUrl else server,
+    username = user,
+    password = pass,
+    mac = mac,
+    serialNumber = serialNumber,
+    deviceId = deviceId,
+    deviceId2 = deviceId2,
+    signature = signature,
+    userAgent = userAgent,
+    autoRefresh = tv.own.owntv.core.settings.PlaylistRefresh.parse(autoRefresh),
+    live = syncLive,
+    movies = syncMovies,
+    series = syncSeries,
+)
 
+/**
+ * The add form's header: its title (28 / 800), then the muted way back — "‹ Playlists · Add a source" from
+ * Settings, "‹ Add a playlist" in the wizard.
+ */
 @Composable
-private fun Detail(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun FormHeader(firstRun: Boolean, onBack: () -> Unit) {
+    val palette = LocalStagePalette.current
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)) {
+        Text(
+            stringResource(R.string.settings_add_type_here),
+            style = stageText(28f, 800),
+            color = palette.text,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+        Row(
+            Modifier.padding(top = 5.dp).clickable(interaction, indication = null, onClick = onBack),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StageIcon(MobileIcons.ArrowBack, 13.dp, palette.muted)
+            Text(
+                if (firstRun) {
+                    stringResource(R.string.setup_add_playlist)
+                } else {
+                    stringResource(R.string.settings_playlists) + stringResource(R.string.content_epg_bits_separator) + stringResource(R.string.content_add_source)
+                },
+                style = stageText(13f, 500),
+                color = palette.muted,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+    }
 }

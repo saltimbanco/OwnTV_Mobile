@@ -14,7 +14,7 @@ import tv.own.owntv.core.settings.SettingsRepository
 
 /** Who is watching: the list, the one in use, and the four things that can be done to a profile. */
 class ProfilesViewModel(
-    profileDao: ProfileDao,
+    private val profileDao: ProfileDao,
     settings: SettingsRepository,
     private val manager: ProfileManager,
     private val context: android.content.Context,
@@ -50,13 +50,25 @@ class ProfilesViewModel(
         }
     }
 
-    fun create(name: String, avatarId: Int, isKids: Boolean, pin: String?, fallbackName: String, onCreated: (Long) -> Unit = {}) {
-        viewModelScope.launch { onCreated(manager.create(name, avatarId, isKids, pin, fallbackName)) }
+    /**
+     * [picture], when the user chose one, is stored once the profile exists — before that there is
+     * no id to store it under.
+     */
+    fun create(name: String, avatarId: Int, isKids: Boolean, pin: String?, fallbackName: String, picture: android.net.Uri? = null, onCreated: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val id = manager.create(name, avatarId, isKids, pin, fallbackName)
+            if (picture != null) setPictureNow(id, picture)
+            onCreated(id)
+        }
     }
 
-    /** [pin]: null keeps the existing PIN, "" removes it. */
+    /**
+     * [pin]: null keeps the existing PIN, "" removes it. Edits the row as it is now, not [profile]:
+     * a picture chosen while the sheet was open has already been written, and the sheet's copy would
+     * put the old one back.
+     */
     fun edit(profile: ProfileEntity, name: String, avatarId: Int, isKids: Boolean, pin: String?) {
-        viewModelScope.launch { manager.edit(profile, name, avatarId, isKids, pin) }
+        viewModelScope.launch { manager.edit(profileDao.getById(profile.id) ?: profile, name, avatarId, isKids, pin) }
     }
 
     /**
@@ -65,13 +77,15 @@ class ProfilesViewModel(
      * rather than appearing to have ignored the tap.
      */
     fun setPicture(profile: ProfileEntity, uri: android.net.Uri, onResult: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            val ok = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { manager.setCustomAvatar(profile, it) } ?: false
-            }.getOrDefault(false)
-            onResult(ok)
-        }
+        viewModelScope.launch { onResult(setPictureNow(profile.id, uri)) }
     }
+
+    // Read fresh by id rather than taking a caller's entity: the picture is written as a copy of the
+    // whole row, so a stale one would put back whatever the sheet has just changed.
+    private suspend fun setPictureNow(profileId: Long, uri: android.net.Uri): Boolean = runCatching {
+        val profile = profileDao.getById(profileId) ?: return@runCatching false
+        context.contentResolver.openInputStream(uri)?.use { manager.setCustomAvatar(profile, it) } ?: false
+    }.getOrDefault(false)
 
     /** Drop [profile]'s picture; the drawn tile it already had comes back. */
     fun clearPicture(profile: ProfileEntity) {

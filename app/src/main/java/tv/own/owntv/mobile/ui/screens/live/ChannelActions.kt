@@ -1,21 +1,33 @@
 package tv.own.owntv.mobile.ui.screens.live
 
+import tv.own.owntv.mobile.ui.screens.home.formatYear
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import tv.own.owntv.core.epg.displayLogoUrl
+import tv.own.owntv.core.live.ProviderTags
+import tv.own.owntv.mobile.ui.components.ChannelLogoImage
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageRadii
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageStepper
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.components.MobileIcons
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,7 +41,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.debounce
@@ -41,17 +52,11 @@ import tv.own.owntv.core.model.ContentMenu
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.ContentMenuSheet
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileTextField
 import tv.own.owntv.mobile.ui.components.MoveToCategorySheet
 import tv.own.owntv.mobile.ui.components.NewCategoryDialog
 import tv.own.owntv.mobile.ui.components.ReorderSheet
 import tv.own.owntv.mobile.ui.components.SheetAction
 import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.theme.MobileDimens
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
 
 /** Which follow-up the sheet handed off to. Only ever one at a time. */
 private enum class ChannelDialog { RENAME, MATCH_EPG, EPG_OFFSET, MOVE, MOVE_TO_CATEGORY, NEW_CATEGORY, SCHEDULE_RECORDING }
@@ -72,6 +77,8 @@ fun ChannelMenu(
     selected: LiveKey,
     isFavorite: Boolean,
     originName: String,
+    /** The playlist's name, only when more than one is active (the header's "category · playlist"). */
+    providerName: String?,
     vm: LiveViewModel,
     onOpenCatchup: () -> Unit,
     onDismiss: () -> Unit,
@@ -104,55 +111,15 @@ fun ChannelMenu(
 
     if (sheetOpen && multiviewSetting != null) {
         val canMove = vm.contextKeyOf(selected) != null
+        // Group ids = the TV's four groups, in its order.
+        val watch = 0; val chan = 1; val guide = 2; val organise = 3
+        val catchupValue = channel.catchupDays.takeIf { it > 0 }
+            ?.let { pluralStringResource(R.plurals.settings_epg_guide_days_value, it, it) }
+        val matchValue = stringResource(if (vm.currentEpgMatch(channel) != null) R.string.settings_manual else R.string.settings_auto)
+        val offsetValue = vm.currentEpgShift(channel)?.let { epgShiftLabel(it) } ?: stringResource(R.string.content_epg_offset_global_short)
         val actions = buildList {
-            add(
-                SheetAction(
-                    key = "favourite",
-                    label = stringResource(
-                        if (isFavorite) R.string.content_remove_favourite else R.string.content_add_favourite,
-                    ),
-                    icon = if (isFavorite) MobileIcons.Star else MobileIcons.StarBorder,
-                    group = 0,
-                    onClick = { vm.toggleFavorite(channel) },
-                ),
-            )
-            add(
-                SheetAction(
-                    key = "rename",
-                    label = stringResource(R.string.content_rename),
-                    icon = MobileIcons.Edit,
-                    group = 0,
-                    onClick = { dialog = ChannelDialog.RENAME },
-                ),
-            )
-            add(
-                SheetAction(
-                    key = "match_epg",
-                    label = stringResource(R.string.content_match_epg),
-                    icon = MobileIcons.Tv,
-                    group = 1,
-                    onClick = { dialog = ChannelDialog.MATCH_EPG },
-                ),
-            )
-            add(
-                SheetAction(
-                    key = "epg_offset",
-                    label = stringResource(R.string.content_epg_time_offset),
-                    icon = MobileIcons.History,
-                    group = 1,
-                    onClick = { dialog = ChannelDialog.EPG_OFFSET },
-                ),
-            )
             if (channel.catchup) {
-                add(
-                    SheetAction(
-                        key = "catchup",
-                        label = stringResource(R.string.content_catchup),
-                        icon = MobileIcons.History,
-                        group = 1,
-                        onClick = onOpenCatchup,
-                    ),
-                )
+                add(SheetAction("catchup", stringResource(R.string.content_catchup), MobileIcons.Catchup, group = watch, value = catchupValue, onClick = onOpenCatchup))
             }
             // Record this channel from now. The guide's Record needs a programme, so a channel the
             // provider publishes no guide for can only be recorded from here. While it records, the
@@ -161,109 +128,73 @@ fun ChannelMenu(
                 SheetAction(
                     key = "record",
                     label = stringResource(if (isRecording) R.string.recording_stop else R.string.recording_record),
-                    icon = MobileIcons.LiveTv,
-                    group = 1,
+                    icon = if (isRecording) MobileIcons.Close else MobileIcons.Record,
+                    group = watch,
                     onClick = { if (isRecording) tuner.stopRecordingOn(channel) else tuner.recordNow(channel) },
                 ),
             )
-            add(
-                SheetAction(
-                    key = "schedule_record",
-                    label = stringResource(R.string.recording_schedule),
-                    icon = MobileIcons.Schedule,
-                    group = 1,
-                    onClick = { dialog = ChannelDialog.SCHEDULE_RECORDING },
-                ),
-            )
-            add(
-                SheetAction(
-                    key = "play_external",
-                    label = stringResource(R.string.content_play_external_short),
-                    icon = MobileIcons.OpenInNew,
-                    group = 1,
-                    onClick = { vm.playExternal(channel) },
-                ),
-            )
+            add(SheetAction("schedule_record", stringResource(R.string.recording_schedule), MobileIcons.Schedule, group = watch) { dialog = ChannelDialog.SCHEDULE_RECORDING })
             if (multiviewEnabled) {
                 add(
-                    SheetAction(
-                        key = "add_to_multiview",
-                        label = stringResource(R.string.multiview_add_to),
-                        icon = MobileIcons.GridView,
-                        group = 1,
-                        onClick = {
-                            tuner.addToMultiview(channel, multiviewTiles)
-                            android.widget.Toast.makeText(
-                                context,
-                                res.getString(
-                                    R.string.multiview_added,
-                                    tuner.multiviewSelection.value.size,
-                                    multiviewTiles,
-                                ),
-                                android.widget.Toast.LENGTH_SHORT,
-                            ).show()
-                        },
-                    ),
+                    SheetAction("add_to_multiview", stringResource(R.string.multiview_add_to), MobileIcons.Multiview, group = watch) {
+                        tuner.addToMultiview(channel, multiviewTiles)
+                        android.widget.Toast.makeText(
+                            context,
+                            res.getString(R.string.multiview_added, tuner.multiviewSelection.value.size, multiviewTiles),
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    },
                 )
             }
-            if (canMove) {
-                add(
-                    SheetAction(
-                        key = "move",
-                        label = stringResource(R.string.content_move),
-                        icon = MobileIcons.SwapVert,
-                        group = 2,
-                        onClick = { dialog = ChannelDialog.MOVE },
-                    ),
-                )
-                add(
-                    SheetAction(
-                        key = "move_to_category",
-                        label = stringResource(R.string.content_move_to_category),
-                        icon = MobileIcons.PlaylistAdd,
-                        group = 2,
-                        onClick = { dialog = ChannelDialog.MOVE_TO_CATEGORY },
-                    ),
-                )
-            }
-            if (selected is LiveKey.Custom) {
-                add(
-                    SheetAction(
-                        key = "remove_from_category",
-                        label = stringResource(R.string.content_remove_from_category),
-                        icon = MobileIcons.Close,
-                        group = 2,
-                        onClick = { vm.removeFromCustomCategory(channel, selected) },
-                    ),
-                )
-            }
+            add(SheetAction("play_external", stringResource(R.string.content_play_external_short), MobileIcons.OpenInNew, group = watch) { vm.playExternal(channel) })
             add(
                 SheetAction(
-                    key = "hide",
-                    label = stringResource(R.string.content_hide_channel),
-                    icon = MobileIcons.VisibilityOff,
-                    destructive = true,
-                    group = 3,
-                    onClick = { vm.hideChannel(channel) },
+                    key = "favourite",
+                    label = stringResource(if (isFavorite) R.string.content_remove_favourite else R.string.content_add_favourite),
+                    icon = MobileIcons.FavoriteBorder,
+                    group = chan,
+                    onClick = { vm.toggleFavorite(channel) },
                 ),
             )
+            add(SheetAction("rename", stringResource(R.string.content_rename), MobileIcons.Edit, group = chan) { dialog = ChannelDialog.RENAME })
+            add(SheetAction("hide", stringResource(R.string.content_hide_channel), MobileIcons.VisibilityOff, group = chan) { vm.hideChannel(channel) })
             if (selected == LiveKey.History) {
-                add(
-                    SheetAction(
-                        key = "remove_history",
-                        label = stringResource(R.string.content_remove_history),
-                        destructive = true,
-                        group = 3,
-                        onClick = { vm.removeFromHistory(channel.id) },
-                    ),
-                )
+                add(SheetAction("remove_history", stringResource(R.string.content_remove_history), MobileIcons.History, group = chan) { vm.removeFromHistory(channel.id) })
+            }
+            add(SheetAction("match_epg", stringResource(R.string.content_match_epg), MobileIcons.Guide, group = guide, value = matchValue) { dialog = ChannelDialog.MATCH_EPG })
+            add(SheetAction("epg_offset", stringResource(R.string.content_epg_time_offset), MobileIcons.Schedule, group = guide, value = offsetValue) { dialog = ChannelDialog.EPG_OFFSET })
+            if (canMove) {
+                add(SheetAction("move", stringResource(R.string.content_move), MobileIcons.Move, group = organise) { dialog = ChannelDialog.MOVE })
+                add(SheetAction("move_to_category", stringResource(R.string.content_move_to_category), MobileIcons.Folder, group = organise) { dialog = ChannelDialog.MOVE_TO_CATEGORY })
+            }
+            if (selected is LiveKey.Custom) {
+                add(SheetAction("remove_from_category", stringResource(R.string.content_remove_from_category), MobileIcons.Close, group = organise) { vm.removeFromCustomCategory(channel, selected) })
             }
         }
+        val sep = stringResource(R.string.content_epg_bits_separator)
+        val name = remember(channel.name) { ProviderTags.parse(channel.name).name }
         ContentMenuSheet(
             menu = ContentMenu.LIVE,
-            title = channel.name,
+            title = listOfNotNull(channel.number?.takeIf { it > 0 }?.let(::formatYear), name).joinToString(sep),
+            subtitle = listOfNotNull(originName.takeIf { it.isNotBlank() }, providerName).joinToString(sep).takeIf { it.isNotEmpty() },
             actions = actions,
             onDismiss = { sheetOpen = false },
+            groupLabels = mapOf(
+                watch to stringResource(R.string.content_menu_group_watch),
+                chan to stringResource(R.string.content_menu_group_channel),
+                guide to stringResource(R.string.content_menu_group_guide_data),
+                organise to stringResource(R.string.content_menu_group_organise),
+            ),
+            leading = {
+                Box(Modifier.size(44.dp, 32.dp).clip(RoundedCornerShape(StageRadii.Plate)), contentAlignment = Alignment.Center) {
+                    ChannelLogoImage(
+                        url = channel.displayLogoUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        plateOn = LocalStagePalette.current.page,
+                        fallback = { StageIcon(MobileIcons.LiveTv, 16.dp, LocalStagePalette.current.dim) },
+                    )
+                }
+            },
         )
     }
 
@@ -309,7 +240,7 @@ fun ChannelMenu(
             onDismiss = { dialog = ChannelDialog.MOVE_TO_CATEGORY },
         )
         ChannelDialog.SCHEDULE_RECORDING -> ScheduleRecordingSheet(
-            channelName = channel.name,
+            channel = channel,
             clashesFor = { start, stop -> tuner.recordingClashes(channel, start, stop) },
             onSchedule = { start, stop ->
                 dialog = null
@@ -336,33 +267,24 @@ private fun RenameChannelDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(channel.name) }
-    AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.content_rename_channel)) },
-        text = {
-            MobileTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = stringResource(R.string.content_rename_channel),
-                imeAction = ImeAction.Done,
-                onImeDone = { onSet(text.trim().takeIf { it.isNotEmpty() }); onDismiss() },
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onSet(text.trim().takeIf { it.isNotEmpty() }); onDismiss() }) {
-                Text(stringResource(R.string.common_save))
-            }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = { onSet(null); onDismiss() }) {
-                    Text(stringResource(R.string.common_reset))
-                }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-            }
-        },
-    )
+    val title = stringResource(R.string.content_rename_channel)
+    val save = { onSet(text.trim().takeIf { it.isNotEmpty() }); onDismiss() }
+    // Stage sheet: the name field, Save, Reset (the provider's name back), Cancel.
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title, subtitle = remember(channel.name) { ProviderTags.parse(channel.name).name })
+        StageSearchField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = title,
+            icon = null,
+            imeAction = ImeAction.Done,
+            onSearch = save,
+            modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 8.dp),
+        )
+        StageMenuItem(stringResource(R.string.common_save), onClick = save, icon = MobileIcons.Check, filled = true)
+        StageMenuItem(stringResource(R.string.common_reset), onClick = { onSet(null); onDismiss() }, icon = MobileIcons.Refresh)
+        StageMenuItem(stringResource(R.string.common_cancel), onClick = onDismiss, icon = MobileIcons.Close)
+    }
 }
 
 /**
@@ -395,63 +317,56 @@ internal fun EpgMatchSheet(
             .collect { results = search(it) }
     }
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.content_match_epg),
-    ) {
-        Text(
-            text = if (currentMatch != null) {
+    val palette = LocalStagePalette.current
+    val title = stringResource(R.string.content_match_epg)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(
+            title = title,
+            subtitle = if (currentMatch != null) {
                 stringResource(R.string.content_epg_match_prompt_current, channelName, currentMatch)
             } else {
                 stringResource(R.string.content_epg_match_prompt, channelName)
             },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
         )
-        MobileTextField(
+        StageSearchField(
             value = query,
             onValueChange = { query = it },
-            label = stringResource(R.string.content_search_guide_channels),
-            imeAction = ImeAction.Search,
+            placeholder = stringResource(R.string.content_search_guide_channels),
             onSearch = { epgKeyboard?.hide() },
-            modifier = Modifier.padding(
-                horizontal = MobileDimens.ScreenPaddingH,
-                vertical = MobileDimens.GapSmall,
-            ),
+            modifier = Modifier.padding(start = 6.dp, end = 6.dp, bottom = 8.dp),
         )
         val list = results
         when {
-            list == null -> Box(
-                Modifier.fillMaxWidth().padding(MobileDimens.GapLarge),
-                contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator() }
+            list == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = stageAccent.accent)
+            }
             list.isEmpty() -> Text(
                 text = if (query.isBlank()) {
                     stringResource(R.string.content_no_epg_data)
                 } else {
                     stringResource(R.string.content_no_guide_channels, query)
                 },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(MobileDimens.ScreenPaddingH),
+                style = stageText(13f, 500),
+                color = palette.muted,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             )
             else -> LazyColumn(Modifier.heightIn(max = sheetListHeight())) {
                 items(list, key = { it.epgChannelId }) { epg ->
-                    MobileListRow(
+                    StageSettingRow(
                         title = epg.displayName ?: epg.epgChannelId,
                         subtitle = epg.epgChannelId,
+                        minHeight = 52.dp,
+                        current = epg.epgChannelId.equals(currentMatch, ignoreCase = true),
                         onClick = { onPick(epg.epgChannelId); onDismiss() },
                     )
                 }
             }
         }
         if (currentMatch != null) {
-            MobileButton(
-                text = stringResource(R.string.content_clear_match),
+            StageMenuItem(
+                stringResource(R.string.content_clear_match),
                 onClick = { onPick(null); onDismiss() },
-                style = MobileButtonStyle.TEXT,
-                modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+                icon = MobileIcons.Close,
             )
         }
     }
@@ -471,69 +386,38 @@ internal fun EpgOffsetDialog(
     onSet: (Int?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val palette = LocalStagePalette.current
     var minutes by remember { mutableStateOf(currentMinutes ?: globalMinutes) }
-    AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.content_epg_time_offset)) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = stringResource(R.string.content_epg_offset_channel_description, channelName),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    modifier = Modifier.padding(vertical = MobileDimens.GapMedium),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                ) {
-                    MobileButton(
-                        text = stringResource(R.string.content_epg_shift_minutes, MINUS_SIGN, "30"),
-                        onClick = { minutes = (minutes - STEP_MINUTES).coerceAtLeast(MIN_MINUTES) },
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                    Text(
-                        text = epgShiftLabel(minutes),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.width(SHIFT_LABEL_WIDTH),
-                    )
-                    MobileButton(
-                        text = stringResource(R.string.content_epg_shift_minutes, PLUS_SIGN, "30"),
-                        onClick = { minutes = (minutes + STEP_MINUTES).coerceAtMost(MAX_MINUTES) },
-                        style = MobileButtonStyle.SECONDARY,
-                    )
-                }
-                Text(
-                    text = stringResource(
-                        if (currentMinutes == null) {
-                            R.string.content_epg_offset_following_global
-                        } else {
-                            R.string.content_epg_offset_channel_only
-                        },
-                        epgShiftLabel(globalMinutes),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (currentMinutes != null) {
-                    TextButton(onClick = { onSet(null); onDismiss() }) {
-                        Text(stringResource(R.string.content_epg_offset_use_global))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSet(minutes); onDismiss() }) {
-                Text(stringResource(R.string.common_done))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-        },
-    )
+    val title = stringResource(R.string.content_epg_time_offset)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(
+            title = title,
+            subtitle = stringResource(R.string.content_epg_offset_channel_description, channelName),
+        )
+        StageSettingRow(
+            title = remember(channelName) { ProviderTags.parse(channelName).name },
+            subtitle = stringResource(
+                if (currentMinutes == null) R.string.content_epg_offset_following_global else R.string.content_epg_offset_channel_only,
+                epgShiftLabel(globalMinutes),
+            ),
+            icon = MobileIcons.Schedule,
+            role = null,
+        ) {
+            StageStepper(
+                value = epgShiftLabel(minutes),
+                onMinus = { minutes = (minutes - STEP_MINUTES).coerceAtLeast(MIN_MINUTES) },
+                onPlus = { minutes = (minutes + STEP_MINUTES).coerceAtMost(MAX_MINUTES) },
+                minusEnabled = minutes > MIN_MINUTES,
+                plusEnabled = minutes < MAX_MINUTES,
+            )
+        }
+        Box(Modifier.size(1.dp, 6.dp))
+        StageMenuItem(stringResource(R.string.common_done), onClick = { onSet(minutes); onDismiss() }, icon = MobileIcons.Check)
+        if (currentMinutes != null) {
+            StageMenuItem(stringResource(R.string.content_epg_offset_use_global), onClick = { onSet(null); onDismiss() }, icon = MobileIcons.Refresh)
+        }
+        StageMenuItem(stringResource(R.string.common_cancel), onClick = onDismiss, icon = MobileIcons.Close)
+    }
 }
 
 /** "+2h", "−30m", or "Off". The digits go through the locale's own number format. */
@@ -564,4 +448,3 @@ private const val STEP_MINUTES = 30
 private const val MIN_MINUTES = -12 * 60
 private const val MAX_MINUTES = 14 * 60
 private const val SEARCH_DEBOUNCE_MS = 250L
-private val SHIFT_LABEL_WIDTH = 96.dp

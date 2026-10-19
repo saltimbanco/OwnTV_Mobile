@@ -57,24 +57,5 @@ class SquircleShape(
     }
 }
 
-/** The shape of every card and panel in the app. */
-val MobileCardShape: Shape = SquircleShape(MobileDimens.CardCorner)
-
-/** Artwork's own corner, a touch tighter than a card's — a poster is the picture, not a plate. */
-val MobilePosterShape: Shape = SquircleShape(MobileDimens.PosterArtCorner)
-
-/** The little plate a row's icon sits on. */
-val MobileChipShape: Shape = SquircleShape(MobileDimens.ListRowIconCorner)
-
-/** The block a run of rows is grouped into. */
-val MobileGroupShape: Shape = SquircleShape(MobileDimens.GroupCorner)
-
-// The floating shell's four panes. Each stands clear of the screen edges, so each is rounded on all
-// four corners — including the sheet, which no longer sits on the bottom edge.
-val MobileTopBarShape: Shape = SquircleShape(MobileDimens.TopBarCorner)
-val MobilePageShape: Shape = SquircleShape(MobileDimens.PageCorner)
-val MobileNavShape: Shape = SquircleShape(MobileDimens.NavCorner)
+/** The audio-only and cast panels: a 28 dp corner all round, standing clear of the picture's edges. */
 val MobileSheetShape: Shape = SquircleShape(MobileDimens.SheetCorner)
-
-/** The plate a sheet's rows stand on, inside the sheet's own corner. */
-val MobileSheetRowsShape: Shape = SquircleShape(MobileDimens.SheetRowsCorner)

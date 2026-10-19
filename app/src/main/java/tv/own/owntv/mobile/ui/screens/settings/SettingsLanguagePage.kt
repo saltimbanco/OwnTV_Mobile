@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -41,14 +38,17 @@ import tv.own.owntv.core.i18n.SupportedLocale
 import tv.own.owntv.core.i18n.SupportedLocales
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
 import tv.own.owntv.mobile.ui.components.MobileIcons
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageRadio
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import java.util.Locale
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import tv.own.owntv.mobile.ui.stage.StageButton
 
 /**
  * Every language the app is packaged in, each in its own name, with how much of it is translated.
@@ -80,25 +80,24 @@ fun SettingsLanguagePage(
 
     SettingsPage(modifier) {
         item(key = "search") {
-            MobileTextField(
+            // The Settings search's field, with its ✕.
+            StageSearchField(
                 value = query,
                 onValueChange = { query = it },
-                label = stringResource(R.string.settings_language_search_hint),
-                modifier = Modifier.padding(
-                    horizontal = MobileDimens.ListRowPaddingH,
-                    vertical = MobileDimens.GapSmall,
-                ),
+                placeholder = stringResource(R.string.settings_language_search_hint),
+                onClear = { query = "" },
+                clearLabel = stringResource(R.string.common_clear),
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 14.dp),
             )
         }
 
         settingsGroup(key = "help") {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.settings_language_help_translate),
                 subtitle = stringResource(R.string.settings_language_contribution_description),
-                leading = { Icon(MobileIcons.Translate, contentDescription = null) },
-                showChevron = true,
+                icon = MobileIcons.Translate,
                 onClick = { helpSheet = true },
-            )
+            ) { StageRowValue("", StageChevron.FORWARD) }
         }
 
         settingsGroup(key = "languages") {
@@ -123,8 +122,8 @@ fun SettingsLanguagePage(
             if (!showSystem && matches.isEmpty()) {
                 Text(
                     text = stringResource(R.string.settings_no_settings_match, needle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = stageText(13f, 500),
+                    color = LocalStagePalette.current.dim,
                     modifier = Modifier.padding(MobileDimens.ListRowPaddingH),
                 )
             }
@@ -151,38 +150,24 @@ private fun LanguageRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    MobileListRow(
-        title = title,
-        subtitle = subtitle,
-        onClick = onClick,
-        selected = selected,
-        trailing = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (coverage != null) {
-                    Text(
-                        text = stringResource(R.string.settings_language_coverage, coverage),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(horizontal = MobileDimens.GapSmall, vertical = 2.dp),
-                    )
-                }
-                if (selected) {
-                    Icon(
-                        imageVector = MobileIcons.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
+    val palette = LocalStagePalette.current
+    // A choice like every other (the choice sheet's radio), with the translated share as a chip.
+    StageSettingRow(title = title, subtitle = subtitle, onClick = onClick) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (coverage != null) {
+                Text(
+                    text = stringResource(R.string.settings_language_coverage, coverage),
+                    style = stageText(11f, 700),
+                    color = palette.text,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(palette.ink.copy(alpha = 0.08f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
             }
-        },
-    )
+            StageRadio(selected)
+        }
+    }
 }
 
 /**
@@ -207,10 +192,8 @@ private fun TranslationContributionSheet(onDismiss: () -> Unit) {
         }
     }
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_language_help_translate),
-    ) {
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.settings_language_help_translate))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -220,13 +203,13 @@ private fun TranslationContributionSheet(onDismiss: () -> Unit) {
         ) {
             Text(
                 text = stringResource(R.string.settings_language_contribution_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = stageText(13.5f, 500),
+                color = LocalStagePalette.current.text,
             )
             Text(
                 text = stringResource(R.string.settings_language_request_workflow),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = stageText(12f, 500),
+                color = LocalStagePalette.current.dim,
             )
             if (qr != null) {
                 Box(
@@ -245,31 +228,29 @@ private fun TranslationContributionSheet(onDismiss: () -> Unit) {
             } else {
                 Text(
                     text = stringResource(R.string.settings_language_contribution_qr_failed),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = stageText(13f, 500),
+                    color = LocalStagePalette.current.dim,
                 )
             }
-            MobileButton(
+            StageButton(
                 text = url,
                 onClick = { open(url) },
                 modifier = Modifier.fillMaxWidth(),
-                style = MobileButtonStyle.SECONDARY,
             )
-            MobileButton(
+            StageButton(
                 text = stringResource(R.string.settings_language_request_new),
                 onClick = { open(requestUrl) },
                 modifier = Modifier.fillMaxWidth(),
-                style = MobileButtonStyle.SECONDARY,
             )
             status?.let {
                 Text(
                     text = stringResource(it),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = stageText(12f, 500),
+                    color = LocalStagePalette.current.dim,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall)) {
-                MobileButton(
+                StageButton(
                     text = stringResource(R.string.settings_language_contribution_copy),
                     onClick = {
                         status = if (copyContributionLink(context, copyUrl)) {
@@ -278,12 +259,11 @@ private fun TranslationContributionSheet(onDismiss: () -> Unit) {
                             R.string.settings_language_contribution_copy_failed
                         }
                     },
-                    style = MobileButtonStyle.SECONDARY,
                 )
-                MobileButton(
+                StageButton(
                     text = stringResource(R.string.settings_close),
                     onClick = onDismiss,
-                    style = MobileButtonStyle.TEXT,
+                    small = true,
                 )
             }
         }

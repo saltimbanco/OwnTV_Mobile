@@ -2,17 +2,12 @@ package tv.own.owntv.mobile.ui.screens.settings.customize
 
 import tv.own.owntv.mobile.ui.components.MobileIcons
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -32,20 +27,6 @@ import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.util.Pin
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
-
-/** The tick that marks a row as part of the span being selected. */
-internal fun spanTick(selected: Boolean): (@Composable () -> Unit)? =
-    if (!selected) null else {
-        {
-            Icon(
-                imageVector = MobileIcons.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
 
 /**
  * The strip that appears while a span is being picked: what to do next, and a way out.
@@ -66,7 +47,7 @@ internal fun SpanBar(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer)
+            .background(tv.own.owntv.mobile.ui.stage.stageAccent.accent.copy(alpha = 0.16f))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -83,8 +64,8 @@ internal fun SpanBar(
                     selectedCount,
                 )
             },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            style = tv.own.owntv.mobile.ui.stage.stageText(13f, 600),
+            color = tv.own.owntv.mobile.ui.stage.LocalStagePalette.current.text,
             modifier = Modifier.weight(1f),
         )
         if (mode == SpanSelector.Mode.MOVE && hasEnd) {
@@ -93,15 +74,13 @@ internal fun SpanBar(
             MoveArrow(MobileIcons.KeyboardArrowDown, R.string.settings_row_menu_move_down) { onMove(MoveKind.DOWN) }
             MoveArrow(MobileIcons.KeyboardDoubleArrowDown, R.string.settings_customize_move_bottom) { onMove(MoveKind.BOTTOM) }
         }
-        TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel)) }
+        tv.own.owntv.mobile.ui.stage.StageButton(onClick = onCancel, text = stringResource(R.string.common_cancel), small = true, modifier = Modifier.padding(start = 6.dp))
     }
 }
 
 @Composable
 private fun MoveArrow(icon: ImageVector, labelRes: Int, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(imageVector = icon, contentDescription = stringResource(labelRes))
-    }
+    Box(Modifier.padding(start = 6.dp)) { tv.own.owntv.mobile.ui.screens.settings.MoveKey(icon, labelRes, true, onClick) }
 }
 
 /** Hide or show every row in the chosen span — or back out of it. */
@@ -114,37 +93,20 @@ internal fun SpanHideDialog(
     onShow: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Text(
-                pluralStringResource(
-                    if (isCategories) {
-                        R.plurals.settings_customize_selected_categories
-                    } else {
-                        R.plurals.settings_customize_selected_items
-                    },
-                    count,
-                    count,
-                ),
-            )
-        },
-        confirmButton = {
-            Row {
-                TextButton(onClick = onShow) {
-                    Text(stringResource(R.string.settings_customize_show))
-                }
-                TextButton(onClick = onHide) {
-                    Text(stringResource(R.string.settings_customize_hide))
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-        },
-    )
+    // A Stage sheet: how many are chosen, then Hide · Show · Cancel.
+    tv.own.owntv.mobile.ui.components.MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(
+            title,
+            subtitle = pluralStringResource(
+                if (isCategories) R.plurals.settings_customize_selected_categories else R.plurals.settings_customize_selected_items,
+                count,
+                count,
+            ),
+        )
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_hide), onClick = onHide, icon = MobileIcons.VisibilityOff)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_show), onClick = onShow, icon = MobileIcons.Check)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.common_cancel), onClick = onDismiss, icon = MobileIcons.Close)
+    }
 }
 
 /**
@@ -166,64 +128,31 @@ internal fun RowActionsSheet(
     onRemoveFromCategory: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
 ) {
-    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(title)
         if (onRename != null) {
-            MobileListRow(
-                title = stringResource(R.string.settings_customize_rename),
-                onClick = onRename,
-            )
+            tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_rename), onClick = onRename, icon = MobileIcons.Edit)
         }
-        MobileListRow(
-            title = stringResource(
-                if (hiddenNow) R.string.settings_customize_show else R.string.settings_customize_hide,
-            ),
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(
+            stringResource(if (hiddenNow) R.string.settings_customize_show else R.string.settings_customize_hide),
             onClick = onToggleHidden,
+            icon = if (hiddenNow) MobileIcons.Check else MobileIcons.VisibilityOff,
         )
         if (onMoveTo != null) {
-            MobileListRow(
-                title = stringResource(R.string.settings_customize_move_to),
-                onClick = onMoveTo,
-            )
+            tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_move_to), onClick = onMoveTo, icon = MobileIcons.Move)
         }
         if (onRemoveFromCategory != null) {
-            MobileListRow(
-                title = stringResource(R.string.content_remove_from_category),
-                onClick = onRemoveFromCategory,
-            )
+            tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.content_remove_from_category), onClick = onRemoveFromCategory, icon = MobileIcons.Close)
         }
-        MobileListRow(
-            title = stringResource(R.string.settings_customize_move_top),
-            onClick = { onMove(MoveKind.TOP) },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_row_menu_move_up),
-            onClick = { onMove(MoveKind.UP) },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_row_menu_move_down),
-            onClick = { onMove(MoveKind.DOWN) },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_customize_move_bottom),
-            onClick = { onMove(MoveKind.BOTTOM) },
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_customize_span_hide),
-            onClick = onSpanHide,
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_customize_span_move),
-            onClick = onSpanMove,
-        )
-        MobileListRow(
-            title = stringResource(R.string.settings_customize_span_rename),
-            onClick = onSpanRename,
-        )
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_move_top), onClick = { onMove(MoveKind.TOP) }, icon = MobileIcons.KeyboardDoubleArrowUp)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_row_menu_move_up), onClick = { onMove(MoveKind.UP) }, icon = MobileIcons.KeyboardArrowUp)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_row_menu_move_down), onClick = { onMove(MoveKind.DOWN) }, icon = MobileIcons.KeyboardArrowDown)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_move_bottom), onClick = { onMove(MoveKind.BOTTOM) }, icon = MobileIcons.KeyboardDoubleArrowDown)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_span_hide), onClick = onSpanHide, icon = MobileIcons.VisibilityOff)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_span_move), onClick = onSpanMove, icon = MobileIcons.SwapVert)
+        tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.settings_customize_span_rename), onClick = onSpanRename, icon = MobileIcons.Edit)
         if (onDelete != null) {
-            MobileListRow(
-                title = stringResource(R.string.common_delete),
-                onClick = onDelete,
-            )
+            tv.own.owntv.mobile.ui.stage.StageMenuItem(stringResource(R.string.common_delete), onClick = onDelete, icon = MobileIcons.Delete, danger = true)
         }
     }
 }
@@ -235,20 +164,13 @@ internal fun SortSheet(
     onSelect: (SettingsRepository.SortMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_customize_sort_categories),
-    ) {
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.settings_customize_sort_categories))
         listOf(
             SettingsRepository.SortMode.PLAYLIST to R.string.content_provider,
             SettingsRepository.SortMode.ALPHA to R.string.settings_sort_alpha,
         ).forEach { (mode, labelRes) ->
-            MobileListRow(
-                title = stringResource(labelRes),
-                onClick = { onSelect(mode); onDismiss() },
-                leading = spanTick(mode == current),
-                selected = mode == current,
-            )
+            tv.own.owntv.mobile.ui.screens.settings.ChoiceRow(stringResource(labelRes), mode == current) { onSelect(mode); onDismiss() }
         }
     }
 }
@@ -260,17 +182,10 @@ internal fun FilterSheet(
     onSelect: (CustomizeVisibilityFilter) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_customize_filter_title),
-    ) {
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.settings_customize_filter_title))
         CustomizeVisibilityFilter.entries.forEach { filter ->
-            MobileListRow(
-                title = stringResource(filter.labelRes()),
-                onClick = { onSelect(filter); onDismiss() },
-                leading = spanTick(filter == current),
-                selected = filter == current,
-            )
+            tv.own.owntv.mobile.ui.screens.settings.ChoiceRow(stringResource(filter.labelRes()), filter == current) { onSelect(filter); onDismiss() }
         }
     }
 }
@@ -282,20 +197,13 @@ internal fun NewCategoryBehaviorSheet(
     onSelect: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.settings_customize_new_category_behavior),
-    ) {
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.settings_customize_new_category_behavior))
         listOf(
             false to R.string.settings_customize_behavior_show,
             true to R.string.settings_customize_behavior_hide,
         ).forEach { (hide, labelRes) ->
-            MobileListRow(
-                title = stringResource(labelRes),
-                onClick = { onSelect(hide); onDismiss() },
-                leading = spanTick(hide == hideNew),
-                selected = hide == hideNew,
-            )
+            tv.own.owntv.mobile.ui.screens.settings.ChoiceRow(stringResource(labelRes), hide == hideNew) { onSelect(hide); onDismiss() }
         }
     }
 }

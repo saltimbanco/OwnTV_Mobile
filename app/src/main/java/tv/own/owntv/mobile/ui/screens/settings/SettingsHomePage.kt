@@ -16,9 +16,14 @@ import tv.own.owntv.core.model.HomeRow
 import tv.own.owntv.core.model.HomeTrendingStyle
 import tv.own.owntv.core.trending.TrendingAvailability
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileSwitch
-import tv.own.owntv.mobile.ui.components.SettingRow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.StageSegmented
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import androidx.compose.ui.semantics.Role
 
 /**
  * Home, as the profile wants it: which rows appear, in what order, and what the Keep watching row is
@@ -51,35 +56,30 @@ fun SettingsHomePage(
         settingsSection(R.string.home_row_now_trending)
         settingsNote(R.string.home_row_trending_description)
         settingsGroup(key = "trending") {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.home_row_now_trending),
                 // The status, not the description: the description is the note above, and what a
                 // user opening this page wants is why the row is not there today.
                 subtitle = trendingStatusText(hidden = !trendingOn, availability = availability),
-                checked = trendingOn,
-                onCheckedChange = { show ->
+                role = Role.Switch,
+                onClick = {
                     editHome {
-                        it.copy(hidden = if (show) it.hidden - HomeRow.TRENDING else it.hidden + HomeRow.TRENDING)
+                        it.copy(hidden = if (!trendingOn) it.hidden - HomeRow.TRENDING else it.hidden + HomeRow.TRENDING)
                     }
                 },
-            )
+            ) { StageSwitch(trendingOn) }
             // Only worth offering while the row is actually on — with Trending off there is nothing
             // for the choice to apply to, so it is not shown at all.
             if (trendingOn) {
-                SettingRow(
-                    title = stringResource(R.string.home_trending_style),
-                    subtitle = stringResource(home.trendingStyle.labelRes()),
-                    onClick = {
-                        editHome {
-                            it.copy(
-                                trendingStyle = when (it.trendingStyle) {
-                                    HomeTrendingStyle.HERO -> HomeTrendingStyle.POSTERS
-                                    HomeTrendingStyle.POSTERS -> HomeTrendingStyle.HERO
-                                },
-                            )
-                        }
-                    },
-                )
+                // Two shapes, both in view: a segmented control, not a ⌄ that promises a list.
+                val styles = HomeTrendingStyle.entries
+                StageSettingRow(title = stringResource(R.string.home_trending_style)) {
+                    StageSegmented(
+                        options = styles.map { stringResource(it.labelRes()) },
+                        selected = styles.indexOf(home.trendingStyle),
+                        onSelect = { i -> editHome { it.copy(trendingStyle = styles[i]) } },
+                    )
+                }
             }
         }
 
@@ -106,7 +106,7 @@ fun SettingsHomePage(
                 // Only the two channel rows have a second shape to draw in, so only they carry the
                 // choice — the same rule, and the same stored value, the television uses.
                 row.liveMode(home)?.let { mode ->
-                    SettingRow(
+                    StageSettingRow(
                         title = stringResource(R.string.settings_mode, stringResource(mode.labelRes())),
                         onClick = {
                             editHome {
@@ -122,30 +122,31 @@ fun SettingsHomePage(
         }
 
         settingsSection(R.string.settings_keep_watching) {
-            SettingRow(
+            val heroPreview = vm.settings.heroPreviewEnabled.pref(vm.settings.heroPreviewDefault)
+            StageSettingRow(
                 title = stringResource(R.string.settings_hero_preview),
                 subtitle = stringResource(R.string.settings_hero_preview_description),
-                checked = vm.settings.heroPreviewEnabled.pref(vm.settings.heroPreviewDefault),
-                onCheckedChange = { on -> vm.edit { setHeroPreviewEnabled(on) } },
-            )
-            SettingRow(
+                role = Role.Switch,
+                onClick = { vm.edit { setHeroPreviewEnabled(!heroPreview) } },
+            ) { StageSwitch(heroPreview) }
+            StageSettingRow(
                 title = stringResource(R.string.settings_live_keep_watching),
                 subtitle = stringResource(R.string.settings_live_keep_watching_description),
-                checked = home.heroIncludeLive,
-                onCheckedChange = { on -> editHome { it.copy(heroIncludeLive = on) } },
-            )
-            SettingRow(
+                role = Role.Switch,
+                onClick = { editHome { it.copy(heroIncludeLive = !home.heroIncludeLive) } },
+            ) { StageSwitch(home.heroIncludeLive) }
+            StageSettingRow(
                 title = stringResource(R.string.settings_movies_keep_watching),
                 subtitle = stringResource(R.string.settings_movies_keep_watching_description),
-                checked = home.heroIncludeMovies,
-                onCheckedChange = { on -> editHome { it.copy(heroIncludeMovies = on) } },
-            )
-            SettingRow(
+                role = Role.Switch,
+                onClick = { editHome { it.copy(heroIncludeMovies = !home.heroIncludeMovies) } },
+            ) { StageSwitch(home.heroIncludeMovies) }
+            StageSettingRow(
                 title = stringResource(R.string.settings_series_keep_watching),
                 subtitle = stringResource(R.string.settings_series_keep_watching_description),
-                checked = home.heroIncludeSeries,
-                onCheckedChange = { on -> editHome { it.copy(heroIncludeSeries = on) } },
-            )
+                role = Role.Switch,
+                onClick = { editHome { it.copy(heroIncludeSeries = !home.heroIncludeSeries) } },
+            ) { StageSwitch(home.heroIncludeSeries) }
         }
     }
 }
@@ -164,23 +165,19 @@ private fun ReorderableSwitchRow(
     canMoveDown: Boolean,
     onMove: (Int) -> Unit,
 ) {
-    MobileListRow(
-        title = title,
-        subtitle = subtitle,
-        onClick = { onCheckedChange(!checked) },
-        trailing = {
-            Row {
-                MoveButton(up = true, enabled = canMoveUp) { onMove(-1) }
-                MoveButton(up = false, enabled = canMoveDown) { onMove(1) }
-                MobileSwitch(checked = checked)
-            }
-        },
-    )
+    StageSettingRow(title = title, subtitle = subtitle, onClick = { onCheckedChange(!checked) }) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            MoveKey(MobileIcons.KeyboardArrowUp, R.string.settings_row_menu_move_up, canMoveUp) { onMove(-1) }
+            MoveKey(MobileIcons.KeyboardArrowDown, R.string.settings_row_menu_move_down, canMoveDown) { onMove(1) }
+            StageSwitch(checked)
+        }
+    }
 }
 
 private fun HomeRow.titleRes() = when (this) {
     HomeRow.TRENDING -> R.string.home_row_now_trending
     HomeRow.HERO -> R.string.settings_keep_watching
+    HomeRow.LIVE_SPORTS -> R.string.sports_home_row
     HomeRow.RECENT_CHANNELS -> R.string.home_row_recent_channels
     HomeRow.FAVORITE_CHANNELS -> R.string.home_row_favorite_channels
     HomeRow.FAVORITE_MOVIES -> R.string.home_row_favorite_movies
@@ -192,6 +189,7 @@ private fun HomeRow.titleRes() = when (this) {
 private fun HomeRow.descriptionRes() = when (this) {
     HomeRow.TRENDING -> R.string.home_row_trending_description
     HomeRow.HERO -> R.string.home_row_hero_description
+    HomeRow.LIVE_SPORTS -> R.string.sports_home_row_description
     HomeRow.RECENT_CHANNELS -> R.string.home_row_recent_description
     HomeRow.FAVORITE_CHANNELS -> R.string.home_row_favorite_description
     HomeRow.FAVORITE_MOVIES -> R.string.home_row_favorite_movies_description

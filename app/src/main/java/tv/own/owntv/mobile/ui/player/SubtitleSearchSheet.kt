@@ -2,7 +2,6 @@ package tv.own.owntv.mobile.ui.player
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -11,10 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,9 +27,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
 import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 
 /**
  * "Add subtitles": search OpenSubtitles for the film or episode playing, and attach the chosen one
@@ -54,35 +55,28 @@ fun SubtitleSearchSheet(onDismiss: () -> Unit, vm: SubtitleSearchViewModel = koi
     LaunchedEffect(Unit) { vm.applied.collect { onDismiss() } }
 
     var query by remember { mutableStateOf(vm.initialQuery) }
+    val accent = stageAccent.accent
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.player_subtitles_search_title),
-    ) {
-        OutlinedTextField(
+    val title = stringResource(R.string.player_subtitles_search_title)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title)
+        StageField(
             value = query,
             onValueChange = { query = it },
-            label = { Text(stringResource(R.string.player_subtitles_title_label)) },
-            singleLine = true,
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions { vm.editSearch(query) },
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapTiny),
+            label = stringResource(R.string.player_subtitles_title_label),
+            imeAction = ImeAction.Search,
+            onImeDone = { vm.editSearch(query) },
+            modifier = Modifier.padding(horizontal = 8.dp),
         )
         Row(
-            Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-            horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
+            Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            TextButton(onClick = { vm.editSearch(query) }) {
-                Text(stringResource(R.string.player_subtitles_search))
-            }
+            StageButton(onClick = { vm.editSearch(query) }, text = stringResource(R.string.player_subtitles_search), small = true)
             if ((state as? SubtitleSearchViewModel.UiState.Results)?.showingAllLanguages == false ||
                 (state as? SubtitleSearchViewModel.UiState.Empty)?.showingAllLanguages == false
             ) {
-                TextButton(onClick = vm::showAllLanguages) {
-                    Text(stringResource(R.string.player_subtitles_show_all_languages))
-                }
+                StageButton(onClick = vm::showAllLanguages, text = stringResource(R.string.player_subtitles_show_all_languages), small = true)
             }
         }
 
@@ -98,10 +92,10 @@ fun SubtitleSearchSheet(onDismiss: () -> Unit, vm: SubtitleSearchViewModel = koi
 
         when (val s = state) {
             is SubtitleSearchViewModel.UiState.Loading -> Box(
-                Modifier.fillMaxWidth().padding(MobileDimens.ScreenPaddingH),
+                Modifier.fillMaxWidth().padding(12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator(Modifier.size(28.dp))
+                CircularProgressIndicator(Modifier.size(28.dp), color = accent)
             }
 
             is SubtitleSearchViewModel.UiState.SignedOut -> Note(
@@ -135,12 +129,12 @@ fun SubtitleSearchSheet(onDismiss: () -> Unit, vm: SubtitleSearchViewModel = koi
                         },
                     ),
                 )
-                TextButton(
+                StageButton(
                     onClick = vm::retry,
-                    modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-                ) {
-                    Text(stringResource(R.string.player_subtitles_try_again))
-                }
+                    text = stringResource(R.string.player_subtitles_try_again),
+                    small = true,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
             }
 
             is SubtitleSearchViewModel.UiState.Results -> LazyColumn(
@@ -162,21 +156,18 @@ fun SubtitleSearchSheet(onDismiss: () -> Unit, vm: SubtitleSearchViewModel = koi
                             )
                         }
                     }.joinToString(separator)
-                    MobileListRow(
+                    StageSettingRow(
                         title = result.languageName
                             ?: result.language
                             ?: stringResource(R.string.player_subtitles_subtitle),
                         subtitle = listOfNotNull(result.releaseName, tags.takeIf { it.isNotEmpty() })
                             .joinToString(separator)
                             .takeIf { it.isNotEmpty() },
-                        subtitleMaxLines = 2,
-                        trailing = if (applying == result.fileId) {
-                            { CircularProgressIndicator(Modifier.size(20.dp)) }
-                        } else {
-                            null
-                        },
+                        minHeight = 48.dp,
                         onClick = { vm.select(result) },
-                    )
+                    ) {
+                        if (applying == result.fileId) CircularProgressIndicator(Modifier.size(20.dp), color = accent)
+                    }
                 }
             }
         }
@@ -186,11 +177,10 @@ fun SubtitleSearchSheet(onDismiss: () -> Unit, vm: SubtitleSearchViewModel = koi
 
 @Composable
 private fun Note(text: String) {
-    Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapTiny)) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    Text(
+        text = text,
+        style = stageText(11.5f, 500, lineHeight = 1.4f),
+        color = LocalStagePalette.current.muted,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+    )
 }

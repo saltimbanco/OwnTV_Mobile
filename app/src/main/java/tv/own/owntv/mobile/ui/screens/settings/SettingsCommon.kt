@@ -9,103 +9,60 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.Flow
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileSlider
-import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileGroup
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.SettingRow
-import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.nav.MobileDestination
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.stageText
 
 /**
- * The seven settings groups, in the order the TV app's root list puts them.
- *
- * Two of the original nine are gone: **Data**, which held Backup, Local sync, Clear history and the
- * download folder — a place, a place, an action and a download preference, none of them a setting —
- * and **Profile**, which was a manager rather than a preference. Both live behind More now.
- *
- * Each is a route of its own rather than an expanding block: a phone screen holds far less than a
- * television's, and a back gesture out of a page is cheaper than scrolling past eight collapsed
- * groups to reach the ninth. Quick is not here — it lives inline at the top of the root.
+ * The TV's twelve settings groups, in its order, each a page of rows. The Video player level of the
+ * old tree is gone: its categories are groups of their own — Player, Picture, Sound & subtitles,
+ * Live TV, Watching & recording.
  */
-/** A heading is a label for the block below it, not a title of its own — it stays quiet. */
-private const val SECTION_LABEL_ALPHA = 0.75f
-
-/** The heading stands a little further in than its rows, so it reads as sitting above them. */
-private val SECTION_LABEL_INSET = 14.dp
-
 enum class SettingsGroup(
-    val route: String,
+    slug: String,
     @param:StringRes val titleRes: Int,
-    @param:StringRes val summaryRes: Int,
+    @param:StringRes val cardRes: Int,
     val icon: ImageVector,
 ) {
-    SOURCES("settings/sources", R.string.settings_group_sources, R.string.settings_group_summary_sources, MobileIcons.PlaylistPlay),
-    APPEARANCE("settings/appearance", R.string.settings_appearance_group, R.string.settings_group_summary_appearance, MobileIcons.Palette),
-    LAYOUT("settings/layout", R.string.settings_group_layout, R.string.settings_group_summary_layout, MobileIcons.ViewList),
-    CONTENT("settings/content", R.string.settings_group_content_metadata, R.string.settings_group_summary_content_metadata, MobileIcons.Image),
-    PLAYBACK("settings/playback", R.string.settings_playback_group, R.string.settings_group_summary_playback, MobileIcons.PlayCircle),
-    NETWORK("settings/network", R.string.settings_network_group, R.string.settings_group_summary_network, MobileIcons.Wifi),
-    APP("settings/app", R.string.settings_app_group, R.string.settings_group_summary_app, MobileIcons.Info),
-}
+    QUICK("quick", R.string.settings_group_quick, R.string.settings_group_summary_quick, MobileIcons.AutoAwesome),
+    PROFILE("profile", R.string.settings_profile_group, R.string.settings_card_profile, MobileIcons.Person),
+    SOURCES("sources", R.string.settings_group_sources, R.string.settings_card_sources, MobileIcons.FormatListBulleted),
+    APPEARANCE("appearance", R.string.settings_appearance_group, R.string.settings_card_appearance, MobileIcons.Palette),
+    LAYOUT("layout", R.string.settings_group_layout, R.string.settings_card_layout_mobile, MobileIcons.GridView),
+    CONTENT("content", R.string.settings_group_content_metadata, R.string.settings_card_content, MobileIcons.Folder),
+    PLAYER("player", R.string.settings_vp_cat_player, R.string.settings_card_player, MobileIcons.PlayCircle),
+    PICTURE("picture", R.string.settings_vp_cat_picture, R.string.settings_card_picture, MobileIcons.OpenInFull),
+    SOUND("sound", R.string.settings_group_sound_subtitles, R.string.settings_card_sound, MobileIcons.Headphones),
+    LIVE("live", R.string.settings_live_tv, R.string.settings_card_live, MobileIcons.LiveTv),
+    WATCHING("watching", R.string.settings_group_watching_recording, R.string.settings_card_watching_mobile, MobileIcons.Record),
+    APP("app", R.string.settings_app_group, R.string.settings_card_app, MobileIcons.Info),
+    ;
 
-/** The group a settings route belongs to, so the shell's bar can name the page and offer back. */
-fun settingsGroupOf(route: String?): SettingsGroup? =
-    SettingsGroup.entries.firstOrNull { it.route == route }
-
-/**
- * The bar's title for a settings page, or null when the route is not one — the root, the nine group
- * pages and every leaf under them. A non-null answer is also what tells the bar to offer back.
- *
- * Leaves are asked first: a leaf route begins with its group's route, so testing the group first
- * would title every leaf after the group it hangs off.
- */
-@StringRes
-fun settingsPageTitleRes(route: String?): Int? = when (route) {
-    // The root is reached from More, not from the bar, so nothing else would name it and the bar
-    // would keep showing whichever tab the user came from.
-    MobileDestination.SETTINGS.route -> R.string.common_nav_settings
-    else -> settingsLeafOf(route)?.titleRes ?: settingsGroupOf(route)?.titleRes
+    val route: String = "settings/$slug"
 }
 
 /** Collect a settings flow for the row that displays it. */
 @Composable
 fun <T> Flow<T>.pref(initial: T): T = collectAsStateWithLifecycle(initial).value
 
-/** The scrolling body every group page shares. */
+/** The scrolling body every full page shares: the Stage page's 6 dp sides, room under the bar. */
 @Composable
 fun SettingsPage(modifier: Modifier = Modifier, content: LazyListScope.() -> Unit) {
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .imePadding(),
-        contentPadding = PaddingValues(
-            start = MobileDimens.PagePaddingH,
-            end = MobileDimens.PagePaddingH,
-            top = MobileDimens.ScreenPaddingV,
-            bottom = MobileDimens.GapLarge,
-        ),
+        modifier = modifier.fillMaxSize().imePadding(),
+        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 100.dp),
         content = content,
     )
 }
@@ -137,68 +94,25 @@ fun LazyListScope.settingsSection(
     settingsGroup(key = "group-$titleRes", rows = rows)
 }
 
-/** A block of rows with no heading of its own — the head of a page, or a single stray group. */
+/** A run of rows with no heading of its own: Stage rows sit flat on the page, no pane round them. */
 fun LazyListScope.settingsGroup(key: String, rows: @Composable ColumnScope.() -> Unit) {
-    item(key = key) { MobileGroup(content = rows) }
+    item(key = key) { Column(content = rows) }
 }
 
-/** The heading itself, for the one page — the settings root — that is not built from [SettingsPage]. */
+/** The heading itself (`.shd`). */
 @Composable
 fun SettingsSectionLabel(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 1.8.sp,
-        ),
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = SECTION_LABEL_ALPHA),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier.padding(
-            start = SECTION_LABEL_INSET,
-            end = SECTION_LABEL_INSET,
-            top = MobileDimens.GapMedium,
-            bottom = MobileDimens.GapTiny + 2.dp,
-        ),
-    )
+    tv.own.owntv.mobile.ui.stage.StageSectionHead(title, modifier)
 }
 
-/** The rows that open a group's screen-sized settings, at the head of its page. */
-fun LazyListScope.settingsLeafRows(group: SettingsGroup, onOpen: (SettingsLeaf) -> Unit) {
-    val leaves = leavesOf(group)
-    if (leaves.isEmpty()) return
-    settingsGroup(key = "leaves-${group.route}") {
-        leaves.forEach { leaf ->
-            SettingRow(
-                title = stringResource(leaf.titleRes),
-                subtitle = leaf.summaryRes?.let { stringResource(it) },
-                leading = { Icon(leaf.icon, contentDescription = null) },
-                showChevron = true,
-                onClick = { onOpen(leaf) },
-            )
-        }
-    }
-}
-
-/** Explanatory text under a heading, for the settings that need a sentence rather than a subtitle. */
+/** Explanatory text under a heading, for the settings that need a sentence rather than a line. */
 fun LazyListScope.settingsNote(@StringRes textRes: Int) {
-    item(key = "note-$textRes") {
-        Text(
-            text = stringResource(textRes),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(
-                start = SECTION_LABEL_INSET,
-                end = SECTION_LABEL_INSET,
-                bottom = MobileDimens.GapSmall,
-            ),
-        )
-    }
+    item(key = "note-$textRes") { PageNote(stringResource(textRes)) }
 }
 
 /**
- * A percentage a finger drags, rather than a value a remote steps through. The label shows the live
- * value while the thumb moves, so the user is never guessing what they are about to commit to.
+ * A value a finger drags (`.srow` with the size bar under it): the title, the live value at the end in the
+ * accent, the line, then the 4 dp Stage bar. The value is shown while the finger moves.
  */
 @Composable
 fun SettingsSlider(
@@ -211,44 +125,21 @@ fun SettingsSlider(
     valueLabel: String = stringResource(R.string.common_percent, value),
     steps: Int = 0,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = MobileDimens.ListRowPaddingH,
-                vertical = MobileDimens.GapSmall,
-            ),
-    ) {
+    val span = (range.last - range.first).coerceAtLeast(1)
+    // Lands on the slider's stops (steps + 1 intervals) instead of anywhere between two of them.
+    val snap = { f: Float ->
+        val raw = range.first + f * span
+        val stops = steps + 1
+        val stepped = if (steps > 0) range.first + kotlin.math.round((raw - range.first) / span * stops) * span / stops else raw
+        onValueChange(kotlin.math.round(stepped).toInt().coerceIn(range))
+    }
+    Column(modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(Modifier.fillMaxWidth()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                text = valueLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Text(title, style = stageText(14.5f, 700), color = LocalStagePalette.current.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            tv.own.owntv.mobile.ui.stage.StageRowValue(valueLabel)
         }
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        MobileSlider(
-            value = value.toFloat(),
-            onValueChange = { onValueChange(it.toInt()) },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = steps,
-        )
+        subtitle?.let { Text(it, style = stageText(11.5f, 500, lineHeight = 1.3f), color = LocalStagePalette.current.muted) }
+        tv.own.owntv.mobile.ui.stage.StageSizeBar((value - range.first).toFloat() / span, snap, Modifier.padding(top = 4.dp))
     }
 }
 
@@ -256,16 +147,8 @@ fun SettingsSlider(
 data class SettingsChoice<T>(val value: T, val label: String, val description: String? = null)
 
 /**
- * The bottom sheet that replaces the TV app's centred picker dialogs — theme, accent, fonts, zoom
- * and every other "one of these" setting. Choosing dismisses it; there is no confirm button.
- *
- * [description] is the line the TV app's dialogs carry under their title, for the few pickers whose
- * consequence is not obvious from the options — the playlist selector, whose choice applies to every
- * screen and is remembered.
- *
- * [footer] is for the one setting whose answer is not always in the list: the accent, where a colour
- * picker sits under the presets. It belongs inside this sheet rather than on the page, because it
- * answers the same question the presets do.
+ * A "one of these" sheet: the title, an optional [description], CHOICES with a radio each.
+ * Choosing dismisses it. [footer] is for the one setting whose answer is not always in the list.
  */
 @Composable
 fun <T> SettingsChoiceSheet(
@@ -277,43 +160,9 @@ fun <T> SettingsChoiceSheet(
     description: String? = null,
     footer: (@Composable () -> Unit)? = null,
 ) {
-    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
-        if (description != null) {
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(
-                    start = MobileDimens.ScreenPaddingH,
-                    end = MobileDimens.ScreenPaddingH,
-                    bottom = MobileDimens.GapSmall,
-                ),
-            )
-        }
-        // Capped and scrolling, as [SheetScroll] is but without its gap between rows: a long list (20+
-        // playlists) otherwise ran past the screen and its last choices could not be reached (#6).
-        Column(Modifier.heightIn(max = sheetListHeight()).verticalScroll(rememberScrollState())) {
-            choices.forEach { choice ->
-                MobileListRow(
-                    title = choice.label,
-                    subtitle = choice.description,
-                    onClick = { onSelect(choice.value); onDismiss() },
-                    selected = choice.value == selected,
-                    trailing = if (choice.value == selected) {
-                        {
-                            Icon(
-                                imageVector = MobileIcons.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(end = 0.dp),
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-        footer?.invoke()
-    }
+    StageChoiceSheet(null, title, description, choices, selected, onSelect, onDismiss, footer = footer)
 }
+
+/** A slider's stops, so it lands on core's step size instead of anywhere between two of them. */
+internal fun stepsFor(min: Int, max: Int, step: Int): Int = ((max - min) / step) - 1
+

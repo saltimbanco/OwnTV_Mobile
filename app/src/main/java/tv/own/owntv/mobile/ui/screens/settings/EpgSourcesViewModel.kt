@@ -18,7 +18,6 @@ import tv.own.owntv.core.epg.EpgSource
 import tv.own.owntv.core.epg.EpgSourceStore
 import tv.own.owntv.core.repository.EpgRepository
 import tv.own.owntv.core.repository.SourceRepository
-import tv.own.owntv.core.settings.EpgAutoRefresh
 import tv.own.owntv.core.settings.EpgRefresh
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.sync.work.EpgSyncScheduler

@@ -4,7 +4,6 @@ import android.text.format.DateFormat
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,20 +17,22 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.metadata.MetadataConfig
 import tv.own.owntv.core.metadata.MetadataMode
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
 import tv.own.owntv.mobile.ui.screens.settings.customize.ConfirmDialog
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import java.util.Date
 import java.util.Locale
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.StageTextRow
 
 /**
  * Where the details on a film come from — the provider's own, TMDB, or both.
@@ -62,68 +63,51 @@ fun SettingsMetadataPage(
     var testTitle by rememberSaveable { mutableStateOf("") }
     var clearingAdvanced by remember { mutableStateOf(false) }
 
-    // Seeded once from what is stored, then owned by the field until Save puts it back.
-    var key by remember { mutableStateOf(storedKey) }
-    var url by remember { mutableStateOf(storedUrl) }
-    var seeded by remember { mutableStateOf(false) }
-    LaunchedEffect(storedKey, storedUrl) {
-        if (!seeded) {
-            key = storedKey; url = storedUrl
-            seeded = true
-        }
-    }
+    // Follows what is stored — the setting arrives a moment after the page opens, and again after Save — and
+    // is the row's own in between. Seeded only once, the row stayed empty while a key was stored, and Save
+    // then wrote that empty value over the key.
+    var key by remember(storedKey) { mutableStateOf(storedKey) }
+    var url by remember(storedUrl) { mutableStateOf(storedUrl) }
 
     SettingsPage(modifier) {
         settingsGroup(key = "metadata-mode") {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.settings_metadata_source),
                 subtitle = stringResource(R.string.settings_metadata_source_description),
-                value = stringResource(mode.labelRes()),
                 onClick = { modeSheet = true },
-            )
+            ) { StageRowValue(stringResource(mode.labelRes()), StageChevron.DOWN) }
         }
         if (mode.enrich) {
             settingsGroup(key = "metadata-language") {
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_metadata_language),
                     subtitle = stringResource(R.string.settings_metadata_language_description),
-                    value = metadataLanguageName(language),
                     onClick = { languageSheet = true },
-                )
+                ) { StageRowValue(metadataLanguageName(language), StageChevron.DOWN) }
             }
             settingsNote(R.string.settings_metadata_server_description)
             settingsGroup(key = "metadata-fields") {
+                StageTextRow(MobileIcons.Lock, stringResource(R.string.settings_metadata_key_label), key, { key = it }, password = true)
+                StageTextRow(MobileIcons.Translate, stringResource(R.string.settings_metadata_server_label), url, { url = it })
                 Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-                    MobileTextField(
-                        value = key,
-                        onValueChange = { key = it },
-                        label = stringResource(R.string.settings_metadata_key_label),
-                        isPassword = true,
-                        imeAction = ImeAction.Next,
-                    )
-                    MobileTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = stringResource(R.string.settings_metadata_server_label),
-                    )
-                    MobileButton(
+                    StageButton(
                         text = stringResource(R.string.common_save),
                         onClick = { vm.edit { setTmdbApiKey(key); setMetadataServerUrl(url) } },
                         modifier = Modifier.padding(vertical = MobileDimens.GapSmall),
+                        style = StageButtonStyle.PRIMARY,
                     )
                     // The only way back to the shared service once a key or a server has been
                     // entered — emptying the fields by hand is easy to get half-right.
                     if (storedKey.isNotBlank() || storedUrl.isNotBlank()) {
-                        MobileButton(
+                        StageButton(
                             text = stringResource(R.string.settings_metadata_clear_advanced_title),
                             onClick = { clearingAdvanced = true },
-                            style = MobileButtonStyle.SECONDARY,
                             modifier = Modifier.padding(bottom = MobileDimens.GapSmall),
                         )
                     }
                 }
 
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.settings_metadata_active_source),
                     subtitle = when (tier) {
                         MetadataConfig.Tier.DEFAULT_WORKER ->
@@ -131,8 +115,7 @@ fun SettingsMetadataPage(
                         MetadataConfig.Tier.OWN_KEY -> maskSecret(storedKey)
                         MetadataConfig.Tier.SELF_HOST -> storedUrl
                     },
-                    value = stringResource(tier.labelRes()),
-                )
+                ) { StageRowValue(stringResource(tier.labelRes()), StageChevron.NONE) }
             }
 
             // The allowance only exists on the shared service. An own key or a self-hosted server is
@@ -158,20 +141,22 @@ fun SettingsMetadataPage(
 
             settingsSection(R.string.settings_metadata_test_connection) {
                 val testing = testState is SettingsViewModel.MetadataTestState.Testing
+                StageTextRow(
+                    MobileIcons.Search,
+                    stringResource(R.string.settings_lookup_movie),
+                    testTitle,
+                    { testTitle = it },
+                    placeholder = stringResource(R.string.settings_metadata_test_title),
+                )
                 Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-                    MobileTextField(
-                        value = testTitle,
-                        onValueChange = { testTitle = it },
-                        label = stringResource(R.string.settings_lookup_movie),
-                        placeholder = stringResource(R.string.settings_metadata_test_title),
-                    )
-                    MobileButton(
+                    StageButton(
                         text = stringResource(
                             if (testing) R.string.settings_looking_up else R.string.settings_test_lookup,
                         ),
                         onClick = { vm.testMetadataLookup(testTitle) },
                         enabled = !testing,
                         modifier = Modifier.padding(vertical = MobileDimens.GapSmall),
+                        style = StageButtonStyle.PRIMARY,
                     )
                     MetadataTestLabel(testState)
                 }
@@ -248,11 +233,10 @@ private fun AllowanceRow(
     limit: Int,
     subtitle: String? = null,
 ) {
-    SettingRow(
+    StageSettingRow(
         title = stringResource(labelRes),
         subtitle = subtitle ?: stringResource(R.string.settings_metadata_reset_automatic),
-        value = pluralStringResource(R.plurals.settings_allowance_value, remaining, remaining, limit),
-    )
+    ) { StageRowValue(pluralStringResource(R.plurals.settings_allowance_value, remaining, remaining, limit), StageChevron.NONE) }
 }
 
 /** What the last test lookup answered — a match, or the reason there wasn't one. */
@@ -280,11 +264,11 @@ private fun MetadataTestLabel(state: SettingsViewModel.MetadataTestState) {
     }
     Text(
         text = text,
-        style = MaterialTheme.typography.bodyMedium,
+        style = tv.own.owntv.mobile.ui.stage.stageText(13.5f, 500),
         color = if (state is SettingsViewModel.MetadataTestState.Ok) {
-            MaterialTheme.colorScheme.onSurface
+            tv.own.owntv.mobile.ui.stage.LocalStagePalette.current.text
         } else {
-            MaterialTheme.colorScheme.error
+            tv.own.owntv.mobile.ui.stage.LocalStagePalette.current.danger
         },
         modifier = Modifier.padding(bottom = MobileDimens.GapSmall),
     )

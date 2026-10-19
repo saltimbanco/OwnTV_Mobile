@@ -60,6 +60,10 @@ fun SheetScroll(content: @Composable ColumnScope.() -> Unit) {
  * Calling this does not draw anything here — it hands the sheet to [MobileSheetHost], which draws it
  * at the top of the app's own window. That is what lets it frost the same wallpaper the rest of the
  * app frosts; a separate dialog window cannot.
+ *
+ * It is drawn as a Stage sheet (`.ph .sheet`): edge to edge, Stage glass, the content laid out with the
+ * Stage parts (StageSheetHeader, StageGroupLabel, StageMenuItem). [title] only names the pane for a
+ * screen reader; the sheet's own header is a StageSheetHeader in [content].
  */
 @Composable
 fun MobileBottomSheet(

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,7 +48,11 @@ import tv.own.owntv.mobile.R
 import tv.own.owntv.player.ScreenOff
 import tv.own.owntv.player.SleepTimer
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import androidx.compose.ui.semantics.Role
 import tv.own.owntv.mobile.ui.components.SheetScroll
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import tv.own.owntv.mobile.ui.theme.MobileSheetShape
@@ -191,11 +194,14 @@ fun SleepTimerSheet(
     val remaining by sleepTimer.remainingMs.collectAsStateWithLifecycle()
     // Only while a movie or episode plays; live and catch-up have "End of programme" instead.
     val endKind = remember { sleepTimer.itemEndKind() }
-    MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.player_sleep_timer)) {
+    val title = stringResource(R.string.player_sleep_timer)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title)
         SheetScroll {
             if (remaining != null) {
-                MobileListRow(
-                    title = stringResource(R.string.common_off),
+                StageMenuItem(
+                    stringResource(R.string.common_off),
+                    icon = MobileIcons.Close,
                     onClick = {
                         sleepTimer.cancel()
                         onDismiss()
@@ -203,8 +209,9 @@ fun SleepTimerSheet(
                 )
             }
             SleepTimer.CHOICES_MINUTES.forEach { minutes ->
-                MobileListRow(
-                    title = stringResource(R.string.player_duration_minutes, minutes),
+                StageMenuItem(
+                    stringResource(R.string.player_duration_minutes, minutes),
+                    icon = MobileIcons.Bedtime,
                     onClick = {
                         sleepTimer.start(minutes * 60_000L)
                         onDismiss()
@@ -214,8 +221,9 @@ fun SleepTimerSheet(
             // Only with a guide behind it, and only while that programme is still on: "end of
             // programme" with no programme, or one already over, is a button that stops the stream at once.
             programmeEndMs?.takeIf { it > System.currentTimeMillis() }?.let { endMs ->
-                MobileListRow(
-                    title = stringResource(R.string.player_sleep_timer_end_of_programme),
+                StageMenuItem(
+                    stringResource(R.string.player_sleep_timer_end_of_programme),
+                    icon = MobileIcons.Schedule,
                     onClick = {
                         sleepTimer.start(endMs - System.currentTimeMillis())
                         onDismiss()
@@ -223,8 +231,9 @@ fun SleepTimerSheet(
                 )
             }
             endKind?.let { kind ->
-                MobileListRow(
-                    title = stringResource(if (kind == SleepTimer.EndKind.EPISODE) R.string.player_sleep_timer_end_of_episode else R.string.player_sleep_timer_end_of_movie),
+                StageMenuItem(
+                    stringResource(if (kind == SleepTimer.EndKind.EPISODE) R.string.player_sleep_timer_end_of_episode else R.string.player_sleep_timer_end_of_movie),
+                    icon = MobileIcons.Schedule,
                     onClick = {
                         sleepTimer.startUntilItemEnd()
                         onDismiss()
@@ -255,11 +264,12 @@ private fun ScreenOffRow(screenOff: ScreenOff = koinInject()) {
             }
         }
     }
-    MobileListRow(
+    StageSettingRow(
         title = stringResource(R.string.player_sleep_timer_screen_off),
-        trailing = { Switch(checked = allowed, onCheckedChange = { toggle() }) },
+        minHeight = 48.dp,
+        role = Role.Switch,
         onClick = toggle,
-    )
+    ) { StageSwitch(allowed) }
 }
 
 /** The countdown reads in whole minutes, rounded up — see [SleepTimer.minutesLeft]. */

@@ -13,11 +13,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,11 +39,31 @@ import tv.own.owntv.core.sync.local.SyncFailure
 import tv.own.owntv.core.sync.local.shortCodes
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
 import tv.own.owntv.mobile.ui.components.sheetListHeight
-import tv.own.owntv.mobile.ui.setup.SetupPage
+import tv.own.owntv.mobile.ui.setup.WizardFrame
+import tv.own.owntv.mobile.ui.setup.WizardStep
+import tv.own.owntv.mobile.ui.setup.WizardSweepBar
 import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageLabel
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageClickable
+import tv.own.owntv.mobile.ui.stage.stageText
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 
 /**
  * Sync this phone with the television over the home Wi-Fi — no account, no cloud, nothing leaving
@@ -66,64 +83,65 @@ fun SettingsLocalSyncPage(
 ) {
     val paired by vm.paired.collectAsStateWithLifecycle()
     val hosting by vm.hosting.collectAsStateWithLifecycle()
+    val palette = LocalStagePalette.current
+    // The paired device a tap picked: its row takes the `.fx` look and shows Sync now · Unpair.
+    var picked by remember { mutableStateOf<String?>(null) }
 
     // The listener runs only while this page is on screen. That, and the PIN, is the whole of the
     // security model — so leaving the page has to close it, not merely stop looking at it.
     DisposableEffect(Unit) { onDispose { vm.stopHosting() } }
 
-    SettingsPage(modifier) {
+    Column(
+        modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+    ) {
         val listening = hosting as? CompanionServerState.Listening
-        item(key = "local-sync-pill") { SyncModePill(on = listening != null) }
-
-        settingsSection(R.string.local_sync_title) {
-            // One state, one switch. Sync mode is what makes this device reachable at all — every
-            // other action on this screen, in either direction, needs the FAR device to have it on
-            // too, which is why it is the first thing on the page and why the failure message names
-            // exactly where to find it.
-            SettingRow(
-                title = stringResource(R.string.local_sync_mode),
-                subtitle = stringResource(R.string.local_sync_mode_description),
-                checked = listening != null,
-                enabled = !vm.busy,
-                onCheckedChange = { on -> if (on) vm.startHosting() else vm.stopHosting() },
-            )
-            SettingRow(
-                title = stringResource(R.string.local_sync_connect),
-                subtitle = stringResource(R.string.local_sync_connect_description),
-                enabled = !vm.busy,
-                onClick = vm::beginPairing,
-            )
+        Text(stringResource(R.string.more_sync_description), style = stageText(12f, 500, lineHeight = 1.4f), color = palette.muted, modifier = Modifier.padding(bottom = 12.dp))
+        // One state, one switch. Sync mode is what makes this device reachable at all — every other
+        // action on this screen, in either direction, needs the FAR device to have it on too, which is
+        // why it comes first and why the failure message names exactly where to find it.
+        SyncCard(
+            icon = MobileIcons.Phone,
+            title = stringResource(R.string.local_sync_mode),
+            subtitle = stringResource(R.string.more_sync_mode_description),
+            onClick = { if (!vm.busy) { if (listening != null) vm.stopHosting() else vm.startHosting() } },
+            trailing = { StageSwitch(listening != null) },
+        ) {
             listening?.let { HostingCard(it, vm.deviceName) }
         }
+        Spacer(Modifier.height(8.dp))
+        SyncCard(
+            icon = MobileIcons.Search,
+            title = stringResource(R.string.local_sync_connect),
+            subtitle = stringResource(R.string.local_sync_connect_description),
+            onClick = { if (!vm.busy) vm.beginPairing() },
+            trailing = { StageIcon(MobileIcons.KeyboardArrowRight, 16.dp, palette.text) },
+        )
 
         if (paired.isNotEmpty()) {
             // Only the devices whose names collide get a code, so a normal household never sees one.
             val codes = shortCodes(paired)
-            settingsSection(R.string.local_sync_paired_devices) {
-                paired.forEach { device ->
-                    SettingRow(
-                        title = codes[device.id]
-                            ?.let { stringResource(R.string.local_sync_device_with_code, device.name, it) }
-                            ?: device.name,
-                        subtitle = lastSyncedText(device.lastSyncAt),
-                        showChevron = true,
-                        enabled = !vm.busy,
-                        onClick = { vm.chooseDevice(device) },
-                    )
+            StageLabel(stringResource(R.string.local_sync_paired_devices), Modifier.padding(start = 4.dp, top = 18.dp, bottom = 8.dp))
+            paired.forEach { device ->
+                val selected = picked == device.id
+                StageSettingRow(
+                    title = codes[device.id]?.let { stringResource(R.string.local_sync_device_with_code, device.name, it) } ?: device.name,
+                    subtitle = device.address + stringResource(R.string.content_epg_bits_separator) + lastSyncedText(device.lastSyncAt),
+                    // A paired device records no kind (television or phone), so one neutral glyph for all.
+                    icon = MobileIcons.Sync,
+                    current = selected,
+                    onClick = { picked = if (selected) null else device.id },
+                )
+                if (selected) {
+                    Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StageButton(onClick = { vm.chooseDevice(device) }, text = stringResource(R.string.settings_sync_now), icon = MobileIcons.Refresh, small = true, enabled = !vm.busy)
+                        StageButton(onClick = { picked = null; vm.unpair(device) }, text = stringResource(R.string.more_sync_unpair), icon = MobileIcons.Close, small = true, enabled = !vm.busy)
+                    }
                 }
             }
         }
 
         if (vm.busy) {
-            settingsGroup(key = "local-sync-busy") {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(MobileDimens.GapMedium),
-                    verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                ) {
-                    Text(stringResource(R.string.local_sync_working), style = MaterialTheme.typography.bodyMedium)
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                }
-            }
+            Text(stringResource(R.string.local_sync_working), style = stageText(12f, 600), color = palette.text, modifier = Modifier.padding(top = 14.dp))
         }
     }
 
@@ -204,13 +222,14 @@ fun SetupLocalSyncStep(
     Box(modifier) {
         // Title only. Every sheet below already says what to do, and the find sheet in particular
         // carries this step's instruction verbatim — printing it here too showed it twice at once.
-        SetupPage {
-            Text(
-                text = stringResource(R.string.setup_sync_device),
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            if (vm.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
+        WizardFrame(
+            step = WizardStep.PROFILE,
+            title = stringResource(R.string.setup_sync_device),
+            sub = null,
+            next = null,
+            onNext = {},
+            onBack = null,
+        ) { if (vm.busy) WizardSweepBar() }
 
         when (step) {
             null -> Unit
@@ -242,43 +261,18 @@ fun SetupLocalSyncStep(
 @Composable
 private fun SetupResultSheet(result: LocalSyncViewModel.Step.Result, onDone: () -> Unit) {
     MobileBottomSheet(onDismissRequest = onDone, title = stringResource(R.string.local_sync_done)) {
+        StageSheetHeader(title = stringResource(R.string.local_sync_done))
         Column(
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+            modifier = Modifier,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
         ) {
-            result.received?.let { Note(stringResource(R.string.local_sync_received_items, it.items)) }
+            result.received?.let { SyncNote(stringResource(R.string.local_sync_received_items, it.items)) }
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.common_done),
             confirmEnabled = true,
             onConfirm = onDone,
             onDismiss = onDone,
-        )
-    }
-}
-
-/**
- * The badge that says this device is reachable right now.
- *
- * Sync mode is the one piece of state on this screen with a consequence off the screen — a listening
- * port and an announcement on the network — so it is worth saying plainly rather than leaving it to
- * be inferred from a switch further down.
- */
-@Composable
-private fun SyncModePill(on: Boolean) {
-    if (!on) return
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = MobileDimens.GapSmall),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        Text(
-            text = stringResource(R.string.local_sync_mode_pill),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = MobileDimens.GapSmall, vertical = MobileDimens.GapTiny),
         )
     }
 }
@@ -295,32 +289,55 @@ private fun lastSyncedText(at: Long): String = if (at <= 0) {
 }
 
 /**
- * What the television has to be told: the PIN, and where to find this phone. The QR carries the
- * address only — never the PIN, so a photographed code on its own opens nothing.
+ * What the other device has to be told while Sync mode is on: the PIN (accent, spaced), the QR on white
+ * and the address. The QR carries the address only — never the PIN, so a photographed code on its own
+ * opens nothing.
  */
 @Composable
 private fun HostingCard(state: CompanionServerState.Listening, deviceName: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(MobileDimens.GapMedium),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-    ) {
-        Text(deviceName, style = MaterialTheme.typography.titleMedium)
+    val palette = LocalStagePalette.current
+    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         state.qr?.let {
             Image(
                 bitmap = it.asImageBitmap(),
                 contentDescription = stringResource(R.string.local_sync_qr_description),
-                modifier = Modifier.size(QR_SIZE),
+                modifier = Modifier.size(QR_SIZE).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp),
             )
         }
-        Text(
-            text = stringResource(R.string.local_sync_pin_is, state.pin),
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        state.urls.firstOrNull()?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.weight(1f)) {
+            Text(deviceName, style = stageText(13f, 700), color = palette.text)
+            Text(stringResource(R.string.local_sync_pin_is, state.pin), style = stageText(18f, 800), color = stageAccent.accent)
+            state.urls.firstOrNull()?.let { Text(it, style = stageText(12f, 600), color = palette.muted) }
         }
-        Note(stringResource(R.string.local_sync_host_hint))
+    }
+    Text(stringResource(R.string.local_sync_host_hint), style = stageText(11.5f, 500, lineHeight = 1.4f), color = palette.muted, modifier = Modifier.padding(top = 8.dp))
+}
+
+/** `.card` with a row: an 18 dp icon, the 14 / 800 title and its 11 dp line, then [trailing]; [below] under it. */
+@Composable
+private fun SyncCard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    trailing: @Composable () -> Unit,
+    below: @Composable () -> Unit = {},
+) {
+    val palette = LocalStagePalette.current
+    val shape = RoundedCornerShape(18.dp)
+    val interaction = remember { MutableInteractionSource() }
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(palette.ink.copy(alpha = 0.045f)).stageClickable(interaction, onClick, null).padding(14.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            StageIcon(icon, 18.dp, palette.text)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = stageText(14f, 800), color = palette.text)
+                Text(subtitle, style = stageText(11f, 500, lineHeight = 1.35f), color = palette.muted)
+            }
+            trailing()
+        }
+        below()
     }
 }
 
@@ -342,23 +359,24 @@ private fun FindDeviceSheet(vm: LocalSyncViewModel) {
     }
 
     MobileBottomSheet(onDismissRequest = vm::cancel, title = stringResource(R.string.local_sync_add_device)) {
+        StageSheetHeader(title = stringResource(R.string.local_sync_add_device))
         Column(
             modifier = Modifier
                 .heightIn(max = sheetListHeight())
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
+                ,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
         ) {
-            Note(stringResource(R.string.local_sync_find_hint))
+            SyncNote(stringResource(R.string.local_sync_find_hint))
             if (vm.found.isEmpty()) {
-                Label(stringResource(R.string.local_sync_searching))
+                StageGroupLabel(stringResource(R.string.local_sync_searching))
             } else {
-                Label(stringResource(R.string.local_sync_found))
+                StageGroupLabel(stringResource(R.string.local_sync_found))
                 vm.found.forEach { device ->
                     // A device already paired says so instead of showing an address the user has no
                     // use for, and opens its actions rather than asking for a PIN it does not need.
                     val known = vm.pairedMatch(device)
-                    SettingRow(
+                    StageSettingRow(
                         title = device.name,
                         subtitle = if (known != null) {
                             stringResource(R.string.local_sync_already_paired)
@@ -369,21 +387,24 @@ private fun FindDeviceSheet(vm: LocalSyncViewModel) {
                     )
                 }
             }
-            Label(stringResource(R.string.local_sync_scan_qr))
-            SettingRow(
+            StageGroupLabel(stringResource(R.string.local_sync_scan_qr))
+            StageSettingRow(
                 title = stringResource(R.string.local_sync_scan_qr),
                 subtitle = stringResource(R.string.local_sync_scan_qr_description),
                 onClick = { scanning = true },
             )
-            Label(stringResource(R.string.local_sync_manual_address))
-            MobileTextField(
+            StageGroupLabel(stringResource(R.string.local_sync_manual_address))
+            StageSearchField(
                 value = manual,
                 onValueChange = { manual = it },
-                label = stringResource(R.string.local_sync_manual_address_label),
+                placeholder = stringResource(R.string.local_sync_manual_address_label),
+                icon = null,
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
                 imeAction = ImeAction.Done,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.settings_backup_continue),
             confirmEnabled = manual.isNotBlank(),
             onConfirm = { vm.chooseAddress(manual.trim(), portOf(manual)) },
@@ -396,25 +417,28 @@ private fun FindDeviceSheet(vm: LocalSyncViewModel) {
 private fun PinSheet(onSubmit: (String) -> Unit, onDismiss: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.local_sync_enter_pin)) {
+        StageSheetHeader(title = stringResource(R.string.local_sync_enter_pin))
         Column(
             modifier = Modifier
                 .heightIn(max = sheetListHeight())
                 .verticalScroll(rememberScrollState())
                 .imePadding()
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
+                ,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
         ) {
-            Note(stringResource(R.string.local_sync_enter_pin_description))
-            MobileTextField(
+            SyncNote(stringResource(R.string.local_sync_enter_pin_description))
+            StageSearchField(
                 value = pin,
                 onValueChange = { pin = it.filter(Char::isDigit).take(PIN_LENGTH) },
-                label = stringResource(R.string.local_sync_pin_label),
+                placeholder = stringResource(R.string.local_sync_pin_label),
+                icon = null,
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
                 imeAction = ImeAction.Done,
-                onImeDone = { if (pin.length == PIN_LENGTH) onSubmit(pin) },
+                onSearch = { if (pin.length == PIN_LENGTH) onSubmit(pin) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.local_sync_pair),
             confirmEnabled = pin.length == PIN_LENGTH,
             onConfirm = { onSubmit(pin) },
@@ -432,23 +456,24 @@ private fun DirectionSheet(
     onDismiss: () -> Unit,
 ) {
     MobileBottomSheet(onDismissRequest = onDismiss, title = deviceName) {
-        Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-            SettingRow(
+        StageSheetHeader(title = deviceName)
+        Column(Modifier) {
+            StageSettingRow(
                 title = stringResource(R.string.local_sync_send_to, deviceName),
                 subtitle = stringResource(R.string.local_sync_send_description),
                 onClick = { onChoose(SyncDirection.SEND) },
             )
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.local_sync_receive_from, deviceName),
                 subtitle = stringResource(R.string.local_sync_receive_description),
                 onClick = { onChoose(SyncDirection.RECEIVE) },
             )
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.local_sync_merge_with, deviceName),
                 subtitle = stringResource(R.string.local_sync_merge_description),
                 onClick = { onChoose(SyncDirection.MERGE) },
             )
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.local_sync_unpair),
                 subtitle = stringResource(R.string.local_sync_unpair_description),
                 onClick = onUnpair,
@@ -466,32 +491,31 @@ private fun SectionsSheet(
 ) {
     var sections by remember { mutableStateOf(BackupManager.Section.entries.toSet()) }
 
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(
-            when (direction) {
-                SyncDirection.SEND -> R.string.local_sync_what_to_send
-                SyncDirection.RECEIVE -> R.string.local_sync_what_to_receive
-                SyncDirection.MERGE -> R.string.local_sync_what_to_merge
-            },
-        ),
-    ) {
+    val title = stringResource(
+        when (direction) {
+            SyncDirection.SEND -> R.string.local_sync_what_to_send
+            SyncDirection.RECEIVE -> R.string.local_sync_what_to_receive
+            SyncDirection.MERGE -> R.string.local_sync_what_to_merge
+        },
+    )
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title)
         Column(
             modifier = Modifier
                 .heightIn(max = sheetListHeight())
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
+                ,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
         ) {
-            Note(stringResource(R.string.local_sync_sections_hint))
-            CheckRow(
+            SyncNote(stringResource(R.string.local_sync_sections_hint))
+            SyncCheckRow(
                 label = stringResource(R.string.local_sync_everything),
                 description = null,
                 checked = sections.size == BackupManager.Section.entries.size,
                 onToggle = { on -> sections = if (on) BackupManager.Section.entries.toSet() else emptySet() },
             )
             BackupManager.Section.entries.forEach { section ->
-                CheckRow(
+                SyncCheckRow(
                     label = stringResource(section.labelRes()),
                     description = stringResource(section.descriptionRes()),
                     checked = section in sections,
@@ -502,7 +526,7 @@ private fun SectionsSheet(
             // and core seals the payload with it, so the playlist logins travel without anyone being
             // asked to invent a passphrase in the middle of a sync.
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.settings_backup_continue),
             confirmEnabled = sections.isNotEmpty(),
             onConfirm = { onStart(sections) },
@@ -522,17 +546,18 @@ private fun ConfirmSheet(
     // The other device's hardware settings and engine pins: offered only when it sent some, unticked.
     var deviceSettings by remember(preview) { mutableStateOf(false) }
     MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.local_sync_confirm_title)) {
+        StageSheetHeader(title = stringResource(R.string.local_sync_confirm_title))
         Column(
             modifier = Modifier
                 .heightIn(max = sheetListHeight())
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = MobileDimens.ScreenPaddingH),
+                ,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapTiny),
         ) {
             if (preview.isEmpty) {
-                Note(stringResource(R.string.local_sync_nothing_to_change))
+                SyncNote(stringResource(R.string.local_sync_nothing_to_change))
             } else {
-                Note(stringResource(R.string.local_sync_confirm_hint))
+                SyncNote(stringResource(R.string.local_sync_confirm_hint))
                 PreviewLine(R.string.local_sync_change_profiles, preview.newProfiles)
                 PreviewLine(R.string.local_sync_change_sources, preview.newSources)
                 PreviewLine(R.string.local_sync_change_favorites, preview.newFavorites)
@@ -541,19 +566,19 @@ private fun ConfirmSheet(
                 PreviewLine(R.string.local_sync_change_reorder, preview.newReorder)
                 PreviewLine(R.string.local_sync_change_settings, preview.changedSettings)
                 PreviewLine(R.string.local_sync_change_deletions, preview.deletions)
-                if (preview.hasCustomizations) Note(stringResource(R.string.local_sync_change_customize))
+                if (preview.hasCustomizations) SyncNote(stringResource(R.string.local_sync_change_customize))
             }
             if (preview.hasDeviceSettings) {
-                CheckRow(
+                SyncCheckRow(
                     label = stringResource(R.string.settings_backup_device_settings),
                     description = stringResource(R.string.settings_backup_device_settings_desc),
                     checked = deviceSettings,
                     onToggle = { deviceSettings = it },
                 )
             }
-            if (direction == SyncDirection.MERGE) Note(stringResource(R.string.local_sync_merge_note))
+            if (direction == SyncDirection.MERGE) SyncNote(stringResource(R.string.local_sync_merge_note))
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.local_sync_apply),
             confirmEnabled = !preview.isEmpty,
             onConfirm = { onConfirm(deviceSettings) },
@@ -568,21 +593,24 @@ private fun PreviewLine(labelRes: Int, count: Int) {
     if (count <= 0) return
     Text(
         text = stringResource(labelRes, count),
-        style = MaterialTheme.typography.bodyMedium,
+        style = stageText(13f, 600),
+        color = LocalStagePalette.current.text,
+        modifier = Modifier.padding(horizontal = 12.dp),
     )
 }
 
 @Composable
 private fun ResultSheet(result: LocalSyncViewModel.Step.Result, onDismiss: () -> Unit) {
     MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.local_sync_done)) {
+        StageSheetHeader(title = stringResource(R.string.local_sync_done))
         Column(
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
+            modifier = Modifier,
             verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
         ) {
-            result.received?.let { Note(stringResource(R.string.local_sync_received_items, it.items)) }
-            if (result.sent) Note(stringResource(R.string.local_sync_sent))
+            result.received?.let { SyncNote(stringResource(R.string.local_sync_received_items, it.items)) }
+            if (result.sent) SyncNote(stringResource(R.string.local_sync_sent))
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.settings_close),
             confirmEnabled = true,
             onConfirm = onDismiss,
@@ -594,8 +622,9 @@ private fun ResultSheet(result: LocalSyncViewModel.Step.Result, onDismiss: () ->
 @Composable
 private fun ErrorSheet(failure: SyncFailure, onDismiss: () -> Unit) {
     MobileBottomSheet(onDismissRequest = onDismiss, title = stringResource(R.string.local_sync_failed)) {
-        Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-            Note(
+        StageSheetHeader(title = stringResource(R.string.local_sync_failed))
+        Column(Modifier) {
+            SyncNote(
                 stringResource(
                     when (failure) {
                         SyncFailure.Unreachable -> R.string.local_sync_error_unreachable
@@ -606,7 +635,7 @@ private fun ErrorSheet(failure: SyncFailure, onDismiss: () -> Unit) {
                 ),
             )
         }
-        SheetButtons(
+        SyncButtons(
             confirm = stringResource(R.string.settings_close),
             confirmEnabled = true,
             onConfirm = onDismiss,
@@ -621,4 +650,23 @@ private fun portOf(address: String): Int =
         .toIntOrNull() ?: tv.own.owntv.core.companion.CompanionLink.DEFAULT_PORT
 
 private const val PIN_LENGTH = 6
-private val QR_SIZE = 200.dp
+private val QR_SIZE = 110.dp
+
+/** A sheet's muted line (11.5 / 500), on the sheet's 12 dp side. */
+@Composable
+private fun SyncNote(text: String) {
+    Text(text, style = stageText(11.5f, 500, lineHeight = 1.4f), color = LocalStagePalette.current.muted, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+}
+
+/** A sheet's switch row (48 dp): label, what it covers, the switch; the whole row toggles. */
+@Composable
+private fun SyncCheckRow(label: String, description: String?, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    StageSettingRow(title = label, subtitle = description, minHeight = 48.dp, onClick = { onToggle(!checked) }) { StageSwitch(checked) }
+}
+
+/** How these sheets end: the confirm (filled when it can be pressed), then Cancel. */
+@Composable
+private fun SyncButtons(confirm: String, confirmEnabled: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    StageMenuItem(confirm, onClick = onConfirm, icon = MobileIcons.Check, filled = confirmEnabled, enabled = confirmEnabled, modifier = Modifier.padding(top = 6.dp))
+    StageMenuItem(stringResource(R.string.common_cancel), onClick = onDismiss, icon = MobileIcons.Close)
+}

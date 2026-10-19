@@ -36,6 +36,8 @@ import tv.own.owntv.mobile.R
 @Composable
 fun CastRouteButton(light: Boolean, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.common_cast)
+    // The tint is fixed when the View is built, so a theme switch has to build a new one.
+    androidx.compose.runtime.key(light) {
     AndroidView(
         modifier = modifier
             .size(48.dp)
@@ -53,4 +55,5 @@ fun CastRouteButton(light: Boolean, modifier: Modifier = Modifier) {
             }
         },
     )
+    }
 }

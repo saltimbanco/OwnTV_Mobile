@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Typography for a 30 cm viewing distance. The TV app's body text is 18 sp and its titles 28–32;
- * here body is 14, titles 20 and labels 11, per the mockup's token table.
+ * here body is 14, titles 20 and labels 11, per the design's token table.
  *
  * The user's font-size setting is not applied here — it scales the whole UI through
  * `LocalDensity.fontScale` in [MobileTheme], so a 120% choice grows text and the boxes around it

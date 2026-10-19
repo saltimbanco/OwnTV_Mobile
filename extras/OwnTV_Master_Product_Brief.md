@@ -8,7 +8,7 @@
 <h1 align="center">OwnTV Mobile — Master Product Brief</h1>
 
 <p align="center">
-  <b>Native Android IPTV player for phones and tablets · dual playback engine · Material 3</b><br>
+  <b>Native Android IPTV player for phones and tablets · dual playback engine · Stage design</b><br>
   <sub>Bring your own M3U, Xtream or Stalker/Ministra portal sources</sub>
 </p>
 
@@ -17,7 +17,7 @@
 ## 1. Overview
 
 OwnTV Mobile is the phone and tablet member of the OwnTV family: a native Android IPTV player written
-in Kotlin with Jetpack Compose and Material 3, sharing its **entire engine** with
+in Kotlin with Jetpack Compose, sharing its **entire engine** with
 [OwnTV for Android TV](https://github.com/ahXN00/OwnTV) through the
 [OwnTV core library](https://github.com/ahXN00/OwnTV_Core).
 
@@ -35,7 +35,7 @@ Stalker/Ministra portal.
 |---|---|
 | **Player only** | No bundled content, no subscriptions, no paywalls |
 | **Touch-first** | Gestures, a document picker, the share sheet, rotation, a keyboard that covers half the screen |
-| **Not the TV app relaid out** | Material 3 components, not a ten-foot focus ladder |
+| **Not the TV app relaid out** | Touch-sized Stage parts, not a ten-foot focus ladder |
 | **One engine, two shells** | A behaviour fixed here is fixed on the television, and the reverse |
 | **Language-first** | 26 packaged interface languages, chosen before anything else |
 | **Open source** | GPLv3, original code, built with the help of AI |
@@ -74,13 +74,15 @@ The same two engines as the television, behind the same `PlaybackEngine` interfa
 - **Track memory** — the audio and subtitle language picked in the player is remembered per
   channel, film and series (per profile).
 - **Per-playlist provider quirks** — catch-up time zone, "give up after" time and an HTTP Referer.
+  The catch-up time zone defaults to **Automatic**: the Xtream panel's own zone, read at every sync.
 - **Per-channel compatibility mode** — the **⇄** button pins a channel to mpv and remembers it,
   using the same store the television uses, so a pin syncs between the two devices.
 - **The fallback ladder** — core's `LiveLadder`: up to four rungs, each tried once,
   `ExoPlayer+HLS → ExoPlayer+TS → mpv+HLS → mpv+TS` or the same led by mpv. Both engines are watched:
   `LiveExoWatchdog` for one, a 35-second open watcher for the other. **Give up after** bounds the
   whole tune, and a provider back-off does not count against it.
-- **Protected (DRM) channels** play on ExoPlayer, which outranks every other preference. They
+- **Protected (DRM) channels** — Widevine and ClearKey, from a licence server or ClearKey keys written
+  inline in the playlist — play on ExoPlayer, which outranks every other preference. They
   **cannot be recorded** — the CDM decrypts only into a secure decoder for immediate display, so a
   recording is refused before it starts rather than left as a file that will not play.
 - **Container is decided from evidence**, not from the file extension: the playlist's declared
@@ -154,13 +156,17 @@ Quality button, and experimental tunneled playback — all core's, all shared.
 
 ### 3.1 Shell & navigation
 
-A bottom bar on a phone, a navigation rail from **600 dp**, chosen by **window width** rather than
-device type — so a phone in landscape and a tablet in split screen are treated as what they are. From
-**840 dp**, Live TV, the Library and Settings become **two panes**, with Settings keeping its own
-route stack so a page opens beside the list instead of replacing it.
+The **Stage** design, shared with the television: a glass capsule bottom bar on a phone (Home · Live
+TV · Sports · TV Guide · Library — Movies | Series inside) and the TV's floating rail from **600 dp**, chosen by **window
+width** rather than device type — so a phone in landscape and a tablet in split screen are treated as
+what they are. Sideways, Live TV draws its list and preview side by side, and Movies and Series a
+glass card for the picked title beside the grid.
 
-A collapsing top bar carries search, the cast button and the playlist chip. Tapping or long-pressing
-the current tab returns its list to the top. Predictive back is on.
+Each page has a large title and a crumb under it ("‹ Sky Cinema · 9 channels") that opens the
+categories. Top right: the playlist button (its mark), search, cast and the avatar, which opens
+**More**. Every pop-up is a Stage bottom sheet. Dark and Light, a Stage, picture or plain background,
+and glass that can be switched off. Tapping or long-pressing the current tab returns its list to the
+top. Predictive back is on.
 
 ### 3.2 Sections
 
@@ -168,10 +174,16 @@ the current tab returns its list to the top. Predictive back is on.
   poster row, continue-watching rows, favourite movie and series rows, and favourite/recent channel rails in **Cards** or **On now**.
   Anything part-watched started from here obeys core's **Resume playback** mode — Always, Ask or
   Never — through one shared gate, so the six routes into a saved position cannot disagree.
-- **Live TV** — category chips with a search sheet, channel rows with number, logo, now/next,
-  progress, provider name and catch-up and favourite markers. A channel opens its own screen on a
-  phone; on a tablet it plays in the pane beside the list.
-- **Library** — Movies and Series as one screen with a segmented control, **pinch to resize** the
+- **Live TV** — a categories sheet from the crumb, channel rows with number, logo, now/next,
+  progress, provider tags and catch-up, favourite and playlist marks. A tap plays the channel in a
+  **muted preview** on top (beside the list when wide), not watched until a second tap opens it full
+  screen — the television's preview. A channel on Home, in Favourites or History plays full screen;
+  one from Search opens in Live TV's preview.
+- **Sports** — the television's Sports section as built: ESPN scores for followed leagues, match
+  pages with Find channels (searched only on request), a filter sheet, Broadcasts, a Home row, the
+  score and Other channels in the player, and — phone only — goal alerts and a live score card that
+  work with the app closed (core's `MatchAlertHost.backgroundAllowed`).
+- **Movies & Series** — two tabs with search, sort, Grid | List and **pinch to resize** the
   grid, progress bars on part-watched films and shows, and a detail page with backdrop, chips, resume,
   favourite, download, season chips and episode progress. The page's title drops a leading provider
   tag such as "|MULTI|".
@@ -181,10 +193,11 @@ the current tab returns its list to the top. Predictive back is on.
   draw twelve.
 - **Search** — one debounced field over channels, films and shows, grouped with counts, with recent
   terms and three curated chips. Results page as the list is scrolled rather than stopping at the
-  shared reader's first forty of each kind. An **On TV** group lists stored-guide programmes whose
+  shared reader's first forty of each kind. Once typing, filter chips (Live TV / TV Shows / Movies /
+  Series, several at once) narrow the list. A **TV Shows** group lists stored-guide programmes whose
   title matches, on now or in the next 12 hours; a tap opens the channel.
-- **⋯ More** — Downloads, Recordings, Favourites, History, Backup, Local sync, Profiles, the error
-  log, About and Settings.
+- **More** (the avatar) — the profile and Switch, Settings, Downloads, Favourites, History, Backup,
+  Local sync, the error log and About.
 
 ### 3.3 Long-press, everywhere
 
@@ -222,6 +235,9 @@ Mobile-specific shapes:
   `MediaRoot` in core. Chosen over `MANAGE_EXTERNAL_STORAGE` because a media player will not be
   granted it on Google Play. **Export** moves a finished file anywhere, asking for a *persistable*
   grant so the row still points at something playable next week.
+- **Faster downloads** — core adds connections while each helps, within the playlist's limit, writing
+  in order; a failure states its reason, a missing file says so, and on a one-stream playlist playback
+  pauses the download and asks whether to watch or keep downloading.
 - **Wi-Fi-only downloads** and a **data saver** that refuses to start a stream on mobile data.
 - **Backup & restore** — core's `.own` container, optionally encrypted, through the phone's own file
   picker, with a PIN-gated profile checklist.
@@ -252,13 +268,13 @@ same thing on a television.
 ## 7. Surface language
 
 The app draws **every icon itself** on the same 24×24 grid as the television's set, so the two look
-like one product; nothing depends on the stock Material glyph set. Material 3 for everything
-touchable.
+like one product; nothing depends on the stock Material glyph set. Everything touchable is built from
+the Stage parts (`ui/stage/`): sheets, menu items, setting rows, buttons, fields and the size bar.
 
-**Glass** is rendered here rather than merely tinted: a RenderEffect backdrop blur (API 31+), a
-specular rim, layered depth, continuous corners, settling motion and a wallpaper-sampled tint, with
-**Aurora** as an additional preset. The stored model stays core's and unchanged, so a television user
-is unaffected.
+**Glass** is one switch and an opacity, stored by core and shared with the television. On, the bars
+and sheets frost what is behind them — a RenderEffect backdrop blur (API 31+) of the page and the
+picture — under a tint at the chosen opacity, with a top highlight and a rim. The player's controls
+over the video are their own black glass.
 
 The wallpaper and its blurred copy sit **outside** the shell, so the frost every panel samples is one
 image for the whole app rather than one per panel.
@@ -323,8 +339,9 @@ app/src/main/java/tv/own/owntv/mobile/
 ├── ui/screens/      home · live · library · guide · search · downloads ·
 │                    recordings · multiview · settings
 ├── ui/player/       the full-screen player, gestures, sheets, mini players
-├── ui/components/   the shared surface language — buttons, rows, sheets, glass, icons
-├── ui/shell/        the bar/rail shell, the top bar, the sync pill
+├── ui/stage/        the Stage parts every screen is built from — buttons, rows, fields, glass
+├── ui/components/   the sheet host, icons, logos and the shared menus and pickers
+├── ui/shell/        the bar/rail shell, the page header, the sync pill
 ├── playback/        the foreground service, PiP, the data-saver gate (the sleep timer is core's)
 ├── cast/            the Google Cast sender
 └── di/              Koin modules
@@ -334,7 +351,7 @@ extras/              the guide, this brief, the parity checklist, logos and scre
 
 ### 10.3 Two tuners, one surface
 
-`LiveTuner` and `VodTuner` outlive every screen deliberately: a channel screen, the full-screen
+`LiveTuner` and `VodTuner` outlive every screen deliberately: Live TV's preview, the full-screen
 player and the mini player are three views of **one** stream, so the tuning state cannot belong to a
 view model that dies with its route. Only an explicit stop ends playback. There is one engine and one
 surface, so the two tuners can never both be playing — the VOD one stops the live one before it

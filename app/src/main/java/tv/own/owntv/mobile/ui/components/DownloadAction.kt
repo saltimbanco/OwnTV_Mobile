@@ -1,18 +1,9 @@
 package tv.own.owntv.mobile.ui.components
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import tv.own.owntv.core.database.entity.DownloadEntity
 import tv.own.owntv.core.download.DownloadStripKind
 import tv.own.owntv.core.download.DownloadStripState
@@ -32,13 +23,8 @@ data class DownloadAction(
     val strip: DownloadStripState?,
     val completed: Boolean,
 ) {
-    val inFlight: Boolean get() = strip != null
-
     /** True when tapping removes something — a running transfer or a file already on the phone. */
     val deletes: Boolean get() = completed || (strip != null && strip.kind != DownloadStripKind.FAILED)
-
-    /** null while a size is unknown, so the caller can spin indeterminately. */
-    val progress: Float? get() = strip?.progress
 }
 
 fun downloadActionFor(rows: List<DownloadEntity>): DownloadAction = DownloadAction(
@@ -87,48 +73,3 @@ fun DownloadAction.onTap(
     strip != null -> onDelete
     else -> onDownload
 }
-
-/** The download control in a screen's action row: the glyph, with a progress ring while it runs. */
-@Composable
-fun DownloadActionButton(
-    action: DownloadAction,
-    onDownload: () -> Unit,
-    onRetry: () -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-    idleLabel: String = stringResource(R.string.content_download),
-) {
-    val label = action.label(idleLabel)
-    IconButton(onClick = action.onTap(onDownload, onRetry, onDelete), modifier = modifier) {
-        Box(contentAlignment = Alignment.Center) {
-            if (action.inFlight) {
-                val progress = action.progress
-                if (progress == null) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(RingSize),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                } else {
-                    CircularProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.size(RingSize),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    )
-                }
-            }
-            Icon(
-                imageVector = action.icon(),
-                contentDescription = label,
-                modifier = Modifier.size(IconSize),
-                // A glass surface is not an M3 container, so the tint is stated rather than inherited.
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-    }
-}
-
-private val RingSize = 28.dp
-private val IconSize = 18.dp

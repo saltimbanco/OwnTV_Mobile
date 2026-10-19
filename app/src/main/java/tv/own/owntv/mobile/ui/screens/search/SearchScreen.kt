@@ -1,59 +1,90 @@
 package tv.own.owntv.mobile.ui.screens.search
 
-import tv.own.owntv.mobile.ui.components.MobileIcons
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.content.SearchIntent
-import tv.own.owntv.core.database.entity.MovieEntity
-import tv.own.owntv.core.database.entity.SeriesEntity
-import tv.own.owntv.core.model.MediaType
+import tv.own.owntv.core.content.SearchKind
+import tv.own.owntv.core.content.SearchResults
+import tv.own.owntv.core.database.entity.ChannelEntity
+import tv.own.owntv.core.epg.displayLogoUrl
+import tv.own.owntv.core.live.ProviderTags
+import tv.own.owntv.core.ui.stage.PlaylistMark
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.ContentActionsMenu
-import tv.own.owntv.mobile.ui.components.ContentTarget
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.components.ChannelLogoImage
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.screens.home.formatRating
+import tv.own.owntv.mobile.ui.screens.home.groupedCountText
+import tv.own.owntv.mobile.ui.shell.PageCrumb
+import tv.own.owntv.mobile.ui.shell.ProvidePageCrumb
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageEyebrow
+import tv.own.owntv.mobile.ui.stage.StageIcon
+import tv.own.owntv.mobile.ui.stage.StageLabel
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StagePlaylistMark
+import tv.own.owntv.mobile.ui.stage.StageRow
+import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageTabs
+import tv.own.owntv.mobile.ui.stage.StageTag
+import tv.own.owntv.mobile.ui.stage.StageTool
+import tv.own.owntv.mobile.ui.stage.stageGlass
+import tv.own.owntv.mobile.ui.stage.stageText
+
+/** With several kinds shown: the first four channels, then "All n channels" (the television's number). */
+private const val ALL_TAB_CHANNELS = 4
+private const val MIN_QUERY = 2
 
 /**
- * One field over everything the profile has.
+ * Search, the shipped television's: the field, then — once two characters are typed — the
+ * tabs All · Live TV · Movies · Series with their counts and the results grouped LIVE TV (three, then "All n
+ * channels"), ON TV (programmes from the guide), MOVIES, SERIES; the header's crumb is the query and how
+ * much it found. Before typing: JUMP TO, the recent searches and the card that says what is searched.
  *
- * A phone has no room for the television's three columns, so the three kinds of result are one list
- * with a heading and a count above each group. Nothing is searched until two characters are typed;
- * until then the screen offers the recent terms and the three curated lists, which is what a user
- * opening search without a word in mind actually wants.
+ * A tap goes to the item — Live TV on that channel, the film's or the show's page. Nothing plays from
+ * Search, and a hold does nothing: the item's own page has every option.
  */
 @Composable
 fun SearchScreen(
@@ -71,29 +102,24 @@ fun SearchScreen(
     val query by vm.query.collectAsStateWithLifecycle()
     val intent by vm.intent.collectAsStateWithLifecycle()
     val typed by vm.results.collectAsStateWithLifecycle()
+    val kinds by vm.kinds.collectAsStateWithLifecycle()
     val curated by vm.curated.collectAsStateWithLifecycle()
     val recents by vm.recentSearches.collectAsStateWithLifecycle()
-    val sources by vm.sourceNames.collectAsStateWithLifecycle()
-    val favoriteChannels by vm.favoriteChannels.collectAsStateWithLifecycle()
-    val favoriteMovies by vm.favoriteMovies.collectAsStateWithLifecycle()
-    val favoriteSeries by vm.favoriteSeries.collectAsStateWithLifecycle()
+    val marks by vm.playlistMarks.collectAsStateWithLifecycle()
+    val categories by vm.categoryNames.collectAsStateWithLifecycle()
+    val nowPlaying by vm.nowPlaying.collectAsStateWithLifecycle()
+    val palette = LocalStagePalette.current
 
-    val searching = query.trim().length >= MIN_QUERY
-    val results = if (searching) typed else curated
-    // One playlist needs no attribution; several do, and that is the case the line is there for.
-    val showProvider = sources.size > 1
+    val trimmed = query.trim()
+    val searching = trimmed.length >= MIN_QUERY
+    val total = typed.channels.size + typed.programmes.size + typed.movies.size + typed.series.size
+    if (searching) {
+        val accent = stringResource(R.string.search_query_quoted, trimmed)
+        val rest = groupedCountText(R.plurals.search_result_count, total)
+        ProvidePageCrumb { owner -> PageCrumb(accent, rest, chevron = false, owner = owner) {} }
+    }
+
     val listState = rememberLazyListState()
-    var menuFor by remember { mutableStateOf<ContentTarget?>(null) }
-
-    // The list itself is not a composable scope, so everything it needs from resources is read here.
-    val channelsLabel = stringResource(R.string.search_channels)
-    val moviesLabel = stringResource(R.string.search_movie)
-    val seriesLabel = stringResource(R.string.search_series)
-    val onTvLabel = stringResource(R.string.search_on_tv)
-    // Programme clocks follow the phone's own locale, as on the channel page.
-    val locales = LocalConfiguration.current.locales
-    val times = remember(locales) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
-
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     // Focus alone does not reliably raise the IME across Android versions, keyboard apps and
@@ -104,267 +130,283 @@ fun SearchScreen(
         delay(150)
         runCatching { keyboard?.show() }
     }
-    LaunchedEffect(query, intent) { listState.scrollToItem(0) }
+    LaunchedEffect(query, intent, kinds) { listState.scrollToItem(0) }
+    // Back clears the filter first, as on the television; the next Back leaves Search.
+    BackHandler(enabled = kinds.isNotEmpty()) { vm.clearKinds() }
+
+    val shown: SearchResults = if (searching) typed.only(kinds) else curated
+    // One filter button on lists that kind alone, flat and uncapped; otherwise the kinds are grouped.
+    val singleKind = searching && kinds.size == 1
+    val goChannel: (Long) -> Unit = { vm.rememberQuery(); onOpenChannel(it) }
 
     Column(modifier.fillMaxSize().imePadding()) {
-        MobileTextField(
+        StageSearchField(
             value = query,
             onValueChange = vm::setQuery,
-            label = stringResource(R.string.search_hint),
+            placeholder = stringResource(R.string.search_field_hint),
             imeAction = ImeAction.Search,
             onSearch = { vm.rememberQuery(); keyboard?.hide() },
-            modifier = Modifier
-                .padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapSmall)
-                .focusRequester(focus),
+            onClear = { vm.setQuery("") },
+            clearLabel = stringResource(R.string.search_clear),
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp).fillMaxWidth().focusRequester(focus),
         )
-        IntentChips(selected = intent, enabled = !searching, onSelect = vm::setIntent)
+        if (searching) {
+            // The television's filter buttons: a tap switches one on or off, several can be on, none on is everything.
+            val all = SearchKind.entries
+            StageTabs(
+                tabs = all.map { it.label() to typed.count(it) },
+                selected = all.indices.filter { all[it] in kinds }.toSet(),
+                onSelect = { vm.toggleKind(all[it]) },
+                modifier = Modifier.padding(start = 18.dp, end = 14.dp, top = 14.dp),
+            )
+        }
 
         when {
-            !searching && intent == null -> RecentSearches(
-                recents = recents,
-                onPick = vm::setQuery,
-                onClear = vm::clearRecentSearches,
-            )
-            results.isEmpty -> CenterMessage(
-                if (searching) stringResource(R.string.search_no_results, query.trim())
-                else stringResource(R.string.search_nothing_in_list, intent.label()),
-            )
-            else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                group(
-                    label = channelsLabel,
-                    count = results.channels.size,
-                    items = results.channels,
-                    key = { "c${it.channel.id}" },
-                    contentType = "channel",
-                ) { row ->
-                    MobileListRow(
-                        title = row.channel.name,
-                        subtitle = subtitle(
-                            row.categoryName,
-                            if (showProvider) sources[row.channel.sourceId] else null,
-                        ),
-                        trailing = { FavoriteMark(row.channel.id in favoriteChannels) },
-                        onClick = { vm.rememberQuery(); onOpenChannel(row.channel.id) },
-                        onLongClick = {
-                            menuFor = ContentTarget(MediaType.LIVE, row.channel.id, row.channel.name)
-                        },
-                    )
+            searching && shown.isEmpty -> NothingFound(stringResource(R.string.search_nothing_found, trimmed), stringResource(R.string.search_nothing_found_body))
+            !searching && intent == null -> Launcher(recents = recents, onIntent = vm::setIntent, onPick = vm::setQuery, onClear = vm::clearRecentSearches)
+            else -> LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 24.dp),
+            ) {
+                if (!searching) item(key = "jump") { JumpTo(selected = intent, onIntent = vm::setIntent) }
+                if (!searching && shown.isEmpty) {
+                    item(key = "empty") { NothingFound(stringResource(R.string.search_nothing_in_list, intent.label()), null) }
                 }
-                group(
-                    label = onTvLabel,
-                    count = results.programmes.size,
-                    items = results.programmes,
-                    key = { "p${it.programme.id}-${it.channel.id}" },
-                    contentType = "programme",
-                ) { found ->
-                    MobileListRow(
-                        title = found.programme.title,
-                        subtitle = subtitle(
-                            found.channel.name,
-                            stringResource(
-                                R.string.content_live_time_range_plain,
-                                times.format(java.util.Date(found.programme.startMs)),
-                                times.format(java.util.Date(found.programme.stopMs)),
-                            ),
-                        ),
-                        onClick = { vm.rememberQuery(); onOpenChannel(found.channel.id) },
-                        onLongClick = {
-                            menuFor = ContentTarget(MediaType.LIVE, found.channel.id, found.channel.name)
-                        },
-                    )
-                }
-                group(
-                    label = moviesLabel,
-                    count = results.movies.size,
-                    items = results.movies,
-                    key = { "m${it.id}" },
-                    contentType = "movie",
-                ) { movie ->
-                    MobileListRow(
-                        title = movie.name,
-                        subtitle = subtitle(
-                            movie.meta(),
-                            if (showProvider) sources[movie.sourceId] else null,
-                        ),
-                        trailing = { FavoriteMark(movie.id in favoriteMovies) },
-                        onClick = { vm.rememberQuery(); onOpenMovie(movie.id) },
-                        onLongClick = { menuFor = ContentTarget(MediaType.MOVIE, movie.id, movie.name) },
-                    )
-                }
-                group(
-                    label = seriesLabel,
-                    count = results.series.size,
-                    items = results.series,
-                    key = { "s${it.id}" },
-                    contentType = "series",
-                ) { show ->
-                    MobileListRow(
-                        title = show.name,
-                        subtitle = subtitle(
-                            show.meta(),
-                            if (showProvider) sources[show.sourceId] else null,
-                        ),
-                        trailing = { FavoriteMark(show.id in favoriteSeries) },
-                        onClick = { vm.rememberQuery(); onOpenSeries(show.id) },
-                        onLongClick = { menuFor = ContentTarget(MediaType.SERIES, show.id, show.name) },
-                    )
-                }
+                results(
+                    shown = shown,
+                    capChannels = searching && !singleKind,
+                    headings = !singleKind,
+                    marks = marks,
+                    categories = categories,
+                    nowPlaying = nowPlaying,
+                    onChannel = goChannel,
+                    onMovie = { vm.rememberQuery(); onOpenMovie(it) },
+                    onSeries = { vm.rememberQuery(); onOpenSeries(it) },
+                    onAllChannels = { vm.showOnly(SearchKind.LIVE) },
+                )
             }
         }
     }
-
-    menuFor?.let { target ->
-        ContentActionsMenu(
-            target = target,
-            isFavorite = target.id in when (target.type) {
-                MediaType.LIVE -> favoriteChannels
-                MediaType.MOVIE -> favoriteMovies
-                else -> favoriteSeries
-            },
-            onToggleFavorite = { vm.toggleFavorite(target.type, target.id) },
-            onDownload = { vm.download(target.type, target.id) },
-            onHide = { vm.hide(target.type, target.id) },
-            onDismiss = { menuFor = null },
-        )
-    }
 }
 
-/** A heading with its count, then the rows — skipped entirely when the group came back empty. */
-private fun <T> LazyListScope.group(
-    label: String,
-    count: Int,
-    items: List<T>,
-    key: (T) -> Any,
-    contentType: String,
-    row: @Composable (T) -> Unit,
+/** LIVE TV (capped in the All tab, then "All n channels"), ON TV, MOVIES, SERIES — each under `.sgh` "LABEL · n". */
+private fun LazyListScope.results(
+    shown: SearchResults,
+    capChannels: Boolean,
+    headings: Boolean,
+    marks: Map<Long, PlaylistMark>,
+    categories: Map<Long, String>,
+    nowPlaying: Map<Long, String>,
+    onChannel: (Long) -> Unit,
+    onMovie: (Long) -> Unit,
+    onSeries: (Long) -> Unit,
+    onAllChannels: () -> Unit,
 ) {
-    if (items.isEmpty()) return
-    item(key = "hdr_$label", contentType = "header") { GroupHeader(label, count) }
-    items(items, key = key, contentType = { contentType }) { row(it) }
-}
-
-@Composable
-private fun GroupHeader(label: String, count: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapSmall),
-        horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-            text = stringResource(R.string.content_downloads_count, count),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/**
- * The three curated lists, offered while the field is empty.
- *
- * They go quiet the moment a query is typed rather than disappearing, so the strip does not make the
- * results jump up the screen the instant the second character lands.
- */
-@Composable
-private fun IntentChips(selected: SearchIntent?, enabled: Boolean, onSelect: (SearchIntent?) -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MobileDimens.ScreenPaddingH),
-        horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-    ) {
-        SearchIntent.entries.forEach { entry ->
-            FilterChip(
-                selected = entry == selected,
-                enabled = enabled,
-                onClick = { onSelect(if (entry == selected) null else entry) },
-                label = { Text(entry.label()) },
-            )
+    if (shown.channels.isNotEmpty()) {
+        if (headings) item(key = "h-live") { GroupHeading(R.string.common_nav_live_tv, shown.channels.size, first = true) }
+        val cap = capChannels && shown.channels.size > ALL_TAB_CHANNELS
+        items(if (cap) shown.channels.take(ALL_TAB_CHANNELS) else shown.channels, key = { "c" + it.channel.id }) { row ->
+            ChannelResult(row.channel, row.categoryName, nowPlaying[row.channel.id], marks[row.channel.sourceId]) { onChannel(row.channel.id) }
         }
-    }
-}
-
-@Composable
-private fun RecentSearches(recents: List<String>, onPick: (String) -> Unit, onClear: () -> Unit) {
-    if (recents.isEmpty()) {
-        CenterMessage(stringResource(R.string.search_recent_empty))
-        return
-    }
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = MobileDimens.ScreenPaddingH, vertical = MobileDimens.GapSmall),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.search_recent),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(onClick = onClear, label = { Text(stringResource(R.string.search_clear)) })
-        }
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(recents, key = { it }) { term ->
-                MobileListRow(title = term, onClick = { onPick(term) })
+        if (cap) {
+            item(key = "all-channels") {
+                StageTool(
+                    onClick = onAllChannels,
+                    label = groupedCountText(R.plurals.search_all_channels, shown.channels.size),
+                    icon = MobileIcons.FormatListBulleted,
+                    modifier = Modifier.padding(start = 8.dp, top = 6.dp),
+                )
             }
         }
     }
+    if (shown.programmes.isNotEmpty()) {
+        if (headings) item(key = "h-ontv") { GroupHeading(R.string.search_on_tv, shown.programmes.size, first = shown.channels.isEmpty()) }
+        items(shown.programmes, key = { "p" + it.programme.id + "-" + it.channel.id }) { found ->
+            ProgrammeResult(found.channel, found.programme.title, found.programme.startMs, found.programme.stopMs, marks[found.channel.sourceId]) { onChannel(found.channel.id) }
+        }
+    }
+    if (shown.movies.isNotEmpty()) {
+        if (headings) item(key = "h-movies") { GroupHeading(R.string.common_nav_movies, shown.movies.size, first = shown.channels.isEmpty() && shown.programmes.isEmpty()) }
+        items(shown.movies, key = { "m" + it.id }) { m ->
+            VodResult(m.posterUrl, m.name, m.year ?: m.parsedYear, m.rating, m.categoryId?.let { categories[it] }, marks[m.sourceId]) { onMovie(m.id) }
+        }
+    }
+    if (shown.series.isNotEmpty()) {
+        if (headings) item(key = "h-series") { GroupHeading(R.string.common_nav_series, shown.series.size, first = shown.channels.isEmpty() && shown.programmes.isEmpty() && shown.movies.isEmpty()) }
+        items(shown.series, key = { "s" + it.id }) { s ->
+            VodResult(s.posterUrl, s.name, s.year ?: s.parsedYear, s.rating, s.categoryId?.let { categories[it] }, marks[s.sourceId]) { onSeries(s.id) }
+        }
+    }
 }
 
+/** `.label` "LIVE TV · 9", 12 in from the rows; 16 above every group but the first. */
 @Composable
-private fun FavoriteMark(isFavorite: Boolean) {
-    if (!isFavorite) return
-    Icon(
-        imageVector = MobileIcons.Star,
-        contentDescription = stringResource(R.string.content_category_favorites),
-        tint = MaterialTheme.colorScheme.primary,
+private fun GroupHeading(labelRes: Int, count: Int, first: Boolean) {
+    StageLabel(
+        stringResource(labelRes) + stringResource(R.string.content_epg_bits_separator) + count,
+        Modifier.padding(start = 12.dp, end = 12.dp, top = if (first) 0.dp else 16.dp, bottom = 4.dp),
     )
 }
 
+/** The channel's logo on its 46 × 34 plate (a plate only where its ink would vanish). */
 @Composable
-private fun CenterMessage(text: String) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .padding(MobileDimens.GapLarge),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+private fun LogoPlate(channel: ChannelEntity) {
+    val palette = LocalStagePalette.current
+    Box(Modifier.size(46.dp, 34.dp).clip(RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+        ChannelLogoImage(
+            url = channel.displayLogoUrl,
+            modifier = Modifier.fillMaxSize(),
+            plateOn = palette.page,
+            fallback = { StageIcon(MobileIcons.LiveTv, 17.dp, palette.dim) },
         )
     }
 }
 
-/** "2019 · 7.8" — whatever the provider actually sent. */
+/** `.chrow` 62: the plate, the name without its marks, "category · number · on now", then its tags and playlist mark. */
 @Composable
-private fun MovieEntity.meta(): String? = metaLine(year, rating)
+private fun ChannelResult(channel: ChannelEntity, category: String?, now: String?, mark: PlaylistMark?, onClick: () -> Unit) {
+    val palette = LocalStagePalette.current
+    val name = remember(channel.name) { ProviderTags.parse(channel.name) }
+    val sep = stringResource(R.string.content_epg_bits_separator)
+    val line = listOfNotNull(
+        category?.takeIf { it.isNotBlank() }?.let { ProviderTags.parse(it).name },
+        channel.number?.takeIf { it > 0 }?.toString(),
+        now,
+    ).joinToString(sep)
+    StageRow(onClick = onClick, height = 62.dp) {
+        LogoPlate(channel)
+        Column(Modifier.weight(1f)) {
+            Text(name.name, style = stageText(14.5f, 700), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (line.isNotEmpty()) Text(line, style = stageText(12f, 500), color = palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            name.tags.forEach { StageTag(it) }
+            mark?.let { StagePlaylistMark(it) }
+        }
+    }
+}
 
+/** ON TV: the channel's plate, the programme, "channel · 21:50 – 22:40". */
 @Composable
-private fun SeriesEntity.meta(): String? = metaLine(year, rating)
+private fun ProgrammeResult(channel: ChannelEntity, title: String, startMs: Long, stopMs: Long, mark: PlaylistMark?, onClick: () -> Unit) {
+    val palette = LocalStagePalette.current
+    val locales = LocalConfiguration.current.locales
+    val times = remember(locales) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT) }
+    val line = ProviderTags.parse(channel.name).name + stringResource(R.string.content_epg_bits_separator) +
+        stringResource(R.string.content_live_time_range_plain, times.format(java.util.Date(startMs)), times.format(java.util.Date(stopMs)))
+    StageRow(onClick = onClick, height = 62.dp) {
+        LogoPlate(channel)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = stageText(14.5f, 700), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(line, style = stageText(12f, 500), color = palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        mark?.let { StagePlaylistMark(it) }
+    }
+}
 
+/** `.chrow` 76: the 42 × 63 poster, the title, "2005 · ★ 6.2 · category", the playlist mark. */
 @Composable
-private fun metaLine(year: Int?, rating: Double?): String? = listOfNotNull(
-    year?.takeIf { it > 0 }?.toString(),
-    rating?.takeIf { it > 0 }?.let { stringResource(R.string.content_rating, it.toFloat()) },
-).takeIf { it.isNotEmpty() }?.joinToString(stringResource(R.string.content_epg_bits_separator))
+private fun VodResult(poster: String?, title: String, year: Int?, rating: Double?, category: String?, mark: PlaylistMark?, onClick: () -> Unit) {
+    val palette = LocalStagePalette.current
+    val sep = stringResource(R.string.content_epg_bits_separator)
+    val line: AnnotatedString = buildAnnotatedString {
+        var first = true
+        fun next() { if (!first) append(sep); first = false }
+        year?.takeIf { it > 0 }?.let { next(); append(it.toString()) }
+        rating?.takeIf { it > 0 }?.let { r ->
+            next()
+            withStyle(SpanStyle(color = RatingStar)) { append(STAR) }
+            append(" " + formatRating(r))
+        }
+        category?.takeIf { it.isNotBlank() }?.let { next(); append(ProviderTags.parse(it).name) }
+    }
+    StageRow(onClick = onClick, height = 76.dp) {
+        AsyncImage(
+            poster,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(42.dp, 63.dp).clip(RoundedCornerShape(8.dp)).background(palette.cardSolid),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(title, style = stageText(14.5f, 700), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (line.isNotEmpty()) Text(line, style = stageText(12f, 500), color = palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        mark?.let { StagePlaylistMark(it) }
+    }
+}
 
-/** The row's second line: what it is, and — when several playlists are loaded — where it came from. */
+private val RatingStar = Color(0xFFFFCC4D)
+private const val STAR = "★"
+
+/** JUMP TO: Continue watching · Unwatched · Channels, the chosen one on. */
 @Composable
-private fun subtitle(detail: String?, provider: String?): String? = listOfNotNull(
-    detail?.takeIf { it.isNotBlank() },
-    provider?.takeIf { it.isNotBlank() },
-).takeIf { it.isNotEmpty() }?.joinToString(stringResource(R.string.content_epg_bits_separator))
+private fun JumpTo(selected: SearchIntent?, onIntent: (SearchIntent?) -> Unit) {
+    Column(Modifier.padding(horizontal = 8.dp)) {
+        StageLabel(stringResource(R.string.search_jump_to), Modifier.padding(start = 4.dp, top = 6.dp, bottom = 8.dp))
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SearchIntent.entries.forEach { entry ->
+                StageTool(
+                    onClick = { onIntent(if (entry == selected) null else entry) },
+                    label = entry.label(),
+                    icon = when (entry) {
+                        SearchIntent.CONTINUE -> MobileIcons.PlayOutline
+                        SearchIntent.UNWATCHED -> MobileIcons.AutoAwesome
+                        SearchIntent.CHANNELS -> MobileIcons.LiveTv
+                    },
+                    on = entry == selected,
+                )
+            }
+        }
+        Box(Modifier.size(1.dp, 10.dp))
+    }
+}
+
+/** Before typing: JUMP TO, RECENT SEARCHES with Clear, and the glass card that says what is searched. */
+@Composable
+private fun Launcher(recents: List<String>, onIntent: (SearchIntent?) -> Unit, onPick: (String) -> Unit, onClear: () -> Unit) {
+    val palette = LocalStagePalette.current
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 24.dp)) {
+        item(key = "jump") { JumpTo(selected = null, onIntent = onIntent) }
+        if (recents.isNotEmpty()) {
+            item(key = "recent-h") { StageLabel(stringResource(R.string.search_recent), Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp)) }
+            items(recents, key = { "r$it" }) { term -> StageMenuItem(term, onClick = { onPick(term) }, icon = MobileIcons.History) }
+            item(key = "recent-clear") {
+                StageTool(onClick = onClear, label = stringResource(R.string.search_clear_recent), icon = MobileIcons.Delete, modifier = Modifier.padding(start = 8.dp, top = 8.dp))
+            }
+        }
+        item(key = "card") {
+            val shape = RoundedCornerShape(18.dp)
+            Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 22.dp).fillMaxWidth().stageGlass(shape).padding(16.dp)) {
+                StageEyebrow(stringResource(R.string.search_title), icon = MobileIcons.Search)
+                Text(stringResource(R.string.search_card_title), style = stageText(16f, 800), color = palette.text, modifier = Modifier.padding(vertical = 6.dp))
+                Text(stringResource(R.string.search_card_body), style = stageText(12f, 500, lineHeight = 1.5f), color = palette.muted)
+            }
+        }
+    }
+}
+
+/** "Nothing found for “qwzx”" (20 / 800) and what Search looks in. */
+@Composable
+private fun NothingFound(title: String, body: String?) {
+    val palette = LocalStagePalette.current
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 24.dp)) {
+        Text(title, style = stageText(20f, 800), color = palette.text)
+        body?.let { Text(it, style = stageText(12.5f, 500, lineHeight = 1.5f), color = palette.muted, modifier = Modifier.padding(top = 8.dp)) }
+    }
+}
+
+/** The filter buttons' words: Live TV · TV Shows · Movies · Series. */
+@Composable
+private fun SearchKind.label(): String = stringResource(
+    when (this) {
+        SearchKind.LIVE -> R.string.common_nav_live_tv
+        SearchKind.TV_SHOWS -> R.string.search_on_tv
+        SearchKind.MOVIES -> R.string.common_nav_movies
+        SearchKind.SERIES -> R.string.common_nav_series
+    },
+)
 
 @Composable
 private fun SearchIntent?.label(): String = when (this) {
@@ -373,5 +415,3 @@ private fun SearchIntent?.label(): String = when (this) {
     SearchIntent.CHANNELS -> stringResource(R.string.search_channels)
     null -> stringResource(R.string.search_title)
 }
-
-private const val MIN_QUERY = 2

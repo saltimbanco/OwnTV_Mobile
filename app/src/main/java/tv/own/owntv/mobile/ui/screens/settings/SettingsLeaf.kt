@@ -1,227 +1,60 @@
 package tv.own.owntv.mobile.ui.screens.settings
 
-import tv.own.owntv.mobile.ui.components.MobileIcons
 import androidx.annotation.StringRes
-import androidx.compose.ui.graphics.vector.ImageVector
 import tv.own.owntv.mobile.R
 
 /**
- * A screen-sized setting that hangs off a group page — the third level of the tree.
- *
- * The television has nineteen screens under its settings root, several of them features in their own
- * right rather than a switch: Customize, the Glass Effect, the video player, Backup. A flat page
- * cannot hold one, so each becomes a route of its own here, registered once with its group, its
- * title and the keywords search matches on. Route, breadcrumb, page title and the search index all
- * read this list, so a leaf can never be reachable by one and invisible to another.
- *
- * A leaf is registered when its screen exists. The remaining television screens — the navigation bar,
- * the long-press menus, DNS and About — are still rows on their group pages, and each moves here in
- * the phase that builds it out; registering an empty one now would put a dead row above content that
- * already works.
+ * A full page that a group row opens — the second and last layer under a group: Settings → a group →
+ * a page. Registered once with its group and its title, so the route, the header's title and crumb and the
+ * settings search all read the same list.
  */
 enum class SettingsLeaf(
     val group: SettingsGroup,
     slug: String,
     @param:StringRes val titleRes: Int,
-    @param:StringRes val keywordsRes: Int,
-    @param:StringRes val summaryRes: Int? = null,
-    val icon: ImageVector,
-    /**
-     * Whether the group's own page lists this leaf. Subtitle appearance is reached from inside Video
-     * player, where it belongs — it is a setting *of* the player, not a sibling of it — so listing it
-     * again beside Video player offered the same page by two routes and made Playback look like it
-     * held two unrelated things.
-     */
-    val listedInGroup: Boolean = true,
 ) {
-    PLAYLISTS(
-        SettingsGroup.SOURCES, "playlists",
-        R.string.settings_playlists, R.string.settings_search_keywords_playlists,
-        R.string.settings_sources_description,
-        MobileIcons.PlaylistPlay,
-    ),
-    EPG_SOURCES(
-        SettingsGroup.SOURCES, "epg",
-        R.string.settings_epg_sources, R.string.settings_search_keywords_epg,
-        R.string.settings_epg_sources_description,
-        MobileIcons.CalendarMonth,
-    ),
+    PLAYLISTS(SettingsGroup.SOURCES, "playlists", R.string.settings_playlists),
+    ADD_SOURCE(SettingsGroup.SOURCES, "add", R.string.content_add_source),
+    EPG_SOURCES(SettingsGroup.SOURCES, "epg", R.string.settings_epg_sources),
+    CATCHUP_SOURCES(SettingsGroup.SOURCES, "catchup-playlists", R.string.settings_catchup_timezone_per_playlist),
 
-    GLASS_EFFECT(
-        SettingsGroup.APPEARANCE, "glass",
-        R.string.settings_glass_effect, R.string.settings_search_keywords_glass,
-        R.string.settings_glass_description,
-        MobileIcons.AutoAwesome,
-    ),
-    FONTS(
-        SettingsGroup.APPEARANCE, "fonts",
-        R.string.settings_font_customization, R.string.settings_search_keywords_fonts,
-        R.string.settings_font_customization_description,
-        MobileIcons.TextFields,
-    ),
-    WEATHER(
-        SettingsGroup.APPEARANCE, "weather",
-        R.string.settings_weather, R.string.settings_search_keywords_weather,
-        R.string.settings_weather_description_root,
-        MobileIcons.WbSunny,
-    ),
+    HIGHLIGHT(SettingsGroup.APPEARANCE, "highlight", R.string.settings_selection_highlight),
+    GLASS_EFFECT(SettingsGroup.APPEARANCE, "glass", R.string.settings_glass_bg_title),
+    FONTS(SettingsGroup.APPEARANCE, "fonts", R.string.settings_title_fonts),
 
-    CUSTOMIZE(
-        SettingsGroup.CONTENT, "customize",
-        R.string.settings_customize_title, R.string.settings_search_keywords_customize,
-        R.string.settings_customize_nav_description,
-        MobileIcons.Tune,
-    ),
-    METADATA(
-        SettingsGroup.CONTENT, "metadata",
-        R.string.settings_metadata, R.string.settings_search_keywords_metadata,
-        R.string.settings_metadata_source_description,
-        MobileIcons.Movie,
-    ),
-    OPEN_SUBTITLES(
-        SettingsGroup.CONTENT, "opensubtitles",
-        R.string.settings_open_subtitles, R.string.settings_search_keywords_subtitle_appearance,
-        R.string.settings_open_subtitles_access_priority,
-        MobileIcons.Subtitles,
-    ),
+    HOME(SettingsGroup.LAYOUT, "home", R.string.settings_home_screen),
+    BROWSING(SettingsGroup.LAYOUT, "browsing", R.string.settings_browsing_lists),
+    CONTENT_MENUS(SettingsGroup.LAYOUT, "menus", R.string.settings_content_menus_title),
 
-    VIDEO_PLAYER(
-        SettingsGroup.PLAYBACK, "video",
-        R.string.settings_video_player, R.string.settings_search_keywords_video,
-        R.string.settings_video_player_description,
-        MobileIcons.PlayCircle,
-    ),
-    // Video player's categories: that page lists them, so the Playback page does not (see
-    // [VIDEO_PLAYER_CATEGORIES]). Each is a page of its own, so back from one returns to the list.
-    VP_PLAYER(
-        SettingsGroup.PLAYBACK, "video-player",
-        R.string.settings_vp_cat_player, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_player_summary,
-        MobileIcons.PlayArrow,
-        listedInGroup = false,
-    ),
-    VP_PICTURE(
-        SettingsGroup.PLAYBACK, "video-picture",
-        R.string.settings_vp_cat_picture, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_picture_summary,
-        MobileIcons.Image,
-        listedInGroup = false,
-    ),
-    VP_STREAMING(
-        SettingsGroup.PLAYBACK, "video-streaming",
-        R.string.settings_vp_cat_streaming, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_streaming_summary,
-        MobileIcons.Wifi,
-        listedInGroup = false,
-    ),
-    VP_LIVE(
-        SettingsGroup.PLAYBACK, "video-live",
-        R.string.settings_live_tv, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_live_summary,
-        MobileIcons.LiveTv,
-        listedInGroup = false,
-    ),
-    VP_LIVE_TUNING(
-        SettingsGroup.PLAYBACK, "video-live-tuning",
-        R.string.settings_vp_cat_live_tuning, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_live_tuning_summary,
-        MobileIcons.Tune,
-        listedInGroup = false,
-    ),
-    VP_CONTROLS(
-        SettingsGroup.PLAYBACK, "video-controls",
-        R.string.settings_vp_cat_controls, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_controls_summary,
-        MobileIcons.FastForward,
-        listedInGroup = false,
-    ),
-    VP_MULTIVIEW(
-        SettingsGroup.PLAYBACK, "video-multiview",
-        R.string.settings_multiview, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_multiview_summary_mobile,
-        MobileIcons.GridView,
-        listedInGroup = false,
-    ),
-    VP_SOUND(
-        SettingsGroup.PLAYBACK, "video-sound",
-        R.string.settings_vp_section_sound, R.string.settings_search_keywords_audio,
-        R.string.settings_vp_cat_sound_summary,
-        MobileIcons.VolumeUp,
-        listedInGroup = false,
-    ),
-    VP_LANGUAGES(
-        SettingsGroup.PLAYBACK, "video-languages",
-        R.string.settings_vp_cat_languages, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_languages_summary,
-        MobileIcons.Translate,
-        listedInGroup = false,
-    ),
-    VP_RESUME(
-        SettingsGroup.PLAYBACK, "video-resume",
-        R.string.settings_vp_cat_resume, R.string.settings_search_keywords_video,
-        R.string.settings_vp_cat_resume_summary,
-        MobileIcons.SkipNext,
-        listedInGroup = false,
-    ),
-    VP_DIAGNOSTICS(
-        SettingsGroup.PLAYBACK, "video-diagnostics",
-        R.string.settings_diagnostics, R.string.settings_search_keywords_video,
-        R.string.settings_vp_section_diagnostics_summary,
-        MobileIcons.Info,
-        listedInGroup = false,
-    ),
-    SUBTITLE_APPEARANCE(
-        SettingsGroup.PLAYBACK, "subtitles",
-        R.string.settings_subtitle_appearance, R.string.settings_search_keywords_subtitle_appearance,
-        R.string.settings_vp_section_subtitles_summary,
-        MobileIcons.ClosedCaption,
-        listedInGroup = false,
-    ),
-    // Recording is a leaf under Playback, not a group of its own. A group holding exactly one page
-    // still has to be opened to find out it holds one page, which is a press that tells nobody
-    // anything — and the television puts it here too.
-    RECORDING(
-        SettingsGroup.PLAYBACK, "recording",
-        R.string.recording_settings_group, R.string.settings_search_keywords_recording,
-        R.string.recording_description,
-        MobileIcons.LiveTv,
-    ),
+    CUSTOMIZE(SettingsGroup.CONTENT, "customize", R.string.settings_customize_short_mobile),
+    METADATA(SettingsGroup.CONTENT, "metadata", R.string.settings_metadata),
+    OPEN_SUBTITLES(SettingsGroup.CONTENT, "opensubtitles", R.string.settings_open_subtitles),
 
-    HOME(
-        SettingsGroup.LAYOUT, "home",
-        R.string.settings_home_root, R.string.settings_search_keywords_home,
-        R.string.settings_home_root_description,
-        MobileIcons.Home,
-    ),
+    LIVE_ENGINE_SOURCES(SettingsGroup.PLAYER, "live-engine-playlists", R.string.settings_live_engine_per_playlist),
+    VOD_ENGINE_SOURCES(SettingsGroup.PLAYER, "vod-engine-playlists", R.string.settings_vod_engine_per_playlist),
+    EXTERNAL_PLAYER(SettingsGroup.PLAYER, "external", R.string.settings_external_player),
 
-    // Backup, Local sync and the error log used to be leaves here. They are not settings, so they
-    // are More pages now — see `MoreLeaf`. Language is the only one of the App group's screens left.
-    LANGUAGE(
-        SettingsGroup.APP, "language",
-        R.string.settings_language, R.string.settings_search_keywords_language,
-        R.string.settings_language_description,
-        MobileIcons.Translate,
-    ),
+    SUBTITLE_APPEARANCE(SettingsGroup.SOUND, "subtitles", R.string.settings_subtitle_appearance),
+
+    LATENCY_SOURCES(SettingsGroup.LIVE, "latency-playlists", R.string.settings_live_latency_per_playlist),
+    PREROLL_SOURCES(SettingsGroup.LIVE, "preroll-playlists", R.string.settings_live_preroll_per_playlist),
+    TUNE_TIMEOUT_SOURCES(SettingsGroup.LIVE, "give-up-playlists", R.string.settings_live_tune_timeout_per_playlist),
+
+    LANGUAGE(SettingsGroup.APP, "language", R.string.settings_language),
+    PROXY(SettingsGroup.APP, "proxy", R.string.common_proxy),
+    DNS(SettingsGroup.APP, "dns", R.string.settings_dns),
+
+    // Sports Hub: one page in App, and the pages its rows open.
+    SPORTS(SettingsGroup.APP, "sports", R.string.sports_title),
+    SPORTS_LEAGUES(SettingsGroup.APP, "sports/leagues", R.string.sports_leagues),
+    SPORTS_TEAMS(SettingsGroup.APP, "sports/teams", R.string.sports_my_teams),
+    SPORTS_ALERTS(SettingsGroup.APP, "sports/alerts", R.string.sports_channel_goal_alerts),
     ;
 
-    /** `settings/content/customize` — the group's own route with the leaf hung off it. */
+    /** `settings/content/customize` — the group's own route with the page hung off it. */
     val route: String = "${group.route}/$slug"
 }
 
-/** The leaf a route names, or null when the route is a group page or not settings at all. */
+/** The page a route names, or null when the route is a group page or not settings at all. */
 fun settingsLeafOf(route: String?): SettingsLeaf? =
     SettingsLeaf.entries.firstOrNull { it.route == route }
-
-/** The leaves of one group, in declaration order — what a group page lists at its head. */
-fun leavesOf(group: SettingsGroup): List<SettingsLeaf> =
-    SettingsLeaf.entries.filter { it.group == group && it.listedInGroup }
-
-/**
- * Video player's categories, in the order its page lists them. The television has the same ones plus
- * Frame rate, which on a phone is a single row and lives in Picture.
- */
-val VIDEO_PLAYER_CATEGORIES: List<SettingsLeaf> = listOf(
-    SettingsLeaf.VP_PLAYER, SettingsLeaf.VP_PICTURE, SettingsLeaf.VP_STREAMING, SettingsLeaf.VP_LIVE,
-    SettingsLeaf.VP_LIVE_TUNING, SettingsLeaf.VP_CONTROLS, SettingsLeaf.VP_MULTIVIEW, SettingsLeaf.VP_SOUND,
-    SettingsLeaf.VP_LANGUAGES, SettingsLeaf.VP_RESUME, SettingsLeaf.VP_DIAGNOSTICS,
-)

@@ -7,6 +7,89 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.1.0 — 2026-10-17
+
+### New features
+- **🏆 Sports: live scores, today's and tomorrow's matches and match pages, as on the television**
+- **🔎 Find channels: the channels in your guide that show a match, with a filter sheet**
+- **📺 Broadcasts tab, venue and round on every match page**
+- **🔔 Goal alerts and a live score card, also when OwnTV is closed**
+- **↕️ Long-press → Move to put your sports and leagues in your own order**
+- **🏠 Sports row on Home with a LIVE mark**
+- **📚 Library: Movies and Series share one tab, so Sports fits the bottom bar**
+- **🎭 Stage design: the television's new look on phone and tablet**
+- **🎨 Pixel app icon and Plus Jakarta Sans, the new default font**
+- **🔊 Volume swipe controls the phone's volume**
+- **⏪ Resume a saved channel: ask, always or never**
+- **🗂️ Remove a channel from a custom category**
+- **⏮️ Previous / next channel buttons in the player** (community PR #60 by @saltimbanco)
+- **📊 Progress bars on series posters and in list view**
+- **⭐ Favourite movies and series rows on Home**
+- **🔎 Search finds TV programmes by title (On TV)**
+- **⏰ Schedule recording… on a channel: pick the day, start and end**
+- **⏹️ Stop recording from the channel's menu**
+- **🔐 ClearKey channels whose playlist carries the key itself play**
+- **🔎 Search filter buttons: Live TV, TV Shows, Movies, Series**
+- **🎞️ Software decoding above 1080p (Video player switch)**
+- **⚡ Faster downloads over several connections**
+- **💬 A failed download says why**
+- **📺 Watch or keep downloading on a one-stream playlist**
+- **🗂️ Downloads and recordings whose file is gone say "File missing"**
+
+### Fixes
+- **🌍 Channels named "UK: …" or "IT: …" get their country and language, like "UK| …"**
+- **🖼️ Your own picture can be chosen while creating a profile**
+- **📺 Series no longer show "No episodes" when one episode is oddly written by the provider**
+- **💬 A series the provider refused says why instead of "No episodes"**
+- **📺 Live TV falls back to the other player and gives up on time again**
+- **🔊 Opening a previewed channel keeps its volume; unmute returns to the level before**
+- **🔈 Changing sound settings during a film no longer starts a second copy**
+- **🗣️ Audio language and the episode queue survive a reload**
+- **🚫 A dead film link shows its error in seconds**
+- **🕒 Catch-up time zone "Automatic" uses the playlist's own zone**
+- **⏪ M3U catch-up and Xtream rewind start at the right moment**
+- **▶️ External player starts where you left off**
+- **🏷️ Categories keep their country ("UK|") when a list mixes countries**
+- **✏️ Bulk rename and ✨ Auto cleanup for categories**
+- **🔁 Retry works after a live channel gives up**
+- **👤 "Account already in use" says so, instead of loading forever**
+- **📱 Films keep playing with the screen off**
+- **🔕 No skip buttons in the notification on live TV**
+- **📡 Pause and rewind live TV: a channel comes back by itself after a network outage**
+- **😴 The screen no longer turns off when a film stops to buffer**
+- **Custom categories in the player's channel list and the Multiview picker**
+- **🎞️ Catch-up plays on the hardware decoder and freezes on its first frame less often**
+- **📡 A catch-up of a programme still on air switches to live instead of freezing**
+- **Hidden and renamed categories respected in the player's channel list**
+- **Hiding a provider category no longer empties custom categories**
+- **Catch-up that shows no picture no longer reports a fast-start error**
+- **🔄 Auto refresh of playlists and guides now runs on the phone**
+- **🎬 An automatic playlist or guide refresh waits until playback stops**
+- **💾 A first-run backup restore opens the app only once everything is restored**
+- **🔄 Restored playlists download straight away after a restore**
+- **🔑 Password fields use the password keyboard**
+- **⏱️ The seek bar's time no longer cut off with glass depth effects on**
+- **📋 Long choice lists such as the playlist picker scroll to the last item**
+- **🏷️ Provider tags such as "|MULTI|" no longer lead a film's or show's page title**
+- **Faster channel switching on providers that mix HLS and TS channels**
+- **📱 Cheaper home, guide, search and downloads lists**
+- **🔋 The idle downloads screen stays asleep**
+- **⏺️ Recordings of some HLS channels were a few kB and would not play**
+- **🔎 Search finds "Spider-Man" from "Spider-M" and lists every match, not the first 40**
+- **📱 Cheaper home, guide, search and downloads lists** (community PR #64 by @saltimbanco)
+- **🔋 The idle downloads screen stays asleep** (community PR #64 by @saltimbanco)
+- **📐 Aspect ratio changes on live channels again**
+- **🔗 A provider's get.php M3U link is added as Xtream, so movies and series land in their own sections**
+- **📺 Shows with a Season 0 load all their episodes on Xtream**
+- **🔢 Xtream episodes with no number are numbered in order instead of all showing E0**
+- **🔁 A show's episode list retries once when the provider drops the connection**
+- **▶️ Play on a new show starts at Season 1 Episode 1; Specials come after the last season**
+- **🔤 M3U episodes named "Season 1 Episode 5" or "S2019E05" are recognised**
+- **💾 Big downloads to a FAT32 USB stick fail with a clear reason**
+- **🎨 Every sheet, button and field in the Stage design, the player's sheets included**
+- **🔑 Metadata page shows your saved TMDB key, so Save no longer clears it**
+- **🔢 PIN fields open the number pad**
+
 ## v1.0.7 — 2026-10-12
 
 ### New features

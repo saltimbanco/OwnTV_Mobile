@@ -1,22 +1,19 @@
 package tv.own.owntv.mobile.ui.player
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 
 /**
  * Below this there is nothing to come back to: a film abandoned after eight seconds is a film that
@@ -78,17 +75,10 @@ private fun ResumeSheet(
     onStartOver: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    MobileBottomSheet(
-        onDismissRequest = onDismiss,
-        title = stringResource(R.string.common_resume_prompt),
-    ) {
-        Text(
-            text = stringResource(R.string.common_resume_position, formatTimestamp(positionMs)),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = MobileDimens.ScreenPaddingH),
-        )
-        MobileListRow(title = stringResource(R.string.common_resume), onClick = onResume)
-        MobileListRow(title = stringResource(R.string.common_start_over), onClick = onStartOver)
+    val title = stringResource(R.string.common_resume_prompt)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title, subtitle = stringResource(R.string.common_resume_position, formatTimestamp(positionMs)))
+        StageMenuItem(stringResource(R.string.common_resume), onClick = onResume, icon = MobileIcons.PlayArrow)
+        StageMenuItem(stringResource(R.string.common_start_over), onClick = onStartOver, icon = MobileIcons.Refresh)
     }
 }

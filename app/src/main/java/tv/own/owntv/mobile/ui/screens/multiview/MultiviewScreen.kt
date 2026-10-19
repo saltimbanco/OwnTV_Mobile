@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +54,9 @@ import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.player.LivePreviewEngine
 import tv.own.owntv.player.PlaybackFailure
 import tv.own.owntv.player.describe
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.stageText
+import tv.own.owntv.mobile.ui.stage.stageAccent
 
 /**
  * Multiview for a finger: the same grid as the television, driven by taps.
@@ -172,10 +174,10 @@ private fun Tile(
     Box(
         modifier
             .clip(TileShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+            .background(LocalStagePalette.current.cardSolid)
             .border(
                 width = if (audible) 2.dp else 1.dp,
-                color = if (audible) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                color = if (audible) stageAccent.accent else LocalStagePalette.current.ink.copy(alpha = 0.12f),
                 shape = TileShape,
             )
             .pointerInput(index, tile.channel?.id) {
@@ -195,8 +197,8 @@ private fun Tile(
                 if (index in state.soundOnly) {
                     Text(
                         text = stringResource(R.string.multiview_sound_only_note),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = stageText(14f, 400),
+                        color = LocalStagePalette.current.muted,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center).padding(20.dp),
                     )
@@ -228,8 +230,8 @@ private fun Tile(
                         // the app being broken.
                         Text(
                             text = tileFailureText(failure),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = stageText(14f, 400),
+                            color = LocalStagePalette.current.muted,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.align(Alignment.Center).padding(20.dp),
                         )
@@ -242,15 +244,15 @@ private fun Tile(
             // The phone, not the provider: it had already allowed this stream.
             tile.deviceLimit -> Text(
                 text = stringResource(R.string.multiview_decoder_exhausted_mobile),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = stageText(14f, 400),
+                color = LocalStagePalette.current.muted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).padding(20.dp),
             )
             refusal != null -> Text(
                 text = refusal.displayText(LocalContext.current.resources),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = stageText(14f, 400),
+                color = LocalStagePalette.current.muted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).padding(20.dp),
             )
@@ -262,13 +264,13 @@ private fun Tile(
                 Icon(
                     imageVector = MobileIcons.Add,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = LocalStagePalette.current.muted,
                     modifier = Modifier.size(26.dp),
                 )
                 Text(
                     text = stringResource(R.string.multiview_add_channel),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = stageText(14f, 500),
+                    color = LocalStagePalette.current.muted,
                 )
             }
         }
@@ -340,13 +342,13 @@ private fun androidx.compose.foundation.layout.BoxScope.TileCaption(name: String
             Icon(
                 imageVector = MobileIcons.VolumeUp,
                 contentDescription = stringResource(R.string.multiview_audio_tile),
-                tint = MaterialTheme.colorScheme.primary,
+                tint = stageAccent.accent,
                 modifier = Modifier.size(14.dp),
             )
         }
         Text(
             text = name,
-            style = MaterialTheme.typography.labelLarge,
+            style = stageText(13f, 500),
             color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -359,7 +361,7 @@ private fun androidx.compose.foundation.layout.BoxScope.TileCaption(name: String
  *
  * It never invents a number of provider connections. The television had a version that did, reading
  * a stopped tile as proof of the provider's limit, and it was wrong every time — including telling
- * the owner his provider allowed three streams while three of them played beside the message.
+ * the user their provider allowed three streams while three of them played beside the message.
  */
 @Composable
 private fun tileFailureText(failure: PlaybackFailure?): String = when {

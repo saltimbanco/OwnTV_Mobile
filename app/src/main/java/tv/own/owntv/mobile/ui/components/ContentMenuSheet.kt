@@ -1,50 +1,28 @@
 package tv.own.owntv.mobile.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import tv.own.owntv.core.menu.applyMenuOrder
 import tv.own.owntv.core.model.ContentMenu
 import tv.own.owntv.core.settings.SettingsRepository
-import tv.own.owntv.mobile.ui.theme.MobileDimens
-import tv.own.owntv.mobile.ui.theme.MobileSheetRowsShape
-
-/** The rows stand on a plate a shade darker than the sheet, so the menu reads as one block. */
-private const val ROWS_PLATE_ALPHA = 0.26f
-
-/** The line between two groups of actions — a separation, not a rule. */
-private const val SHEET_DIVIDER_ALPHA = 0.08f
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 
 /**
  * One action in a long-press content menu.
  *
  * [key] is the stable identifier the saved order is written in, and it must match the key core's
  * catalogue uses for the same action — that catalogue is what the settings screen arranges, on
- * either app. [group] only spaces the sheet out: a divider is drawn wherever it changes.
+ * either app. [group] puts the action under its group's label, where the sheet has one.
  */
 data class SheetAction(
     val key: String,
@@ -52,6 +30,10 @@ data class SheetAction(
     val icon: ImageVector? = null,
     val destructive: Boolean = false,
     val group: Int = 0,
+    /** A menu item's value at the end ("7 days", "Auto", "Global"). */
+    val value: String? = null,
+    /** Shown but not available here (no trailer, not in history) — the TV's dimmed item. */
+    val enabled: Boolean = true,
     val onClick: () -> Unit,
 )
 
@@ -63,6 +45,8 @@ data class SheetAction(
  * both read the same saved arrangement and apply it with core's rule, so a user who moved
  * "Download" to the top of the movie menu on the television finds it at the top here too.
  *
+ * The item's picture and name are on top, each group under its label (WATCH, LIBRARY…).
+ *
  * Tapping an action dismisses the sheet — every one of them either navigates or changes the row
  * being looked at, and a sheet left open over the result is a sheet the user has to close.
  */
@@ -73,81 +57,38 @@ fun ContentMenuSheet(
     actions: List<SheetAction>,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    groupLabels: Map<Int, String> = emptyMap(),
+    leading: (@Composable () -> Unit)? = null,
+    subtitle: String? = null,
 ) {
     val settings: SettingsRepository = koinInject()
     val order by remember(menu) { settings.menuOrder(menu.name.lowercase()) }
         .collectAsStateWithLifecycle(emptyList())
 
     MobileBottomSheet(onDismissRequest = onDismiss, title = title, modifier = modifier) {
-        SheetRows {
+        StageSheetHeader(title = title, subtitle = subtitle, leading = leading)
+        // A long menu (catch-up, Multiview, Move…) scrolls rather than running off the screen.
+        Column(
+            Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+        ) {
             var previousGroup: Int? = null
             applyMenuOrder(actions, order) { it.key }.forEach { action ->
-                if (previousGroup != null && action.group != previousGroup) SheetDivider()
+                if (action.group != previousGroup) groupLabels[action.group]?.let { StageGroupLabel(it) }
                 previousGroup = action.group
-                SheetActionRow(action = action, onDismiss = onDismiss)
-            }
-        }
-    }
-}
-
-/** The plate a sheet's rows sit on, a shade darker than the sheet itself. */
-@Composable
-private fun SheetRows(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(MobileSheetRowsShape)
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = ROWS_PLATE_ALPHA))
-            .padding(vertical = 2.dp),
-        content = content,
-    )
-}
-
-@Composable
-private fun SheetDivider() {
-    Spacer(
-        Modifier
-            .padding(
-                horizontal = MobileDimens.SheetRowPaddingH,
-                vertical = MobileDimens.GapTiny,
-            )
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = SHEET_DIVIDER_ALPHA)),
-    )
-}
-
-@Composable
-private fun SheetActionRow(action: SheetAction, onDismiss: () -> Unit) {
-    val color =
-        if (action.destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { action.onClick(); onDismiss() }
-            .padding(
-                horizontal = MobileDimens.SheetRowPaddingH,
-                vertical = MobileDimens.SheetRowPaddingV,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(MobileDimens.SheetRowIconSize), contentAlignment = Alignment.Center) {
-            if (action.icon != null) {
-                Icon(
-                    imageVector = action.icon,
-                    contentDescription = null,
-                    // The glyph is a marker, not the message: quiet unless the action is destructive.
-                    tint = if (action.destructive) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                StageMenuItem(
+                    label = action.label,
+                    onClick = {
+                        action.onClick()
+                        onDismiss()
+                    },
+                    icon = action.icon,
+                    value = action.value,
+                    danger = action.destructive,
+                    enabled = action.enabled,
                 )
             }
         }
-        Spacer(Modifier.width(MobileDimens.ListRowIconGap))
-        Text(
-            text = action.label,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = color,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }

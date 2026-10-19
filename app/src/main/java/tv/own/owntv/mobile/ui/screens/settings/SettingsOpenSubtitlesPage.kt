@@ -3,7 +3,6 @@ package tv.own.owntv.mobile.ui.screens.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,17 +16,23 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
-import tv.own.owntv.mobile.ui.components.MobileTextField
-import tv.own.owntv.mobile.ui.components.SettingRow
+import androidx.compose.ui.unit.dp
 import tv.own.owntv.mobile.ui.screens.settings.customize.ConfirmDialog
 import tv.own.owntv.mobile.ui.theme.MobileDimens
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.util.Locale
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import androidx.compose.ui.semantics.Role
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.stage.StageField
+import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.stage.StageTextRow
 
 /**
  * The account subtitles are downloaded through, what is left of today's allowance, and the files
@@ -78,23 +83,22 @@ fun SettingsOpenSubtitlesPage(
             is OpenSubtitlesViewModel.UiState.SignedIn -> {
                 val session = s.session
                 settingsGroup(key = "os-user") {
-                    SettingRow(
+                    StageSettingRow(
                         title = stringResource(R.string.player_subtitles_connected_as),
                         subtitle = listOfNotNull(
                             session.level,
                             stringResource(R.string.player_subtitles_vip).takeIf { session.vip },
                         ).joinToString(stringResource(R.string.player_subtitles_tags_separator))
                             .ifBlank { stringResource(R.string.player_subtitles_free_account) },
-                        value = session.username,
-                    )
+                    ) { StageRowValue(session.username, StageChevron.NONE) }
                 }
                 session.remainingDownloads?.let { remaining ->
                     settingsGroup(key = "os-downloads") {
                         val total = session.allowedDownloads
-                        SettingRow(
+                        StageSettingRow(
                             title = stringResource(R.string.player_subtitles_downloads),
                             subtitle = stringResource(R.string.settings_open_subtitles_connected),
-                            value = if (total != null) {
+                        ) { StageRowValue(if (total != null) {
                                 pluralStringResource(
                                     R.plurals.player_subtitles_remaining,
                                     remaining,
@@ -107,36 +111,33 @@ fun SettingsOpenSubtitlesPage(
                                     remaining,
                                     remaining,
                                 )
-                            },
-                        )
+                            }, StageChevron.NONE) }
                     }
                 }
                 settingsGroup(key = "os-resets") {
-                    SettingRow(
+                    StageSettingRow(
                         title = stringResource(R.string.player_subtitles_resets),
                         subtitle = stringResource(R.string.settings_metadata_connection) +
                             stringResource(R.string.content_metadata_separator) + connectionLabel,
-                        value = openSubtitlesResetLabel(session.resetTime),
-                    )
+                    ) { StageRowValue(openSubtitlesResetLabel(session.resetTime), StageChevron.NONE) }
 
                     Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-                        MobileButton(
+                        StageButton(
                             text = stringResource(R.string.player_subtitles_refresh),
                             onClick = { accountVm.refresh() },
-                            style = MobileButtonStyle.SECONDARY,
                             modifier = Modifier.padding(vertical = MobileDimens.GapSmall),
                         )
-                        MobileButton(
+                        StageButton(
                             text = stringResource(R.string.player_subtitles_sign_out),
                             onClick = { confirmSignOut = true },
-                            style = MobileButtonStyle.TEXT,
+                            small = true,
                         )
                     }
                 }
             }
             OpenSubtitlesViewModel.UiState.Busy -> settingsNote(R.string.player_subtitles_contacting)
             OpenSubtitlesViewModel.UiState.SignedOut -> item(key = "os-sign-in") {
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.player_subtitles_sign_in),
                     subtitle = stringResource(R.string.player_subtitles_connect_description),
                     onClick = { showSignIn = true },
@@ -147,37 +148,27 @@ fun SettingsOpenSubtitlesPage(
         settingsSection(R.string.settings_open_subtitles_advanced)
         settingsNote(R.string.settings_open_subtitles_advanced_description)
         settingsGroup(key = "os-fields") {
+            StageTextRow(MobileIcons.Lock, stringResource(R.string.settings_open_subtitles_api_key), key, { key = it }, password = true)
+            StageTextRow(MobileIcons.Translate, stringResource(R.string.settings_worker_server_url), url, { url = it })
             Column(Modifier.padding(horizontal = MobileDimens.ScreenPaddingH)) {
-                MobileTextField(
-                    value = key,
-                    onValueChange = { key = it },
-                    label = stringResource(R.string.settings_open_subtitles_api_key),
-                    isPassword = true,
-                    imeAction = ImeAction.Next,
-                )
-                MobileTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = stringResource(R.string.settings_worker_server_url),
-                )
-                MobileButton(
+                StageButton(
                     text = stringResource(R.string.common_save),
                     onClick = {
                         vm.edit { setOpenSubtitlesApiKey(key); setOpenSubtitlesServerUrl(url) }
                         accountVm.refresh()
                     },
                     modifier = Modifier.padding(vertical = MobileDimens.GapSmall),
+                    style = StageButtonStyle.PRIMARY,
                 )
                 // Back to the shared service in one press; emptying two fields by hand is easy to
                 // get half-right, and half-right here means every search fails.
                 if (storedKey.isNotBlank() || storedUrl.isNotBlank()) {
-                    MobileButton(
+                    StageButton(
                         text = stringResource(R.string.settings_remove_custom_access),
                         onClick = {
                             key = ""; url = ""
                             vm.edit { setOpenSubtitlesApiKey(""); setOpenSubtitlesServerUrl("") }
                         },
-                        style = MobileButtonStyle.SECONDARY,
                         modifier = Modifier.padding(bottom = MobileDimens.GapSmall),
                     )
                 }
@@ -185,10 +176,11 @@ fun SettingsOpenSubtitlesPage(
         }
 
         settingsSection(R.string.player_subtitles_search) {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.player_subtitles_filter_title),
                 subtitle = stringResource(R.string.player_subtitles_filter_description),
-                value = stringResource(if (filterEnabled) R.string.common_on else R.string.common_off),
+                role = Role.Switch,
+                // On / off: a switch; the whole row flips it.
                 onClick = {
                     // Turning the filter on with nothing chosen would silently behave like "off",
                     // so seed it from the device's language, falling back to English.
@@ -197,22 +189,21 @@ fun SettingsOpenSubtitlesPage(
                     }
                     vm.edit { setSubSearchFilterEnabled(!filterEnabled) }
                 },
-            )
+            ) { StageSwitch(filterEnabled) }
         }
         if (filterEnabled) {
             settingsGroup(key = "os-language") {
-                SettingRow(
+                StageSettingRow(
                     title = stringResource(R.string.player_subtitles_search_language),
                     subtitle = stringResource(R.string.player_subtitles_search_language_description),
-                    value = subSearchLanguages().firstOrNull { it.first == searchLang }?.second
-                        ?: stringResource(R.string.player_subtitles_language_not_set),
                     onClick = { showLangPicker = true },
-                )
+                ) { StageRowValue(subSearchLanguages().firstOrNull { it.first == searchLang }?.second
+                        ?: stringResource(R.string.player_subtitles_language_not_set), StageChevron.DOWN) }
             }
         }
 
         settingsSection(R.string.player_subtitles_downloads) {
-            SettingRow(
+            StageSettingRow(
                 title = stringResource(R.string.player_subtitles_delete_action),
                 subtitle = stringResource(R.string.player_subtitles_delete_description),
                 onClick = { showDelete = true },
@@ -282,43 +273,36 @@ private fun SignInDialog(
     var user by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var stay by remember { mutableStateOf(true) }
-    androidx.compose.material3.AlertDialog(
-        modifier = Modifier.glassDialogWindow(),
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.player_subtitles_sign_in_title)) },
-        text = {
-            Column {
-                Text(stringResource(R.string.player_subtitles_sign_in_to_use))
-                MobileTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    label = stringResource(R.string.player_subtitles_username),
-                    imeAction = ImeAction.Next,
-                )
-                MobileTextField(
-                    value = pass,
-                    onValueChange = { pass = it },
-                    label = stringResource(R.string.player_subtitles_password),
-                    isPassword = true,
-                )
-                SettingRow(
-                    title = stringResource(R.string.player_subtitles_stay_signed_in),
-                    value = stringResource(if (stay) R.string.common_on else R.string.common_off),
-                    onClick = { stay = !stay },
-                )
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onSubmit(user, pass, stay) }) {
-                Text(stringResource(R.string.player_subtitles_sign_in))
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.common_cancel))
-            }
-        },
-    )
+    // A Stage sheet: what OpenSubtitles asks for, then Sign in / Cancel.
+    tv.own.owntv.mobile.ui.components.MobileBottomSheet(onDismissRequest = onDismiss) {
+        tv.own.owntv.mobile.ui.stage.StageSheetHeader(stringResource(R.string.player_subtitles_sign_in_title))
+        SheetText(stringResource(R.string.player_subtitles_sign_in_to_use))
+        Column(Modifier.padding(horizontal = 6.dp)) {
+            StageField(
+                value = user,
+                onValueChange = { user = it },
+                label = stringResource(R.string.player_subtitles_username),
+                imeAction = ImeAction.Next,
+            )
+            StageField(
+                value = pass,
+                onValueChange = { pass = it },
+                label = stringResource(R.string.player_subtitles_password),
+                password = true,
+            )
+        }
+        StageSettingRow(
+            title = stringResource(R.string.player_subtitles_stay_signed_in),
+            role = Role.Switch,
+            onClick = { stay = !stay },
+        ) { StageSwitch(stay) }
+        tv.own.owntv.mobile.ui.components.StageConfirmItems(
+            confirm = stringResource(R.string.player_subtitles_sign_in),
+            confirmEnabled = user.isNotBlank() && pass.isNotBlank(),
+            onConfirm = { onSubmit(user, pass, stay) },
+            onDismiss = onDismiss,
+        )
+    }
 }
 
 /**

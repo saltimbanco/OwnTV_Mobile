@@ -1,102 +1,98 @@
 package tv.own.owntv.mobile.ui.setup
 
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalAutofillManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import tv.own.owntv.core.brand.AppIcon
-import tv.own.owntv.mobile.ui.components.AppIconPicker
-import tv.own.owntv.mobile.ui.components.BrandLockup
 import tv.own.owntv.core.database.entity.SourceEntity
 import tv.own.owntv.core.i18n.LocaleStore
 import tv.own.owntv.core.i18n.SupportedLocales
+import tv.own.owntv.core.profile.PROFILE_AVATAR_COUNT
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.theme.FontCustomization
 import tv.own.owntv.core.theme.UiFontScale
 import tv.own.owntv.core.theme.UiZoom
 import tv.own.owntv.mobile.R
+import tv.own.owntv.mobile.ui.components.BrandMark
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
-import tv.own.owntv.mobile.ui.components.MobileButton
-import tv.own.owntv.mobile.ui.components.MobileButtonStyle
 import tv.own.owntv.mobile.ui.components.MobileIcons
-import tv.own.owntv.mobile.ui.components.MobileListRow
-import tv.own.owntv.mobile.ui.screens.settings.SettingsSlider
-import tv.own.owntv.mobile.ui.screens.settings.stepsFor
-import tv.own.owntv.mobile.ui.theme.MobileDimens
-import tv.own.owntv.mobile.ui.theme.glassDialogWindow
+import tv.own.owntv.mobile.ui.components.sheetListHeight
+import tv.own.owntv.mobile.ui.profiles.ProfileAvatar
+import tv.own.owntv.mobile.ui.screens.settings.AppIconSheet
+import tv.own.owntv.mobile.ui.screens.settings.RemoteSourceSheet
+import tv.own.owntv.mobile.ui.screens.settings.SettingsChoice
+import tv.own.owntv.mobile.ui.screens.settings.StageChoiceSheet
+import tv.own.owntv.mobile.ui.screens.settings.StageConfirmSheet
+import tv.own.owntv.mobile.ui.stage.StageTextRow
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageChevron
+import tv.own.owntv.mobile.ui.stage.StageRowValue
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageStepper
+import tv.own.owntv.mobile.ui.stage.StageSwitch
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 
 /**
- * The first-run wizard's own steps, in the television's order and with its words.
- *
- * The television's sequence is Welcome → Disclaimer → Setup choice → Create profile → Add content →
- * (a new playlist, an existing one, or a backup) → Importing, and this is the same sequence read down
- * a phone instead of across a ten-foot screen: the TV's side-by-side `ChoiceCard`s become rows,
- * because two cards side by side on a 360dp screen are two cards nobody can read.
- *
- * Two of the television's steps are deliberately absent, and their absence is the point rather than
- * an omission: **"Add source chooser"** and **"Import backup chooser"** exist only to offer *type it
- * on your phone* beside *type it here*, and the first of those has no meaning when the phone **is**
- * the device. Each chooser would be one card wide, so the flow goes straight to the form.
+ * The first-run wizard's own steps, the TV's sequence and words, each in a [WizardFrame]:
+ * Welcome → Display → Before you start → Set up OwnTV → Who's watching? → Add a playlist. The TV's chooser
+ * for a backup has no step here: a phone has its own file picker, so Restore goes straight to it.
  */
 
-/** Step 1 — the app's name, what it is, and the language everything after this is written in. */
+/** The language as a row (a tap opens the list), then Get started. */
 @Composable
 fun WelcomeStep(onNext: () -> Unit) {
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_welcome_to),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        // The stacked logo, as on the mockup's phone Welcome screen, in the colour the launcher shows.
-        BrandLockup(markSize = 64, textSize = 26, stacked = true)
-        Text(
-            text = stringResource(R.string.setup_welcome_tagline),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapMedium))
-        // The television offers the language here too, and it must be here rather than in Settings:
-        // every screen after this one is text, and a user who cannot read the disclaimer cannot agree
-        // to it. Setting it restarts the activity, which is why nothing is lost by it being first.
+    WizardFrame(
+        step = WizardStep.LANGUAGE,
+        title = stringResource(R.string.setup_welcome_title),
+        sub = stringResource(R.string.setup_welcome_sub),
+        next = stringResource(R.string.setup_get_started),
+        onNext = onNext,
+        onBack = null,
+    ) {
+        // Here and not only in Settings: every screen after this one is text, and a user who cannot read the
+        // disclaimer cannot agree to it.
         FirstRunLanguageRow()
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        MobileButton(text = stringResource(R.string.setup_get_started), onClick = onNext)
     }
 }
 
 /**
- * Step 2 — how big everything is, before the first screen that is mostly words (#179).
- *
- * The two settings are the ones the Appearance and Fonts pages edit, written straight through, so a
- * choice made here is the app's from now on. `MobileTheme` scales every dp and sp from these same
- * values, which is what makes this screen resize under the finger as the slider moves — the sample
- * line below the sliders is the point of the step, not decoration.
- *
- * Zoom offers its whole range, the same one the Appearance page offers. Below
- * [UiZoom.LOW_RAM_WARN] a screen holds enough extra items to exhaust a small-memory device, so
- * crossing that line raises the same accept-the-risk prompt Settings raises — asked once, on the
- * drag that crosses it, and not again for the rest of the visit.
+ * How big everything is, before the first screen that is mostly words: UI zoom and Font size as
+ * steppers, written straight through — `MobileTheme` scales the whole step under the finger — the app icon, and
+ * the sample row to judge them by. Below [UiZoom.LOW_RAM_WARN] the same accept-the-risk question Settings asks
+ * comes first, once per visit.
  */
 @Composable
 fun DisplaySizeStep(onNext: () -> Unit, onBack: () -> Unit) {
@@ -107,265 +103,317 @@ fun DisplaySizeStep(onNext: () -> Unit, onBack: () -> Unit) {
     val appIcon by settings.appIcon.collectAsStateWithLifecycle(AppIcon.DEFAULT)
     var pendingLowZoom by remember { mutableStateOf<Int?>(null) }
     var lowZoomAccepted by remember { mutableStateOf(zoom < UiZoom.LOW_RAM_WARN) }
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_display_size_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.setup_display_size_description),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        // Zoom first: it scales the font row below it too, so it is the coarse control and often
-        // the only one that needs touching.
-        SettingsSlider(
-            title = stringResource(R.string.settings_ui_zoom),
-            value = zoom,
-            range = UiZoom.MIN..UiZoom.MAX,
-            steps = stepsFor(UiZoom.MIN, UiZoom.MAX, UiZoom.STEP),
-            onValueChange = { raw ->
-                val pct = UiZoom.clamp(raw)
-                if (pct < UiZoom.LOW_RAM_WARN && !lowZoomAccepted) {
-                    pendingLowZoom = pct
-                } else {
-                    scope.launch { settings.setUiZoomPercent(pct) }
-                }
-            },
-        )
-        SettingsSlider(
-            title = stringResource(R.string.settings_font_size),
-            value = fonts.sizePercent,
-            range = UiFontScale.MIN..UiFontScale.MAX,
-            steps = stepsFor(UiFontScale.MIN, UiFontScale.MAX, UiFontScale.STEP),
-            onValueChange = { raw ->
-                scope.launch {
-                    settings.setFontCustomization(fonts.copy(sizePercent = UiFontScale.clamp(raw)))
-                }
-            },
-        )
-        // No restart prompt here: the pick applies as soon as the app is next in the background.
-        Text(
-            text = stringResource(R.string.settings_app_icon),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        AppIconPicker(selected = appIcon, onPick = { scope.launch { settings.setAppIcon(it) } })
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        Text(
-            text = stringResource(R.string.setup_display_size_preview),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        MobileButton(text = stringResource(R.string.setup_continue), onClick = onNext)
-        MobileButton(
-            text = stringResource(R.string.settings_reset),
-            onClick = {
-                scope.launch {
-                    settings.setUiZoomPercent(UiZoom.DEFAULT)
-                    settings.setFontCustomization(fonts.copy(sizePercent = UiFontScale.DEFAULT))
-                }
-            },
-            style = MobileButtonStyle.TEXT,
-        )
-        MobileButton(
-            text = stringResource(R.string.common_back),
-            onClick = onBack,
-            style = MobileButtonStyle.TEXT,
-        )
+    var pickIcon by remember { mutableStateOf(false) }
+    val setZoom: (Int) -> Unit = { raw ->
+        val pct = UiZoom.clamp(raw)
+        if (pct < UiZoom.LOW_RAM_WARN && !lowZoomAccepted) pendingLowZoom = pct else scope.launch { settings.setUiZoomPercent(pct) }
+    }
+    val resetSize: () -> Unit = {
+        scope.launch {
+            settings.setUiZoomPercent(UiZoom.DEFAULT)
+            settings.setFontCustomization(fonts.copy(sizePercent = UiFontScale.DEFAULT))
+        }
+    }
+    val setFont: (Int) -> Unit = { raw -> scope.launch { settings.setFontCustomization(fonts.copy(sizePercent = UiFontScale.clamp(raw))) } }
+    WizardFrame(
+        step = WizardStep.DISPLAY,
+        title = stringResource(R.string.setup_display_size_title),
+        sub = stringResource(R.string.setup_display_sub_mobile),
+        next = stringResource(R.string.setup_continue),
+        onNext = onNext,
+        onBack = onBack,
+        extraLeft = listOf(stringResource(R.string.settings_reset) to resetSize),
+    ) {
+        StageSettingRow(title = stringResource(R.string.settings_ui_zoom), icon = MobileIcons.OpenInFull, subtitle = stringResource(R.string.setup_line_zoom), role = null) {
+            StageStepper(
+                stringResource(R.string.settings_surface_transparency, zoom),
+                onMinus = { setZoom(zoom - UiZoom.STEP) },
+                onPlus = { setZoom(zoom + UiZoom.STEP) },
+                minusEnabled = zoom > UiZoom.MIN,
+                plusEnabled = zoom < UiZoom.MAX,
+            )
+        }
+        StageSettingRow(title = stringResource(R.string.settings_font_size), icon = MobileIcons.Edit, subtitle = stringResource(R.string.setup_line_font), role = null) {
+            StageStepper(
+                stringResource(R.string.settings_surface_transparency, fonts.sizePercent),
+                onMinus = { setFont(fonts.sizePercent - UiFontScale.STEP) },
+                onPlus = { setFont(fonts.sizePercent + UiFontScale.STEP) },
+                minusEnabled = fonts.sizePercent > UiFontScale.MIN,
+                plusEnabled = fonts.sizePercent < UiFontScale.MAX,
+            )
+        }
+        StageSettingRow(
+            title = stringResource(R.string.settings_app_icon),
+            icon = MobileIcons.Palette,
+            subtitle = stringResource(R.string.setup_line_app_icon_mobile),
+            onClick = { pickIcon = true },
+        ) { AppIconSwatches(appIcon) }
+        // The sample: a row's own type at the size it will really be.
+        val palette = LocalStagePalette.current
+        Row(
+            Modifier
+                .padding(top = 6.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(palette.ink.copy(alpha = 0.045f))
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.settings_panel_width_preview).uppercase(), style = stageText(10.5f, 800, letterSpacing = androidx.compose.ui.unit.TextUnit(0.12f, androidx.compose.ui.unit.TextUnitType.Em)), color = palette.dim)
+            Text(stringResource(R.string.home_row_now_trending), style = stageText(13f, 700), color = palette.text, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text(stringResource(R.string.common_on), style = stageText(12f, 700), color = stageAccent.accent)
+        }
     }
 
-    // The same prompt the Appearance page raises, for the same reason (#51): below the warning
-    // point a small-memory device can run out of memory. Cancel leaves the zoom untouched.
+    // No restart question: nothing is on the home screen yet, and the pick applies once the app is in the background.
+    if (pickIcon) {
+        AppIconSheet(chosen = appIcon, onPick = { scope.launch { settings.setAppIcon(it) } }, onDismiss = { pickIcon = false }, askRestart = false)
+    }
     pendingLowZoom?.let { target ->
-        AlertDialog(
-            modifier = Modifier.glassDialogWindow(),
-            onDismissRequest = { pendingLowZoom = null },
-            title = { Text(stringResource(R.string.settings_low_zoom_warning_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.settings_low_zoom_warning_mobile,
-                        UiZoom.LOW_RAM_WARN,
-                        UiZoom.LOW_RAM_WARN,
-                    ),
-                )
+        StageConfirmSheet(
+            title = stringResource(R.string.settings_low_zoom_warning_title),
+            text = stringResource(R.string.settings_low_zoom_warning_mobile, UiZoom.LOW_RAM_WARN, UiZoom.LOW_RAM_WARN),
+            confirm = stringResource(R.string.settings_low_zoom_accept),
+            onConfirm = {
+                lowZoomAccepted = true
+                scope.launch { settings.setUiZoomPercent(target) }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        lowZoomAccepted = true
-                        pendingLowZoom = null
-                        scope.launch { settings.setUiZoomPercent(target) }
-                    },
-                ) { Text(stringResource(R.string.settings_low_zoom_accept)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingLowZoom = null }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            },
+            onDismiss = { pendingLowZoom = null },
         )
     }
 }
 
-/** Step 3 — what the app is not: it ships no channels, and the user brings their own sources. */
+/** The App icon row's value: five icons from the chosen one's set, the chosen one ringed. */
+@Composable
+private fun AppIconSwatches(chosen: AppIcon) {
+    val accent = stageAccent.accent
+    val shown = (AppIcon.entries.take(5) + chosen).distinct().takeLast(5)
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        shown.forEach { icon ->
+            Box(
+                Modifier
+                    .size(18.dp)
+                    .then(if (icon == chosen) Modifier.border(1.5.dp, accent, RoundedCornerShape(6.dp)) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) { BrandMark(icon, 16.dp, Modifier.clip(RoundedCornerShape(5.dp)), followAccent = false) }
+        }
+    }
+}
+
+/** What the app is not — it ships no channels, the user brings their own sources. */
 @Composable
 fun DisclaimerStep(onAgree: () -> Unit, onBack: () -> Unit) {
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_before_you_start),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.setup_disclaimer),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        MobileButton(text = stringResource(R.string.setup_i_understand), onClick = onAgree)
-        MobileButton(
-            text = stringResource(R.string.common_back),
-            onClick = onBack,
-            style = MobileButtonStyle.TEXT,
-        )
+    WizardFrame(
+        step = WizardStep.DISPLAY,
+        title = stringResource(R.string.setup_before_you_start),
+        sub = stringResource(R.string.setup_disclaimer),
+        next = stringResource(R.string.setup_i_understand),
+        onNext = onAgree,
+        onBack = onBack,
+    )
+}
+
+/**
+ * Start fresh, or bring everything back. Restoring first is why the profile step comes after this one — a
+ * restore brings its own profiles.
+ */
+@Composable
+fun SetupChoiceStep(onCreateProfile: () -> Unit, onRestore: () -> Unit, onSyncDevice: () -> Unit, onBack: () -> Unit) {
+    WizardFrame(
+        step = WizardStep.PROFILE,
+        title = stringResource(R.string.setup_set_up_owntv),
+        sub = stringResource(R.string.setup_setup_choice_description),
+        next = null,
+        onNext = {},
+        onBack = onBack,
+    ) {
+        WizardCard(MobileIcons.Person, stringResource(R.string.setup_new_profile), stringResource(R.string.setup_create_profile_add_sources), onCreateProfile)
+        // The phone restores from a file it picks itself; Remote restore lives on the Backup page.
+        WizardCard(MobileIcons.Download, stringResource(R.string.setup_restore_a_backup), stringResource(R.string.setup_import_profiles_playlists), onRestore)
+        WizardCard(MobileIcons.Phone, stringResource(R.string.setup_sync_device), stringResource(R.string.setup_sync_device_description), onSyncDevice)
     }
 }
 
 /**
- * Step 5 — where the content comes from.
- *
- * [hasExisting] is false on a genuinely new install, and the row is then not drawn at all: offering
- * to reuse another profile's playlists when there are no other profiles is an empty promise.
+ * Who's watching?: Name, Avatar (the letter first, a tap opens the pictures), Kids profile and an optional
+ * PIN, then Create profile. A blank name becomes the default one, as it always has on the phone. A
+ * picture of the user's own is held until Create: before then there is no profile to store it under.
+ */
+@Composable
+fun ProfileStep(onCreate: (name: String, avatarId: Int, isKids: Boolean, pin: String?, picture: android.net.Uri?) -> Unit, onBack: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var avatarId by remember { mutableIntStateOf(-1) }
+    var isKids by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var pickAvatar by remember { mutableStateOf(false) }
+    var picture by remember { mutableStateOf<android.net.Uri?>(null) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri -> if (uri != null) picture = uri }
+    // A password manager must not offer to save a profile PIN.
+    val autofill = LocalAutofillManager.current
+    WizardFrame(
+        step = WizardStep.PROFILE,
+        title = stringResource(R.string.profiles_gate_title),
+        sub = stringResource(R.string.setup_profile_sub),
+        next = stringResource(R.string.setup_create_profile),
+        onNext = { autofill?.cancel(); onCreate(name, avatarId, isKids, pin.takeIf { it.isNotBlank() }, picture) },
+        nextEnabled = pin.isEmpty() || pin.length >= PIN_MIN,
+        onBack = onBack,
+    ) {
+        StageTextRow(MobileIcons.Edit, stringResource(R.string.profiles_name), name, { name = it }, placeholder = stringResource(R.string.profiles_name_hint))
+        StageSettingRow(
+            title = stringResource(R.string.setup_avatar),
+            icon = MobileIcons.Person,
+            subtitle = stringResource(R.string.setup_avatar_line),
+            onClick = { pickAvatar = true },
+        ) { AvatarStrip(avatarId) }
+        StageSettingRow(
+            title = stringResource(R.string.profiles_avatar_own_picture),
+            icon = MobileIcons.Person,
+            onClick = {
+                picker.launch(
+                    androidx.activity.result.PickVisualMediaRequest(
+                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                    ),
+                )
+            },
+        ) {
+            picture?.let { ProfileAvatar(avatarId = avatarId, imagePath = it.toString(), modifier = Modifier.size(28.dp).clip(CircleShape)) }
+        }
+        StageSettingRow(
+            title = stringResource(R.string.profiles_kids),
+            icon = MobileIcons.FavoriteBorder,
+            subtitle = stringResource(R.string.profiles_kids_description),
+            onClick = { isKids = !isKids },
+            role = Role.Switch,
+        ) { StageSwitch(isKids) }
+        StageTextRow(
+            MobileIcons.Edit,
+            stringResource(R.string.profiles_optional_pin),
+            pin,
+            { typed -> pin = typed.filter(Char::isDigit).take(PIN_MAX) },
+            placeholder = stringResource(R.string.profiles_pin_digits),
+            password = true,
+            keyboardType = KeyboardType.NumberPassword,
+        )
+    }
+    if (pickAvatar) AvatarSheet(avatarId, onPick = { avatarId = it; pickAvatar = false }, onDismiss = { pickAvatar = false })
+}
+
+/** The Avatar row's value: five pictures from the chosen one on, the chosen one ringed. */
+@Composable
+private fun AvatarStrip(chosen: Int) {
+    val accent = stageAccent.accent
+    val ids = (-1 until PROFILE_AVATAR_COUNT).toList()
+    val start = ids.indexOf(chosen).coerceAtLeast(0)
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(5) { k ->
+            val id = ids[(start + k) % ids.size]
+            Box(
+                Modifier.size(18.dp).then(if (id == chosen) Modifier.border(1.5.dp, accent, CircleShape) else Modifier),
+                contentAlignment = Alignment.Center,
+            ) { ProfileAvatar(avatarId = id, modifier = Modifier.size(16.dp).clip(CircleShape)) }
+        }
+    }
+}
+
+/** Every picture, the letter first; a tap picks and closes. */
+@Composable
+private fun AvatarSheet(chosen: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val accent = stageAccent.accent
+    MobileBottomSheet(onDismissRequest = onDismiss) {
+        StageSheetHeader(stringResource(R.string.setup_avatar))
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(64.dp),
+            modifier = Modifier.heightIn(max = sheetListHeight()).padding(horizontal = 10.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(PROFILE_AVATAR_COUNT + 1) { index ->
+                val id = index - 1
+                Box(
+                    Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .then(if (id == chosen) Modifier.border(2.dp, accent, CircleShape) else Modifier)
+                        .clickable(role = Role.RadioButton) { onPick(id) }
+                        .padding(4.dp),
+                ) { ProfileAvatar(avatarId = id, modifier = Modifier.size(56.dp).clip(CircleShape)) }
+            }
+        }
+    }
+}
+
+/**
+ * Add a playlist: Remote first (a phone keyboard is slow for addresses too), Type it here, Existing when
+ * another profile has playlists, Import, then Skip for now.
  */
 @Composable
 fun AddContentStep(
+    vm: SetupViewModel,
     hasExisting: Boolean,
+    onRemoteReceived: () -> Unit,
     onNew: () -> Unit,
     onExisting: () -> Unit,
     onImport: () -> Unit,
     onSkip: () -> Unit,
     onBack: (() -> Unit)?,
 ) {
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_add_playlist),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.setup_add_playlist_description),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        MobileListRow(
-            title = stringResource(R.string.setup_new),
-            subtitle = stringResource(R.string.setup_add_m3u_xtream),
-            leading = { Icon(MobileIcons.PlaylistAdd, contentDescription = null) },
-            onClick = onNew,
-        )
+    var remote by remember { mutableStateOf(false) }
+    WizardFrame(
+        step = WizardStep.PLAYLIST,
+        title = stringResource(R.string.setup_add_playlist),
+        sub = stringResource(R.string.setup_add_playlist_description),
+        next = null,
+        onNext = {},
+        onBack = onBack,
+    ) {
+        WizardCard(MobileIcons.Translate, stringResource(R.string.setup_from_phone), stringResource(R.string.setup_phone_card_line)) {
+            vm.consumeRemotePayload()
+            vm.startRemote()
+            remote = true
+        }
+        WizardCard(MobileIcons.Edit, stringResource(R.string.settings_add_type_here), stringResource(R.string.settings_line_add_type_here_mobile)) {
+            vm.consumeRemotePayload()
+            onNew()
+        }
         if (hasExisting) {
-            MobileListRow(
-                title = stringResource(R.string.setup_existing),
-                subtitle = stringResource(R.string.setup_use_other_profile_playlists),
-                leading = { Icon(MobileIcons.PlaylistPlay, contentDescription = null) },
-                onClick = onExisting,
-            )
+            WizardCard(MobileIcons.Layers, stringResource(R.string.setup_existing), stringResource(R.string.setup_use_other_profile_playlists), onExisting)
         }
-        MobileListRow(
-            title = stringResource(R.string.setup_import),
-            subtitle = stringResource(R.string.setup_restore_backup_file),
-            leading = { Icon(MobileIcons.Restore, contentDescription = null) },
-            onClick = onImport,
-        )
-        MobileButton(
-            text = stringResource(R.string.setup_skip_for_now),
-            onClick = onSkip,
-            style = MobileButtonStyle.TEXT,
-        )
-        if (onBack != null) {
-            MobileButton(
-                text = stringResource(R.string.common_back),
-                onClick = onBack,
-                style = MobileButtonStyle.TEXT,
-            )
-        }
+        WizardCard(MobileIcons.Folder, stringResource(R.string.setup_import), stringResource(R.string.setup_restore_backup_file), onImport)
+        WizardLink(stringResource(R.string.setup_skip_for_now), onSkip)
     }
+    if (remote) RemoteSourceSheet(vm, onReceived = { remote = false; onRemoteReceived() }, onDismiss = { remote = false })
 }
 
-/** Step 5a — playlists another profile already has, shared rather than downloaded a second time. */
+/** Playlists another profile already has, shared rather than downloaded a second time: a switch each. */
 @Composable
-fun ExistingSourcesStep(
-    sources: List<SourceEntity>,
-    onAdd: (Set<Long>) -> Unit,
-    onBack: () -> Unit,
-) {
+fun ExistingSourcesStep(sources: List<SourceEntity>, onAdd: (Set<Long>) -> Unit, onBack: () -> Unit) {
     var selected by remember { mutableStateOf(setOf<Long>()) }
-    SetupPage {
-        Text(
-            text = stringResource(R.string.setup_use_existing_playlists),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = stringResource(R.string.setup_pick_playlists),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        // Bounded, or a user with twenty shared playlists cannot reach the button under the list.
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = ExistingListMaxHeight)) {
-            items(sources, key = { it.id }) { source ->
-                val checked = source.id in selected
-                MobileListRow(
-                    title = source.name,
-                    subtitle = source.url,
-                    leading = {
-                        Icon(
-                            imageVector = if (checked) MobileIcons.Check else MobileIcons.PlaylistPlay,
-                            contentDescription = null,
-                            tint = if (checked) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    },
-                    onClick = {
-                        selected = if (checked) selected - source.id else selected + source.id
-                    },
-                )
-            }
+    WizardFrame(
+        step = WizardStep.PLAYLIST,
+        title = stringResource(R.string.setup_use_existing_playlists),
+        sub = stringResource(R.string.setup_pick_playlists),
+        next = pluralStringResource(R.plurals.setup_add_selected_playlists, selected.size, selected.size),
+        onNext = { onAdd(selected) },
+        nextEnabled = selected.isNotEmpty(),
+        onBack = onBack,
+    ) {
+        sources.forEach { source ->
+            val checked = source.id in selected
+            // The name only: an address can carry a user name and password.
+            StageSettingRow(
+                title = source.name,
+                icon = MobileIcons.PlaylistPlay,
+                onClick = { selected = if (checked) selected - source.id else selected + source.id },
+                role = Role.Switch,
+            ) { StageSwitch(checked) }
         }
-        Spacer(Modifier.height(MobileDimens.GapSmall))
-        MobileButton(
-            text = pluralStringResource(
-                R.plurals.setup_add_selected_playlists,
-                selected.size,
-                selected.size,
-            ),
-            onClick = { onAdd(selected) },
-            enabled = selected.isNotEmpty(),
-        )
-        MobileButton(
-            text = stringResource(R.string.common_back),
-            onClick = onBack,
-            style = MobileButtonStyle.TEXT,
-        )
     }
 }
 
-/**
- * The language, on the very first screen.
- *
- * A row that opens the list rather than the Settings page's searchable wall: there are twenty-six of
- * them, but a first-run user is picking their own, which they will recognise on sight.
- */
+/** The language row: "All 26 languages" under it, the chosen one on the right; a tap opens the list. */
 @Composable
 private fun FirstRunLanguageRow(localeStore: LocaleStore = koinInject()) {
     val scope = rememberCoroutineScope()
@@ -374,42 +422,25 @@ private fun FirstRunLanguageRow(localeStore: LocaleStore = koinInject()) {
     val systemLabel = stringResource(R.string.settings_language_system_default)
     val rows = remember { SupportedLocales.pickerRows.sortedBy { it.englishName } }
     val label = rows.firstOrNull { it.languageTag == current }?.endonym ?: systemLabel
-
-    MobileListRow(
+    StageSettingRow(
         title = stringResource(R.string.settings_language),
-        subtitle = label,
-        leading = { Icon(MobileIcons.Translate, contentDescription = null) },
+        icon = MobileIcons.Translate,
+        subtitle = pluralStringResource(R.plurals.setup_languages_all, rows.size, rows.size),
         onClick = { open = true },
-    )
+    ) { StageRowValue(label, StageChevron.DOWN) }
     if (open) {
-        MobileBottomSheet(
-            onDismissRequest = { open = false },
+        val choices = listOf(SettingsChoice("", systemLabel)) + rows.map { SettingsChoice(it.languageTag, it.endonym, it.englishName) }
+        StageChoiceSheet(
+            eyebrow = null,
             title = stringResource(R.string.settings_language),
-        ) {
-            LazyColumn(Modifier.heightIn(max = LanguageSheetMaxHeight)) {
-                item(key = "system") {
-                    MobileListRow(
-                        title = systemLabel,
-                        onClick = {
-                            scope.launch { runCatching { localeStore.set("") } }
-                            open = false
-                        },
-                    )
-                }
-                items(rows, key = { it.languageTag }) { row ->
-                    MobileListRow(
-                        title = row.endonym,
-                        subtitle = row.englishName,
-                        onClick = {
-                            scope.launch { runCatching { localeStore.set(row.languageTag) } }
-                            open = false
-                        },
-                    )
-                }
-            }
-        }
+            text = null,
+            choices = choices,
+            selected = current.takeIf { tag -> rows.any { it.languageTag == tag } }.orEmpty(),
+            onSelect = { tag -> scope.launch { runCatching { localeStore.set(tag) } } },
+            onDismiss = { open = false },
+        )
     }
 }
 
-private val ExistingListMaxHeight = 320.dp
-private val LanguageSheetMaxHeight = 420.dp
+private const val PIN_MIN = 4
+private const val PIN_MAX = 6

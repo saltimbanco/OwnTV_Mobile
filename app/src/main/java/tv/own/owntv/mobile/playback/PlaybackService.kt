@@ -74,7 +74,7 @@ class PlaybackService : Service() {
         // Post once, synchronously, before anything can await a network image: a service that has not
         // called startForeground() within a few seconds of being started is killed outright.
         val local = tuner.currentEngine
-        startForeground(build(Shown(local.currentMeta.value, local.isPlaying.value, local.audioOnly.value)))
+        startForeground(build(Shown(local.currentMeta.value, local.isPlaying.value, local.audioOnly.value, local.isLiveContent)))
         // Whichever engine has the stream. While casting the notification must read the receiver, or
         // it would sit there saying paused at 00:00 for something playing perfectly well next door.
         //
@@ -86,12 +86,12 @@ class PlaybackService : Service() {
                 if (remote == null) {
                     tuner.activeEngine.flatMapLatest { here ->
                         combine(here.currentMeta, here.isPlaying, here.audioOnly) { meta, playing, audioOnly ->
-                            Shown(meta, playing, audioOnly)
+                            Shown(meta, playing, audioOnly, here.isLiveContent)
                         }
                     }
                 } else {
                     combine(remote.currentMeta, remote.isPlaying, cast.deviceName) { meta, playing, device ->
-                        Shown(meta, playing, audioOnly = false, castingTo = device)
+                        Shown(meta, playing, audioOnly = false, live = remote.isLiveContent, castingTo = device)
                     }
                 }
             }
@@ -108,6 +108,8 @@ class PlaybackService : Service() {
         val meta: MediaMeta,
         val playing: Boolean,
         val audioOnly: Boolean,
+        /** Live has no ±10 s to skip — the buttons would only nudge the stream off the live edge. */
+        val live: Boolean,
         /** The receiver's name while casting, null while playing here. */
         val castingTo: String? = null,
     )
@@ -147,7 +149,7 @@ class PlaybackService : Service() {
     private fun localized(): Context = AppLocale.wrap(this, localeStore.currentTag.value)
 
     private fun build(shown: Shown): Notification {
-        val (meta, playing, audioOnly, castingTo) = shown
+        val (meta, playing, audioOnly, live, castingTo) = shown
         val ctx = localized()
         ensureChannel(ctx)
         val builder = Notification.Builder(this, CHANNEL_ID)
@@ -176,27 +178,31 @@ class PlaybackService : Service() {
             .setOngoing(playing)
             .setOnlyAlertOnce(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .addAction(
+        if (!live) {
+            builder.addAction(
                 action(
                     android.R.drawable.ic_media_rew,
                     ctx.getString(R.string.player_skip_back),
                     ACTION_BACK,
                 ),
             )
-            .addAction(
-                action(
-                    if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                    ctx.getString(R.string.settings_remote_action_play_pause),
-                    ACTION_TOGGLE,
-                ),
-            )
-            .addAction(
+        }
+        builder.addAction(
+            action(
+                if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+                ctx.getString(R.string.settings_remote_action_play_pause),
+                ACTION_TOGGLE,
+            ),
+        )
+        if (!live) {
+            builder.addAction(
                 action(
                     android.R.drawable.ic_media_ff,
                     ctx.getString(R.string.player_skip_forward),
                     ACTION_FORWARD,
                 ),
             )
+        }
         // Nothing to offer once the picture is already off, and a chip that does nothing is worse
         // than one fewer chip. Casting is the same case: the picture is on the television, and there
         // is no local video output to drop.
@@ -219,8 +225,9 @@ class PlaybackService : Service() {
         art?.let { builder.setLargeIcon(it) }
         // The token is what the lock screen reads: title, position and the seek bar all come from the
         // session, so they cannot drift from what the player is actually doing.
-        // The collapsed row holds three: skip back, play/pause, skip forward.
-        val style = Notification.MediaStyle().setShowActionsInCompactView(0, 1, 2)
+        // The collapsed row holds three: skip back, play/pause, skip forward — on live, play/pause alone.
+        val style = Notification.MediaStyle()
+            .apply { if (live) setShowActionsInCompactView(0) else setShowActionsInCompactView(0, 1, 2) }
         session.token?.let { style.setMediaSession(it) }
         return builder.setStyle(style).build()
     }

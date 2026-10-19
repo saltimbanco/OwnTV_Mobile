@@ -1,193 +1,169 @@
 package tv.own.owntv.mobile.ui.screens.home
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableFloatState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import coil3.SingletonImageLoader
-import coil3.request.ImageRequest
-import coil3.size.Size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import kotlinx.coroutines.delay
-import tv.own.owntv.core.database.entity.MetadataCacheEntity
 import tv.own.owntv.core.home.TrendingHomeItem
 import tv.own.owntv.core.metadata.MetadataCast
 import tv.own.owntv.core.metadata.MetadataImages
+import tv.own.owntv.core.metadata.TrailerKeys
 import tv.own.owntv.core.trending.ProviderVariantParser
 import tv.own.owntv.mobile.R
-import tv.own.owntv.mobile.ui.components.MediaDetails
+import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileIcons
-import tv.own.owntv.mobile.ui.components.TmdbDetailsSheet
-import tv.own.owntv.mobile.ui.components.jsonList
 import tv.own.owntv.mobile.ui.screens.library.playTrailer
-import tv.own.owntv.mobile.ui.theme.MobileDimens
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
+import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageButtonStyle
+import tv.own.owntv.mobile.ui.stage.StageCastRow
+import tv.own.owntv.mobile.ui.stage.StageEyebrow
+import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageMenuItem
+import tv.own.owntv.mobile.ui.stage.StagePoster
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.stage.StageTag
+import tv.own.owntv.mobile.ui.stage.StageTitleArt
+import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 
-/**
- * Now Trending, as one hero card — the television's, in a portrait shape.
- *
- * Everything the TV shows is here and worded the same way: the rank, the badges, the sentence saying
- * why this item was picked, the same four buttons and the same ten-second rotation. The one thing a
- * phone cannot copy is the layout: the TV puts the poster, the copy and the "why" panel side by side
- * in three columns, and a portrait screen has room for one. So the same things are stacked instead,
- * and the "why" panel — the third column there — opens with a tap here rather than always standing
- * open. The TV pauses its clock while the buttons hold focus; here it pauses while a finger is on the
- * card, and a sideways swipe is a second way to move between items.
+/*
+ * Now Trending, Stage — the TV's hero turned upright. The backdrop is the page's,
+ * drawn by the shell behind the header (see HomeChrome); this file draws what sits over it: the eyebrow,
+ * the title art, one meta line, three lines of plot, Play · Trailer · versions · ⓘ · ♥ and the pager dots.
+ * A sideways swipe changes the title, the dots say where you are, and every 10 s the next one comes — not
+ * while a finger is on it. "Why this item appears" lives in the ⓘ sheet now, not on the card.
  */
-@OptIn(ExperimentalLayoutApi::class)
+
+/** "#3 in Trending · Movies". */
+@Composable
+fun trendingRank(item: TrendingHomeItem): String = stringResource(
+    R.string.home_trending_rank,
+    item.snapshot.trendingRank,
+    stringResource(if (item is TrendingHomeItem.Movie) R.string.common_nav_movies else R.string.common_nav_series),
+)
+
+/** The backdrop the page shows behind the hero: TMDB's, else the playlist's own picture. */
+fun trendingBackdrop(item: TrendingHomeItem): String? =
+    MetadataImages.backdrop(item.snapshot.backdropPath, size = "w1280")
+        ?: when (item) {
+            is TrendingHomeItem.Movie -> item.movie.backdropUrl ?: item.movie.posterUrl
+            is TrendingHomeItem.Series -> item.series.backdropUrl ?: item.series.posterUrl
+        }
+
+private fun trendingPoster(item: TrendingHomeItem): String? =
+    MetadataImages.poster(item.snapshot.posterPath, size = "w500")
+        ?: when (item) {
+            is TrendingHomeItem.Movie -> item.movie.posterUrl
+            is TrendingHomeItem.Series -> item.series.posterUrl
+        }
+
+/** The first trailer, when TMDB has one. */
+fun trendingTrailer(item: TrendingHomeItem): String? = TrailerKeys.split(item.snapshot.trailerKey).firstOrNull()
+
 @Composable
 fun TrendingHero(
     items: List<TrendingHomeItem>,
-    preferredLanguage: String,
-    seasonCounts: Map<Long, Int>,
-    onActivate: (TrendingHomeItem, onUnavailable: () -> Unit) -> Unit,
-    onOpenSearch: (String) -> Unit,
-    resolveDetails: suspend (TrendingHomeItem) -> HomeViewModel.TrendingDetails,
+    activeIndex: Int,
+    onIndexChange: (Int) -> Unit,
+    extras: HomeViewModel.TrendingExtras,
+    seasonCount: Int?,
+    favourite: Boolean,
+    unavailable: Boolean,
+    paused: Boolean,
+    topGap: Dp,
+    onPlay: () -> Unit,
+    onVersions: () -> Unit,
+    onInfo: () -> Unit,
+    onFavourite: () -> Unit,
+    onMenu: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (items.isEmpty()) return
-    // Saved, so turning the phone does not throw the rotation back to the first item. The TV keeps
-    // this in its view model; a phone's screen is the thing that gets rebuilt.
-    var activeIndex by rememberSaveable(items.size) { mutableIntStateOf(0) }
-    var manuallyPaused by remember { mutableStateOf(false) }
-    var touching by remember { mutableStateOf(false) }
-    var whyExpanded by remember { mutableStateOf(false) }
-    var resetClock by remember { mutableIntStateOf(0) }
-    // Held as State, not a value: the rotation driver below rewrites it ~12 times a second, and
-    // only the thin progress bar at the bottom reads it — a `by` here would recompose the whole
-    // hero (both pictures, gradients, badges, buttons) on every tick.
-    val progressState = remember { mutableFloatStateOf(0f) }
-    var unavailable by remember { mutableStateOf(false) }
-    var detailsFor by remember { mutableStateOf<TrendingHomeItem?>(null) }
     val item = items.getOrNull(activeIndex) ?: return
     val snapshot = item.snapshot
+    val palette = LocalStagePalette.current
     val context = LocalContext.current
+    var touching by remember { mutableStateOf(false) }
+    val index by rememberUpdatedState(activeIndex)
 
-    fun navigate(delta: Int) {
-        activeIndex = (activeIndex + delta + items.size) % items.size
-        progressState.floatValue = 0f
-        resetClock++
+    // The next title, every 10 s; a touch or an open sheet ([paused]) holds it, and letting go starts
+    // the 10 s again — the title never changes under a menu that is about it.
+    LaunchedEffect(activeIndex, touching, paused, items.size) {
+        if (touching || paused || items.size < 2) return@LaunchedEffect
+        delay(INTERVAL_MS)
+        onIndexChange((activeIndex + 1) % items.size)
     }
 
-    // A different item has its own availability and its own reason; neither carries over.
-    LaunchedEffect(activeIndex) {
-        unavailable = false
-        whyExpanded = false
-    }
-
-    LaunchedEffect(activeIndex, manuallyPaused, touching, resetClock, items.size) {
-        if (manuallyPaused || touching || items.size < 2) return@LaunchedEffect
-        val startProgress = progressState.floatValue.coerceIn(0f, 1f)
-        val duration = (INTERVAL_MS * (1f - startProgress)).toLong().coerceAtLeast(1L)
-        val startedAt = System.nanoTime()
-        while (true) {
-            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000L
-            progressState.floatValue = (startProgress + (1f - startProgress) * elapsedMs.toFloat() / duration).coerceIn(0f, 1f)
-            if (elapsedMs >= duration) break
-            delay(TICK_MS)
-        }
-        progressState.floatValue = 0f
-        activeIndex = (activeIndex + 1) % items.size
-    }
-
-    // The rotation shows the next item in ten seconds: warm its two pictures now, so the
-    // advance swaps memory-cache hits instead of firing two network loads mid-animation. Decode
-    // sizes match the w1280/w500 URLs the card draws; playlist fallbacks are capped the same way.
+    // Warm the next title's backdrop, so the change swaps a cached picture rather than starting a load.
     val appContext = context.applicationContext
     LaunchedEffect(activeIndex, items) {
         if (items.size < 2) return@LaunchedEffect
-        val loader = SingletonImageLoader.get(appContext)
-        val next = items[(activeIndex + 1) % items.size]
-        listOfNotNull(
-            heroBackdrop(next)?.let { it to Size(1280, 720) },
-            heroPoster(next)?.let { it to Size(500, 750) },
-        ).forEach { (url, size) ->
-            loader.enqueue(
-                ImageRequest.Builder(appContext).data(url).size(size.width, size.height).build(),
-            )
+        trendingBackdrop(items[(activeIndex + 1) % items.size])?.let { url ->
+            SingletonImageLoader.get(appContext).enqueue(ImageRequest.Builder(appContext).data(url).size(1280, 720).build())
         }
     }
 
-    val movieLabel = stringResource(R.string.home_trending_movie)
-    val seriesLabel = stringResource(R.string.home_trending_series)
-    val isMovie = item is TrendingHomeItem.Movie
-    val typeLabel = if (isMovie) movieLabel else seriesLabel
-    val backdrop = heroBackdrop(item)
-    val poster = heroPoster(item)
-    val displaySignals = ProviderVariantParser.displaySignals(snapshot.providerRawName)
-    val providerLanguage = snapshot.providerLanguage
-    val languageBadge = when {
-        providerLanguage == preferredLanguage ->
-            stringResource(R.string.home_trending_language_choice, preferredLanguage)
-        providerLanguage == "EN" -> stringResource(R.string.home_trending_english_fallback)
-        providerLanguage == null -> stringResource(R.string.home_trending_untagged_fallback)
-        else -> stringResource(R.string.home_trending_other_fallback, providerLanguage)
-    }
-    val reasonTitle = stringResource(R.string.home_trending_reason_title, snapshot.trendingRank, typeLabel)
-    val reasonCopy = when {
-        providerLanguage == preferredLanguage ->
-            stringResource(R.string.home_trending_reason_preferred, preferredLanguage)
-        providerLanguage == "EN" -> stringResource(R.string.home_trending_reason_english, preferredLanguage)
-        providerLanguage == null -> stringResource(R.string.home_trending_reason_untagged, preferredLanguage)
-        else -> stringResource(R.string.home_trending_reason_other)
-    }
-    val seasonCount = (item as? TrendingHomeItem.Series)?.let { seasonCounts[it.series.id] }
-    val surface = MaterialTheme.colorScheme.surfaceContainerLowest
-
     Column(
-        modifier = modifier
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = MobileDimens.ScreenPaddingH)
-            .clip(RoundedCornerShape(MobileDimens.GroupCorner))
-            .background(surface)
-            // The clock stops while a finger is down, the way the TV's stops while its buttons hold
-            // focus. Nothing is consumed here, so the buttons underneath still work normally.
+            // Nothing is consumed, so the buttons still work; this only stops the clock.
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
@@ -202,488 +178,406 @@ fun TrendingHero(
                 var dragged = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { dragged = 0f },
-                    onDragEnd = { if (kotlin.math.abs(dragged) > SWIPE_SLOP_PX) navigate(if (dragged < 0) 1 else -1) },
+                    onDragEnd = {
+                        if (kotlin.math.abs(dragged) > SWIPE_SLOP_PX) {
+                            onIndexChange((index + (if (dragged < 0) 1 else -1) + items.size) % items.size)
+                        }
+                    },
                 ) { change, amount ->
                     dragged += amount
                     change.consume()
                 }
-            },
+            }
+            .pointerInput(Unit) { detectTapGestures(onLongPress = { onMenu() }) }
+            .padding(start = 18.dp, end = 18.dp, top = topGap),
     ) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-            if (!backdrop.isNullOrBlank()) {
-                AsyncImage(
-                    model = backdrop,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            // The TV's two washes, turned upright: the picture has to end in the card rather than
-            // stop against it, and the poster and the rank pill have to stay legible over it.
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        0f to surface.copy(alpha = 0.82f),
-                        0.58f to surface.copy(alpha = 0.30f),
-                        1f to Color.Transparent,
-                    ),
-                ),
+        StageEyebrow(trendingRank(item))
+        Spacer(Modifier.height(10.dp))
+        // The title art when TMDB has it; the 40 / 800 title when it has none or it fails to load.
+        var logoFailed by remember(extras.logoUrl) { mutableStateOf(false) }
+        val logo = extras.logoUrl?.takeIf { it.isNotBlank() && !logoFailed }
+        if (logo != null) {
+            StageTitleArt(
+                url = logo,
+                contentDescription = snapshot.localizedTitle,
+                onFailed = { logoFailed = true },
+                modifier = Modifier.width(260.dp).height(76.dp),
             )
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(0.45f to Color.Transparent, 1f to surface),
-                ),
-            )
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(MobileDimens.GapMedium)
-                    .width(PosterWidth)
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(MobileDimens.PosterArtCorner))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(MobileDimens.PosterArtCorner)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (!poster.isNullOrBlank()) {
-                    AsyncImage(
-                        model = poster,
-                        contentDescription = snapshot.localizedTitle,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    Icon(
-                        imageVector = if (isMovie) MobileIcons.Movie else MobileIcons.Tv,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(RankIconSize),
-                    )
-                }
-                Text(
-                    text = "#${activeIndex + 1}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.align(Alignment.TopStart).padding(MobileDimens.GapSmall)
-                        .clip(CircleShape)
-                        .background(Color(0xDC030A08))
-                        .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            }
-        }
-
-        Column(modifier = Modifier.padding(MobileDimens.GapMedium)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(SectionDotSize).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                Spacer(Modifier.width(MobileDimens.GapSmall))
-                Text(
-                    text = stringResource(R.string.home_trending_section_label),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Spacer(Modifier.height(MobileDimens.GapSmall))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                TrendingTypeBadge(typeLabel)
-                snapshot.year?.let {
-                    Text(
-                        text = it.toString(),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Text(
-                    text = "•",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                snapshot.rating?.let {
-                    Text(
-                        text = stringResource(R.string.content_rating, it),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = RatingColor,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-            Spacer(Modifier.height(MobileDimens.GapSmall))
+        } else {
             Text(
-                text = snapshot.localizedTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
+                snapshot.localizedTitle,
+                style = stageText(40f, 800, (-1.2f / 40f).em, lineHeight = 1.05f),
+                color = palette.text,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            snapshot.overview?.takeIf { it.isNotBlank() }?.let { overview ->
-                Spacer(Modifier.height(MobileDimens.GapSmall))
-                Text(
-                    text = overview,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
+        }
+        Spacer(Modifier.height(10.dp))
+        HeroMeta(item, extras.genres.take(2).joinToString(", "), seasonCount, size = 13f)
+        snapshot.overview?.takeIf { it.isNotBlank() }?.let { overview ->
+            Spacer(Modifier.height(10.dp))
+            Text(
+                overview,
+                style = stageText(13f, 500, lineHeight = 1.5f),
+                color = palette.body,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        // When the row cannot hold every label ("Open episodes", German), Trailer gives up its word and
+        // becomes a round button; when even that does not fit (UI zoom 120 %) it leaves the row — it stays
+        // in the hold menu — so ⓘ and ♥ always fit and nothing is squeezed to an empty box (TV #4).
+        // The row's own width, not the window's: UI zoom scales the density, not screenWidthDp.
+        val measurer = rememberTextMeasurer()
+        val buttonStyle = stageText(14f, 700)
+        val playLabel = stringResource(if (item is TrendingHomeItem.Movie) R.string.home_trending_play else R.string.home_trending_open_episodes)
+        val trailerWord = stringResource(R.string.home_trending_trailer)
+        val versionsCount = extras.versions.takeIf { it > 1 }?.let { formatCount(it) }
+        val density = LocalDensity.current
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val (trailerShown, trailerFits) = with(density) {
+                fun w(text: String) = measurer.measure(text, buttonStyle).size.width.toDp()
+                val labelled = 36.dp + 16.dp + 7.dp
+                val others = labelled + w(playLabel) +
+                    (versionsCount?.let { 28.dp + 16.dp + 7.dp + w(it) } ?: 44.dp) + 44.dp * 2 + 8.dp * 4
+                (others + 44.dp <= maxWidth) to (others + labelled + w(trailerWord) <= maxWidth)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                // The labelled buttons share what ⓘ and ♥ leave, so those two always fit (TV #4); a long
+                // Trailer label is the one that shortens.
+                Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val isMovie = item is TrendingHomeItem.Movie
+                    StageButton(
+                        onClick = onPlay,
+                        text = playLabel,
+                        icon = if (isMovie) MobileIcons.PlayArrow else MobileIcons.Series,
+                        style = StageButtonStyle.PRIMARY,
+                    )
+                    trendingTrailer(item)?.takeIf { trailerShown }?.let { key ->
+                        val trailerLabel = stringResource(R.string.home_trending_trailer)
+                        StageButton(
+                            onClick = { context.playTrailer(key) },
+                            modifier = Modifier.semantics { contentDescription = trailerLabel },
+                            text = trailerLabel.takeIf { trailerFits },
+                            icon = MobileIcons.PlayCircle,
+                        )
+                    }
+                }
+                // Versions keeps its own width like ⓘ and ♥: when the estimate above is short, only Trailer's word
+                // shortens — the count was the one squeezed to "…".
+                val versionsLabel = stringResource(R.string.home_trending_all_versions)
+                StageButton(
+                    onClick = onVersions,
+                    modifier = Modifier.semantics { contentDescription = versionsLabel },
+                    icon = MobileIcons.Layers,
+                    trailing = versionsCount,
+                )
+                val infoLabel = stringResource(R.string.home_trending_more_details)
+                StageButton(onClick = onInfo, modifier = Modifier.semantics { contentDescription = infoLabel }, icon = MobileIcons.Info)
+                val favouriteLabel = stringResource(if (favourite) R.string.content_remove_favourite else R.string.content_add_favourite)
+                StageButton(
+                    onClick = onFavourite,
+                    modifier = Modifier.semantics { contentDescription = favouriteLabel },
+                    icon = if (favourite) MobileIcons.Favorite else MobileIcons.FavoriteBorder,
                 )
             }
-            Spacer(Modifier.height(MobileDimens.GapSmall))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                TrendingMatchBadge("✓ ${stringResource(R.string.home_trending_provider_match)}")
+        }
+        Spacer(Modifier.height(14.dp))
+        PagerDots(count = items.size, active = activeIndex)
+        if (unavailable) {
+            Text(
+                stringResource(R.string.home_trending_unavailable),
+                style = stageText(12f, 600),
+                color = palette.danger,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+/** "2026 · Animation, Family · 1 h 42 min · ★ 8.4" and the quality tag; the rating in gold. */
+@Composable
+private fun HeroMeta(item: TrendingHomeItem, genres: String, seasonCount: Int?, size: Float, maxLines: Int = 1) {
+    val palette = LocalStagePalette.current
+    val snapshot = item.snapshot
+    val runtime = when (item) {
+        is TrendingHomeItem.Movie -> item.movie.durationSecs?.takeIf { it >= 60 }?.let { durationText(it / 60L) }
+        is TrendingHomeItem.Series -> seasonCount?.let { pluralStringResource(R.plurals.home_trending_seasons, it, it) }
+    }
+    val parts = listOfNotNull(snapshot.year?.let { formatYear(it) }, genres.ifBlank { null }, runtime)
+    val rating = snapshot.rating?.takeIf { it > 0 }?.let { stringResource(R.string.content_rating, it) }
+    val text = buildAnnotatedString {
+        append(parts.joinToString(" · "))
+        if (rating != null) {
+            if (parts.isNotEmpty()) append(" · ")
+            withStyle(SpanStyle(color = RatingGold)) { append(rating) }
+        }
+    }
+    val quality = ProviderVariantParser.displaySignals(snapshot.providerRawName).quality.label
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            style = stageText(size, 600),
+            color = palette.muted,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        quality?.let { StageTag(it) }
+    }
+}
+
+/** The pager: one dot per title, the current one 22 wide in the accent. */
+@Composable
+private fun PagerDots(count: Int, active: Int) {
+    val accent = stageAccent.accent
+    val ink = LocalStagePalette.current.ink
+    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        repeat(count) { i ->
+            Box(
+                Modifier
+                    .size(if (i == active) 22.dp else 12.dp, 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (i == active) accent else ink.copy(alpha = 0.22f)),
+            )
+        }
+    }
+}
+
+/**
+ * Trending layout = Posters: the eyebrow and the 32 / 800 title of the poster at the front of the
+ * row, then the row itself — the first poster in view is the one the line above names. Lower down the page
+ * ([withTitle] off) it is just the row under its heading, as the TV draws it there.
+ */
+@Composable
+fun TrendingPosters(
+    items: List<TrendingHomeItem>,
+    topGap: Dp,
+    withTitle: Boolean,
+    onShown: (Int) -> Unit,
+    onActivate: (TrendingHomeItem) -> Unit,
+    onMenu: (TrendingHomeItem) -> Unit,
+) {
+    val palette = LocalStagePalette.current
+    val rowState = rememberLazyListState()
+    val shown by remember { derivedStateOf { rowState.firstVisibleItemIndex } }
+    LaunchedEffect(shown) { onShown(shown) }
+    val item = items.getOrNull(shown) ?: return
+    Column(Modifier.padding(top = topGap)) {
+        Column(Modifier.padding(horizontal = 18.dp)) {
+            if (withTitle) {
+                StageEyebrow(trendingRank(item))
                 Text(
-                    text = snapshot.providerRawName,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    item.snapshot.localizedTitle,
+                    style = stageText(32f, 800, (-1f / 32f).em, lineHeight = 1.1f),
+                    color = palette.text,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 )
             }
-            Spacer(Modifier.height(MobileDimens.GapSmall))
-            // A phone is narrow and German is long: six badges wrap onto as many lines as they need
-            // rather than the last two falling off the edge.
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                TrendingBadge(languageBadge, primary = true)
-                displaySignals.quality.label?.let { TrendingBadge(it) }
-                displaySignals.capabilities.forEach { TrendingBadge(it) }
-                seasonCount?.let {
-                    TrendingBadge(pluralStringResource(R.plurals.home_trending_seasons, it, it))
-                }
-            }
-
-            Spacer(Modifier.height(MobileDimens.GapMedium))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(MobileDimens.CardCorner))
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .clickable { whyExpanded = !whyExpanded }
-                    .padding(MobileDimens.GapMedium),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(R.string.home_trending_why_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Icon(
-                        imageVector = if (whyExpanded) MobileIcons.KeyboardArrowUp else MobileIcons.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                AnimatedVisibility(visible = whyExpanded) {
-                    Column {
-                        Spacer(Modifier.height(MobileDimens.GapSmall))
-                        Text(
-                            text = reasonTitle,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(MobileDimens.GapTiny))
-                        Text(
-                            text = reasonCopy,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(MobileDimens.GapMedium))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-                verticalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-            ) {
-                TrendingActionButton(
-                    label = stringResource(
-                        if (isMovie) R.string.home_trending_play else R.string.home_trending_open_episodes,
-                    ),
-                    icon = if (isMovie) MobileIcons.PlayArrow else MobileIcons.Tv,
-                    primary = true,
-                    onClick = { onActivate(item) { unavailable = true } },
-                )
-                tv.own.owntv.core.metadata.TrailerKeys.split(snapshot.trailerKey).firstOrNull()?.let { key ->
-                    TrendingActionButton(
-                        label = stringResource(R.string.home_trending_trailer),
-                        icon = MobileIcons.OpenInNew,
-                        onClick = { context.playTrailer(key) },
-                    )
-                }
-                TrendingActionButton(
-                    label = stringResource(R.string.home_trending_more_details),
-                    icon = MobileIcons.Info,
-                    onClick = { detailsFor = item },
-                )
-                TrendingActionButton(
-                    label = stringResource(R.string.home_trending_all_versions),
-                    icon = MobileIcons.Search,
-                    onClick = { onOpenSearch(snapshot.canonicalTitle) },
-                )
-            }
-            if (unavailable) {
-                Spacer(Modifier.height(MobileDimens.GapSmall))
-                Text(
-                    text = stringResource(R.string.home_trending_unavailable),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            Text(
+                stringResource(R.string.home_row_now_trending),
+                style = stageText(17f, 800),
+                color = palette.text,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
         }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = MobileDimens.GapSmall),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+        LazyRow(
+            state = rowState,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp),
         ) {
-            TrendingControlButton(
-                icon = MobileIcons.SkipPrevious,
-                description = stringResource(R.string.home_trending_previous),
-                onClick = { navigate(-1) },
-            )
-            Spacer(Modifier.width(MobileDimens.GapMedium))
-            TrendingControlButton(
-                icon = if (manuallyPaused) MobileIcons.PlayArrow else MobileIcons.Pause,
-                description = stringResource(
-                    if (manuallyPaused) R.string.home_trending_resume else R.string.home_trending_pause,
-                ),
-                onClick = {
-                    manuallyPaused = !manuallyPaused
-                    if (!manuallyPaused) {
-                        progressState.floatValue = 0f
-                        resetClock++
-                    }
-                },
-            )
-            Spacer(Modifier.width(MobileDimens.GapMedium))
-            TrendingControlButton(
-                icon = MobileIcons.SkipNext,
-                description = stringResource(R.string.home_trending_next),
-                onClick = { navigate(1) },
-            )
+            itemsIndexed(items, key = { _, it -> it.stableKey }) { i, poster ->
+                StagePoster(
+                    imageUrl = when (poster) {
+                        is TrendingHomeItem.Movie -> poster.movie.posterUrl
+                        is TrendingHomeItem.Series -> poster.series.posterUrl
+                    } ?: trendingPoster(poster),
+                    title = poster.snapshot.localizedTitle,
+                    rating = poster.snapshot.rating?.takeIf { it > 0 }?.let { formatRating(it) },
+                    selected = withTitle && i == shown,
+                    onClick = { onActivate(poster) },
+                    onLongClick = { onMenu(poster) },
+                    modifier = Modifier.width(PosterWidth),
+                )
+            }
         }
-        HeroProgressBar(progress = progressState)
-    }
-
-    detailsFor?.let { target ->
-        TrendingDetailsSheet(target, resolveDetails, onDismiss = { detailsFor = null })
     }
 }
 
-/** Backdrop + poster URLs for a hero item: the same fallback chain the card draws. */
-private fun heroBackdrop(item: TrendingHomeItem): String? {
-    val snapshot = item.snapshot
-    return MetadataImages.backdrop(snapshot.backdropPath, size = "w1280")
-        ?: when (item) {
-            is TrendingHomeItem.Movie -> item.movie.backdropUrl ?: item.movie.posterUrl
-            is TrendingHomeItem.Series -> item.series.backdropUrl ?: item.series.posterUrl
-        }
-}
-
-private fun heroPoster(item: TrendingHomeItem): String? {
-    val snapshot = item.snapshot
-    return MetadataImages.poster(snapshot.posterPath, size = "w500")
-        ?: when (item) {
-            is TrendingHomeItem.Movie -> item.movie.posterUrl
-            is TrendingHomeItem.Series -> item.series.posterUrl
-        }
-}
-
-/** The rotation countdown, alone in its own composable so its ~12 fps ticks move only this bar. */
+/**
+ * Hold on the hero: WATCH (Play, Trailer, All versions), LIBRARY (favourites, download) and
+ * DETAILS (More details, Why this title is here — both open the ⓘ sheet, which holds the why).
+ */
 @Composable
-private fun HeroProgressBar(progress: MutableFloatState) {
-    Box(
-        modifier = Modifier.fillMaxWidth().height(ProgressHeight)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-    ) {
-        Box(
-            modifier = Modifier.fillMaxWidth(progress.floatValue.coerceIn(0f, 1f)).height(ProgressHeight)
-                .background(MaterialTheme.colorScheme.primary),
+fun TrendingMenuSheet(
+    item: TrendingHomeItem,
+    versions: Int,
+    favourite: Boolean,
+    onPlay: () -> Unit,
+    onVersions: () -> Unit,
+    onFavourite: () -> Unit,
+    onDownload: () -> Unit,
+    onInfo: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val isMovie = item is TrendingHomeItem.Movie
+    val title = item.snapshot.localizedTitle
+    fun run(action: () -> Unit) {
+        action()
+        onDismiss()
+    }
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(
+            title = title,
+            subtitle = listOfNotNull(item.snapshot.year?.let { formatYear(it) }, trendingRank(item)).joinToString(" · "),
+            leading = {
+                AsyncImage(
+                    trendingPoster(item),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(34.dp, 50.dp).clip(RoundedCornerShape(6.dp)),
+                )
+            },
         )
+        StageGroupLabel(stringResource(R.string.content_menu_group_watch))
+        StageMenuItem(
+            label = stringResource(if (isMovie) R.string.home_trending_play else R.string.home_trending_open_episodes),
+            onClick = { run(onPlay) },
+            icon = if (isMovie) MobileIcons.PlayOutline else MobileIcons.Series,
+        )
+        trendingTrailer(item)?.let { key ->
+            StageMenuItem(
+                label = stringResource(R.string.home_trending_trailer),
+                onClick = { run { context.playTrailer(key) } },
+                icon = MobileIcons.PlayCircle,
+            )
+        }
+        StageMenuItem(
+            label = stringResource(R.string.home_trending_all_versions),
+            onClick = { run(onVersions) },
+            icon = MobileIcons.Layers,
+            count = versions.takeIf { it > 1 }?.let { formatCount(it) },
+        )
+        StageGroupLabel(stringResource(R.string.content_menu_group_library))
+        StageMenuItem(
+            label = stringResource(if (favourite) R.string.content_remove_favourite else R.string.content_add_favourite),
+            onClick = { run(onFavourite) },
+            icon = if (favourite) MobileIcons.Favorite else MobileIcons.FavoriteBorder,
+        )
+        StageMenuItem(
+            label = stringResource(if (isMovie) R.string.content_download else R.string.content_download_all_episodes),
+            onClick = { run(onDownload) },
+            icon = MobileIcons.Download,
+        )
+        StageGroupLabel(stringResource(R.string.content_menu_group_details))
+        StageMenuItem(label = stringResource(R.string.home_trending_more_details), onClick = { run(onInfo) }, icon = MobileIcons.Info)
+        StageMenuItem(label = stringResource(R.string.home_trending_why_menu), onClick = { run(onInfo) }, icon = MobileIcons.AutoAwesome)
     }
 }
 
-/** The same details sheet the library shows, filled from Trending's own confirmed TMDB id. */
+/**
+ * The ⓘ sheet: poster, title, the meta line with the tags, the genres in the accent, the plot, the
+ * cast, and "Why this item appears" — the sentence that used to sit on the hero card.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TrendingDetailsSheet(
-    target: TrendingHomeItem,
+fun TrendingInfoSheet(
+    item: TrendingHomeItem,
+    genres: List<String>,
+    seasonCount: Int?,
+    preferredLanguage: String,
     resolveDetails: suspend (TrendingHomeItem) -> HomeViewModel.TrendingDetails,
     onDismiss: () -> Unit,
 ) {
-    val resolved by produceState<HomeViewModel.TrendingDetails?>(null, target) {
-        value = resolveDetails(target)
-    }
-    val state = resolved ?: return
-    TmdbDetailsSheet(trendingDetails(target, state.cache, state.tmdbWins), onDismiss)
-}
-
-/** Provider and TMDB merged the TV's way, with the snapshot standing in for anything TMDB has not
- *  cached yet — the hero is built from that snapshot, so it is never emptier than the card above. */
-@Composable
-private fun trendingDetails(
-    item: TrendingHomeItem,
-    meta: MetadataCacheEntity?,
-    tmdbWins: Boolean,
-): MediaDetails {
+    val palette = LocalStagePalette.current
     val snapshot = item.snapshot
-    val providerPoster = when (item) {
-        is TrendingHomeItem.Movie -> item.movie.posterUrl
-        is TrendingHomeItem.Series -> item.series.posterUrl
-    }
-    val providerBackdrop = when (item) {
-        is TrendingHomeItem.Movie -> item.movie.backdropUrl
-        is TrendingHomeItem.Series -> item.series.backdropUrl
-    }
-    val providerTitle = when (item) {
-        is TrendingHomeItem.Movie -> item.movie.name
-        is TrendingHomeItem.Series -> item.series.name
-    }
+    val details by produceState<HomeViewModel.TrendingDetails?>(null, item) { value = resolveDetails(item) }
+    val meta = details?.cache
+    val tmdbWins = details?.tmdbWins == true
     val providerPlot = when (item) {
-        is TrendingHomeItem.Movie -> item.movie.plot?.takeIf { it.isNotBlank() }
-        is TrendingHomeItem.Series -> item.series.plot?.takeIf { it.isNotBlank() }
-    }
-    val tmdbPlot = meta?.overview?.takeIf { it.isNotBlank() } ?: snapshot.overview
-    val tmdbPoster = MetadataImages.poster(meta?.posterPath ?: snapshot.posterPath, size = "w500")
-    return MediaDetails(
-        title = providerTitle,
-        subtitle = stringResource(
-            if (item is TrendingHomeItem.Movie) R.string.home_trending_movie else R.string.home_trending_series,
-        ),
-        backdropUrl = MetadataImages.backdrop(meta?.backdropPath ?: snapshot.backdropPath, size = "w1280")
-            ?: providerBackdrop,
-        posterUrl = if (tmdbWins) tmdbPoster ?: providerPoster else providerPoster ?: tmdbPoster,
-        metaLine = listOfNotNull(
-            snapshot.year?.toString(),
-            snapshot.rating?.let { stringResource(R.string.content_rating, it) },
-        ).joinToString(" · "),
-        genres = jsonList(meta?.genresJson),
-        plot = if (tmdbWins) tmdbPlot ?: providerPlot else providerPlot ?: tmdbPlot,
-        cast = MetadataCast.parse(meta?.castJson),
-    )
-}
+        is TrendingHomeItem.Movie -> item.movie.plot
+        is TrendingHomeItem.Series -> item.series.plot
+    }?.takeIf { it.isNotBlank() }
+    val tmdbPlot = meta?.overview?.takeIf { it.isNotBlank() } ?: snapshot.overview?.takeIf { it.isNotBlank() }
+    val plot = if (tmdbWins) tmdbPlot ?: providerPlot else providerPlot ?: tmdbPlot
+    val cast = remember(meta?.castJson) { MetadataCast.parse(meta?.castJson) }
+    val signals = ProviderVariantParser.displaySignals(snapshot.providerRawName)
+    val tags = listOfNotNull(signals.quality.label) + signals.capabilities
 
-@Composable
-private fun TrendingTypeBadge(label: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.11f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-    )
-}
-
-@Composable
-private fun TrendingMatchBadge(label: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = MatchTextColor,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(MatchFillColor)
-            .padding(horizontal = 9.dp, vertical = 5.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
-private fun TrendingBadge(label: String, primary: Boolean = false) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = if (primary) BadgePrimaryText else BadgeText,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(BadgeFill)
-            .border(
-                1.dp,
-                if (primary) BadgePrimaryBorder else Color.White.copy(alpha = 0.16f),
-                RoundedCornerShape(7.dp),
-            )
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
-private fun TrendingActionButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    primary: Boolean = false,
-) {
-    val container =
-        if (primary) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
-    val content =
-        if (primary) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-    Row(
-        modifier = Modifier
-            .defaultMinSize(minHeight = MobileDimens.TouchTarget)
-            .clip(RoundedCornerShape(9.dp))
-            .background(container)
-            .clickable(onClick = onClick)
-            .padding(horizontal = MobileDimens.GapMedium),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MobileDimens.GapSmall),
-    ) {
-        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(ActionIconSize))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = content, fontWeight = FontWeight.Bold)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = snapshot.localizedTitle) {
+        Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 3 / 4).dp).verticalScroll(rememberScrollState())) {
+            Row(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AsyncImage(
+                    trendingPoster(item),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(70.dp, 105.dp).clip(RoundedCornerShape(10.dp)).background(palette.cardSolid),
+                )
+                Column {
+                    Text(snapshot.localizedTitle, style = stageText(19f, 800), color = palette.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                        HeroMeta(item, genres.joinToString(" · "), seasonCount, size = 12f, maxLines = 2)
+                        tags.drop(if (signals.quality.label != null) 1 else 0).forEach { StageTag(it) }
+                    }
+                    if (genres.isNotEmpty()) {
+                        Text(
+                            genres.joinToString(" · "),
+                            style = stageText(12f, 700),
+                            color = stageAccent.accent,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
+            }
+            plot?.let {
+                Text(it, style = stageText(12.5f, 500, lineHeight = 1.5f), color = palette.body, modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 12.dp))
+            }
+            if (cast.isNotEmpty()) {
+                StageCastRow(cast, contentPadding = PaddingValues(horizontal = 8.dp), modifier = Modifier.padding(bottom = 14.dp))
+            }
+            StageGroupLabel(stringResource(R.string.home_trending_why_label))
+            Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                val whyStyle = stageText(12f, 500, lineHeight = 1.45f)
+                Text(
+                    stringResource(
+                        R.string.home_trending_reason_title,
+                        snapshot.trendingRank,
+                        stringResource(if (item is TrendingHomeItem.Movie) R.string.home_trending_movie else R.string.home_trending_series),
+                    ),
+                    style = whyStyle,
+                    color = palette.muted,
+                )
+                Text(whyCopy(snapshot.providerLanguage, preferredLanguage), style = whyStyle, color = palette.muted)
+                Text(
+                    stringResource(R.string.home_trending_provider_match) + " · " + snapshot.providerRawName,
+                    style = whyStyle,
+                    color = palette.dim,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
+/** Which version was picked and why — the sentence the TV's "why" panel shows. */
 @Composable
-private fun TrendingControlButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(MobileDimens.TouchTarget)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(ControlIconSize),
-        )
-    }
+private fun whyCopy(providerLanguage: String?, preferredLanguage: String): String = when (providerLanguage) {
+    preferredLanguage -> stringResource(R.string.home_trending_reason_preferred, preferredLanguage)
+    "EN" -> stringResource(R.string.home_trending_reason_english, preferredLanguage)
+    null -> stringResource(R.string.home_trending_reason_untagged, preferredLanguage)
+    else -> stringResource(R.string.home_trending_reason_other)
 }
 
 private const val INTERVAL_MS = 10_000L
-private const val TICK_MS = 80L
 private const val SWIPE_SLOP_PX = 60f
 
-private val PosterWidth = 96.dp
-private val RankIconSize = 32.dp
-private val SectionDotSize = 7.dp
-private val ProgressHeight = 3.dp
-private val ActionIconSize = 16.dp
-private val ControlIconSize = 20.dp
+/** `.pc` on Home is 104 wide. */
+internal val PosterWidth = 104.dp
 
-private val RatingColor = Color(0xFFFFE071)
-private val MatchTextColor = Color(0xFFBDECA5)
-private val MatchFillColor = Color(0x3659AD2F)
-private val BadgeText = Color(0xFFDCE6E2)
-private val BadgePrimaryText = Color(0xFFD5F4C5)
-private val BadgeFill = Color(0x8C06100D)
-private val BadgePrimaryBorder = Color(0x7A74CF42)
+/** The rating chip's gold, `#ffcc4d`. */
+private val RatingGold = Color(0xFFFFCC4D)
