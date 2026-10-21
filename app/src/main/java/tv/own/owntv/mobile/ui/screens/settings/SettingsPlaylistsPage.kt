@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import tv.own.owntv.core.database.entity.SourceEntity
 import tv.own.owntv.core.model.SourceType
 import tv.own.owntv.core.repository.SourceTestResult
 import tv.own.owntv.core.setup.detailLines
+import tv.own.owntv.core.setup.displayText
 import tv.own.owntv.core.setup.headline
 import tv.own.owntv.core.settings.PlaylistAutoRefresh
 import tv.own.owntv.core.settings.PlaylistRefresh
@@ -46,10 +48,14 @@ import tv.own.owntv.core.ui.stage.PlaylistMark
 import tv.own.owntv.mobile.ui.shell.displayName
 import tv.own.owntv.mobile.ui.stage.LocalStagePalette
 import tv.own.owntv.mobile.ui.stage.StageButton
+import tv.own.owntv.mobile.ui.stage.StageChoiceRow
 import tv.own.owntv.mobile.ui.stage.StageMenuItem
 import tv.own.owntv.mobile.ui.stage.StagePill
 import tv.own.owntv.mobile.ui.stage.StagePlaylistMark
+import tv.own.owntv.mobile.ui.stage.StageProgress
 import tv.own.owntv.mobile.ui.stage.StageSettingRow
+import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import tv.own.owntv.mobile.ui.setup.rememberServerListPicker
 import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 import tv.own.owntv.mobile.ui.stage.StageSwitch
 import tv.own.owntv.mobile.ui.stage.stageAccent
@@ -86,11 +92,32 @@ fun SettingsPlaylistsPage(
     // Set while the "this will stop playback and take a while" confirmation is on screen.
     var confirmRetest by remember { mutableStateOf<SourceEntity?>(null) }
 
+    // Bulk server-list import: a plain-text file with one Xtream/Stalker server per line,
+    // picked through the system document picker and parsed by SettingsViewModel. The sheet
+    // below picks what each created source syncs; false is Channels + VOD, the default.
+    var bulkLiveOnly by rememberSaveable { mutableStateOf(false) }
+    var showBulkScope by remember { mutableStateOf(false) }
+    val pickServerList = rememberServerListPicker { uri -> vm.importServerList(uri, liveOnly = bulkLiveOnly) }
+    val bulkImport by vm.bulkImport.collectAsStateWithLifecycle()
+
     SettingsCrumb(pluralStringResource(R.plurals.settings_sources_count, sources.size, sources.size), SettingsGroup.SOURCES)
     SettingsStagePage(modifier) {
         item(key = "add") {
             Box(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
-                StageButton(onClick = { nav(SettingsLeaf.ADD_SOURCE.route) }, text = stringResource(R.string.settings_sources_add), icon = MobileIcons.Add, small = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StageButton(
+                        onClick = { nav(SettingsLeaf.ADD_SOURCE.route) },
+                        text = stringResource(R.string.settings_sources_add),
+                        icon = MobileIcons.Add,
+                        small = true,
+                    )
+                    StageButton(
+                        onClick = { showBulkScope = true },
+                        text = stringResource(R.string.settings_sources_import_file),
+                        icon = MobileIcons.Download,
+                        small = true,
+                    )
+                }
             }
         }
         if (sources.isEmpty()) item(key = "empty") { PageNote(stringResource(R.string.settings_sources_empty)) }
@@ -237,6 +264,78 @@ fun SettingsPlaylistsPage(
             onConfirm = { vm.retestSource(src) },
             onDismiss = { confirmRetest = null },
         )
+    }
+
+    // Bulk import scope: what every server in the picked file syncs. The file picker opens
+    // from the sheet's last row, so the choice is made before the pick rather than after.
+    if (showBulkScope) {
+        MobileBottomSheet(onDismissRequest = { showBulkScope = false }) {
+            StageSheetHeader(
+                title = stringResource(R.string.settings_sources_import_file),
+                subtitle = stringResource(R.string.settings_bulk_import_scope_description),
+            )
+            StageChoiceRow(
+                listOf(
+                    stringResource(R.string.settings_bulk_import_live_only),
+                    stringResource(R.string.settings_bulk_import_with_vod),
+                ),
+                if (bulkLiveOnly) 0 else 1,
+                { bulkLiveOnly = it == 0 },
+            )
+            StageMenuItem(
+                stringResource(R.string.settings_bulk_import_choose_file),
+                onClick = { showBulkScope = false; pickServerList() },
+                icon = MobileIcons.Download,
+            )
+        }
+    }
+
+    // Bulk server-list import progress and result. A bulk run keeps going behind this page,
+    // so leaving mid-run strands it with no way back to its result — the running sheet
+    // cannot be dismissed, only cancelled.
+    when (val bulk = bulkImport) {
+        is SettingsViewModel.BulkImportUi.Idle -> Unit
+        is SettingsViewModel.BulkImportUi.Running -> MobileBottomSheet(onDismissRequest = {}) {
+            StageSheetHeader(
+                title = stringResource(R.string.settings_bulk_import_title, bulk.done + 1, bulk.total),
+                subtitle = bulk.currentName,
+            )
+            StageProgress((bulk.done + 1f) / bulk.total.coerceAtLeast(1))
+            StageMenuItem(
+                stringResource(R.string.common_cancel),
+                onClick = vm::cancelBulkImport,
+                icon = MobileIcons.Close,
+            )
+        }
+        is SettingsViewModel.BulkImportUi.Done -> MobileBottomSheet(onDismissRequest = vm::dismissBulkImport) {
+            StageSheetHeader(stringResource(R.string.settings_bulk_import_done))
+            StageSettingRow(
+                title = pluralStringResource(R.plurals.settings_bulk_import_added, bulk.succeeded.size, bulk.succeeded.size),
+                onClick = {},
+            )
+            StageSettingRow(
+                title = pluralStringResource(R.plurals.settings_bulk_import_failed, bulk.failed.size, bulk.failed.size),
+                onClick = {},
+            )
+            bulk.failed.forEach { failure ->
+                val reason = failure.failure?.displayText(LocalContext.current.resources) ?: failure.detail.orEmpty()
+                StageSettingRow(
+                    title = failure.name,
+                    subtitle = if (reason.isBlank()) null
+                    else stringResource(R.string.settings_bulk_import_failure_line, failure.name, reason),
+                    onClick = {},
+                )
+            }
+            StageMenuItem(stringResource(R.string.common_ok), onClick = vm::dismissBulkImport)
+        }
+        is SettingsViewModel.BulkImportUi.ParseError -> MobileBottomSheet(onDismissRequest = vm::dismissBulkImport) {
+            StageSheetHeader(
+                title = stringResource(R.string.settings_bulk_import_parse_error),
+                subtitle = stringResource(R.string.settings_bulk_import_parse_error_detail, bulk.message),
+                extra = stringResource(R.string.settings_bulk_import_format_hint),
+            )
+            StageMenuItem(stringResource(R.string.common_ok), onClick = vm::dismissBulkImport)
+        }
     }
 }
 

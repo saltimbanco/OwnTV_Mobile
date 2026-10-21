@@ -67,6 +67,11 @@ class SettingsSearchCoverageTest {
             "player_subtitles_stay_signed_in", "settings_sources_delete_title", "settings_sources_probe_title",
             "setup_auto_refresh_title", "setup_default_playlist", "profiles_delete_title", "settings_subtitle_color",
             "settings_subtitle_reset_all",
+            // Bulk import: the entry button and its scope sheet's transient options, plus the
+            // progress and error sheet headers — none of them a setting row to find by name.
+            "settings_sources_import_file",
+            "settings_bulk_import_live_only", "settings_bulk_import_with_vod", "settings_bulk_import_choose_file",
+            "settings_bulk_import_title", "settings_bulk_import_parse_error",
         )
         val skipped = setOf("SettingsBackupPage.kt", "SettingsLocalSyncPage.kt")
         val pages = dir.listFiles { f ->
