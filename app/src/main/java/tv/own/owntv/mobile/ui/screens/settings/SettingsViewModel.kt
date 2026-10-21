@@ -430,8 +430,8 @@ class SettingsViewModel(
         data class Done(
             val succeeded: List<String>,
             val failed: List<BulkFailure>,
-            /** Lines the parser could not read, by 1-based line number and the raw text. */
-            val skipped: List<Pair<Int, String>> = emptyList(),
+            /** Lines that produced no server: unreadable, or duplicates of an earlier line. */
+            val skipped: List<SkippedLine> = emptyList(),
         ) : BulkImportUi
         data class ParseError(val message: String) : BulkImportUi
     }

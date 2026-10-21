@@ -322,9 +322,12 @@ fun SettingsPlaylistsPage(
                     title = pluralStringResource(R.plurals.settings_bulk_import_skipped, bulk.skipped.size, bulk.skipped.size),
                     onClick = {},
                 )
-                bulk.skipped.forEach { (line, text) ->
+                bulk.skipped.forEach { skipped ->
                     StageSettingRow(
-                        title = stringResource(R.string.settings_bulk_import_skipped_line, line, text),
+                        title = stringResource(R.string.settings_bulk_import_skipped_line, skipped.line, skipped.text),
+                        subtitle = skipped.duplicateOf?.let {
+                            stringResource(R.string.settings_bulk_import_skipped_duplicate, it)
+                        },
                         onClick = {},
                     )
                 }
