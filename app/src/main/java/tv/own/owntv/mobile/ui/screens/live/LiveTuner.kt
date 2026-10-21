@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -369,17 +370,22 @@ class LiveTuner(
     // ---- Cross-server failover: hop to the same channel on the next playlist ----
     //
     // Core's ladder (ExoPlayer ⇄ mpv, reconnects, watchdogs) retries the SAME stream; this watches
-    // for the point where that has failed and tries the same channel ELSEWHERE. After more
-    // consecutive errors on one channel than the FailoverPrefs retries (default 3, set under
-    // Video player settings), the profile's other live sources are searched for a fuzzy name
-    // match ("nova sports prime" also matches "NOVA SPORTS PRIME HD") and the best match is
-    // tuned. Hopping continues across failures until every live source has been tried, then it
-    // stops and leaves the error on screen. Tuning a dissimilar channel starts a fresh incident.
+    // for the point where that has failed and tries the same channel ELSEWHERE. Two things trigger a
+    // hop, both behind the one "Switch server on interruption" switch: more consecutive errors on
+    // one channel than the FailoverPrefs retries (default 3, set under Video player settings), or —
+    // for a channel that never starts playing at all, so there is nothing to error — the user still
+    // sitting on it FAILOVER_SETTLE_MS after it was picked with neither a stream nor an error. Either
+    // way the profile's other live sources are walked in their own order and the FIRST one carrying a
+    // fuzzy name match ("nova sports prime" also matches "NOVA SPORTS PRIME HD") is tuned, every hop
+    // announced with a toast naming the playlist. Hopping continues across failures until every live
+    // source has been tried for the current incident, then it stops and leaves the error on screen.
+    // Tuning a dissimilar channel starts a fresh incident.
     private var failoverIncidentName: String? = null
     private var failoverChannelId: Long? = null
     private var failoverTriedSourceIds = mutableSetOf<Long>()
     private var failoverStreak = 0
     private var failoverHopJob: Job? = null
+    private var failoverWatchdogJob: Job? = null
 
     init {
         scope.launch {
@@ -424,28 +430,100 @@ class LiveTuner(
                 .filter { it.syncLive }.map { it.id }
             val remaining = liveSourceIds.filter { it !in failoverTriedSourceIds }
             if (remaining.isEmpty()) {
-                // Every source tried: allow a fresh cycle next time instead of going quiet forever.
-                failoverTriedSourceIds.clear()
+                // Every playlist has been tried for this incident: stop hopping and leave what is on
+                // screen alone. The next pick the user makes clears the tried set (open() does it for
+                // any tune of its own), so a re-selected channel walks the playlists again.
                 return@launch
             }
-            // FTS needs a concrete token; the longest one recalls candidates per source and the
-            // fuzzy scorer picks the real match (single-token names fall back to the full name).
-            val probe = channelTokens(channel.name).maxByOrNull { it.length } ?: channel.name
-            val candidates = remaining.flatMap { sourceId ->
-                runCatching { channelDao.searchList(probe, listOf(sourceId), 25) }.getOrDefault(emptyList())
-            }.filter { it.id != channel.id }
-            val best = bestChannelMatch(channel.name, candidates)
-            if (best == null) {
-                failoverTriedSourceIds.addAll(remaining)
+            // The playlists are tried in their own order, not by best match across all of them: the
+            // first one that also carries this channel is the next hop, and a playlist with no match
+            // at all counts as tested all the same.
+            //
+            // Recall beats precision in the per-source search, and one probe is not enough: the
+            // query is a substring match ordered by name and capped, so on a real playlist
+            // `%sports%` buries "Nova Sports Prime" under every other sports channel alphabetically.
+            // The full name is probed first (an exact substring on the other playlist), then the
+            // longest token with a generous cap, and the fuzzy scorer sorts the union out.
+            val probes = buildList {
+                channel.name.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
+                channelTokens(channel.name).maxByOrNull { it.length }?.let { add(it) }
+            }.distinct()
+            val searched = mutableListOf<Long>()
+            var hop: ChannelEntity? = null
+            for (sourceId in remaining) {
+                searched.add(sourceId)
+                val candidates = probes.flatMap { probe ->
+                    runCatching { channelDao.searchList(probe, listOf(sourceId), 200) }
+                        .getOrDefault(emptyList())
+                }.filter { it.id != channel.id }.distinctBy { it.id }
+                val best = bestChannelMatch(channel.name, candidates)
+                if (best != null) {
+                    hop = best
+                    break
+                }
+            }
+            val target = hop
+            if (target == null) {
+                // No other playlist carries this channel: every one searched here is done.
+                failoverTriedSourceIds.addAll(searched)
                 return@launch
             }
-            failoverTriedSourceIds.add(best.sourceId)
+            failoverTriedSourceIds.addAll(searched)
+            val playlistName = sourceDao.getById(target.sourceId)?.name.orEmpty()
             // Engine calls belong on Main (switchTo runs there everywhere else).
             withContext(Dispatchers.Main) {
-                switchTo(best)
+                android.widget.Toast.makeText(
+                    context,
+                    context.getString(R.string.failover_hopping_to_playlist, playlistName),
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+                switchTo(target, fromFailover = true)
             }
         }
     }
+
+    /**
+     * Start the [FAILOVER_SETTLE_MS] window for the channel just opened — the "will it play at all"
+     * half of the trigger, for a channel that sits silent instead of erroring. Only an actual play
+     * attempt arms it: a preview, a Multiview pick and a replay never do. Everything is re-validated
+     * when the window elapses, so a channel changed, cast or stopped meanwhile simply does nothing.
+     */
+    private fun armFailoverWatchdog() {
+        failoverWatchdogJob?.cancel()
+        val channel = _channel.value ?: return
+        failoverWatchdogJob = scope.launch {
+            delay(FAILOVER_SETTLE_MS)
+            failoverWatchdogTick(channel)
+        }
+    }
+
+    /** The window elapsed: hop only if the very same channel is still on screen and still silent. */
+    private fun failoverWatchdogTick(armed: ChannelEntity) {
+        val current = _channel.value ?: return
+        if (current.id != armed.id) return
+        if (!FailoverPrefs.isEnabled(context)) return
+        if (_previewing.value || _replaying.value || casting()) return
+        // The same guard the error path applies: a film failing on mpv must never hop a live channel.
+        val liveContent = if (liveOnExo.value) exo.isLiveContent else player.isLiveContent
+        if (!liveContent) return
+        if (liveIsPlayable()) return
+        attemptServerHop(current)
+    }
+
+    /**
+     * Whether the live stream on screen is actually **producing** playback — not merely opened.
+     * A dead channel that opens fine and then sits loading forever has a URL and no error, exactly
+     * like a working one; the black screen it holds is precisely what this watchdog exists for, so
+     * "has a stream" alone can never be the test. ExoPlayer answers through its engine state
+     * (PLAYING survives a pause), mpv through "playback started" (a position advancing on a loaded
+     * file, also pause-proof).
+     */
+    private fun liveIsPlayable(): Boolean =
+        if (liveOnExo.value) {
+            exo.error.value == null && exo.state.value == LivePreviewEngine.State.PLAYING
+        } else {
+            player.error.value == null && player.playbackStarted.value
+        }
 
     init {
         // Tell core which playlist is on screen, so its background catalogue drain steps aside.
@@ -715,10 +793,10 @@ class LiveTuner(
             ?.let { channel.copy(name = it) } ?: channel
     }
 
-    fun switchTo(channel: ChannelEntity) {
+    fun switchTo(channel: ChannelEntity, fromFailover: Boolean = false) {
         if (channel.id == loadedId) return
         loadedId = channel.id
-        live.launch { open(channel) }
+        live.launch { open(channel, fromFailover) }
     }
 
     /**
@@ -751,7 +829,7 @@ class LiveTuner(
      * name over the old channel's picture; now the screen stays as it was, and the tapped row can be
      * tapped again.
      */
-    private suspend fun open(channel: ChannelEntity) {
+    private suspend fun open(channel: ChannelEntity, fromFailover: Boolean = false) {
         val showing = _channel.value
         val refuse = { loadedId = showing?.id }
         if (!dataSaver.allowsStreaming()) return refuse()
@@ -764,6 +842,20 @@ class LiveTuner(
             runCatching { streamUrlResolver.resolve(source!!, channel.streamUrl) }.getOrNull() ?: return refuse()
         } else {
             channel.streamUrl
+        }
+
+        // Failover bookkeeping. A tune of the user's own is a fresh attempt: whatever the last
+        // incident had already tried is forgotten, so re-selecting a dead channel walks the
+        // playlists again. A hop's own tune is the same incident continuing elsewhere — the tried
+        // set stands, only the error streak counts anew for the channel now on screen.
+        if (fromFailover) {
+            failoverChannelId = channel.id
+            failoverStreak = 0
+        } else {
+            failoverIncidentName = channel.name
+            failoverChannelId = channel.id
+            failoverTriedSourceIds.clear()
+            failoverStreak = 0
         }
 
         timeshift.clear() // a new channel is never still rewound into the old one's archive
@@ -801,6 +893,9 @@ class LiveTuner(
         _nowNext.value = epgReader.nowNext(channel, custom.value, settings.epgOffsetMinutes.first())
         _timelineProgrammes.value = catchupProgrammes()
             .map { LiveProgramme(it.startMs, it.stopMs, it.title) }
+        // The playability watchdog: if this channel still has neither a stream nor an error once the
+        // window is up — the user has sat on a dead channel long enough — hop to the next playlist.
+        armFailoverWatchdog()
     }
 
     /**
@@ -1226,6 +1321,7 @@ class LiveTuner(
         // Both engines and every watcher the ladder owns, or one of them fires on a channel nobody is
         // watching and stops the shared player — which by then may be showing a film.
         live.stop()
+        failoverWatchdogJob?.cancel()
     }
 
     /**
@@ -1275,6 +1371,10 @@ class LiveTuner(
         /** How long Channel +/− waits for the user to stop pressing before it opens a stream — the
          *  television's figure. */
         const val ZAP_TUNE_DELAY_MS = 500L
+
+        /** How long a channel may sit on screen without a stream and without an error before the
+         *  failover watchdog gives up on it and hops to the next playlist carrying it. */
+        const val FAILOVER_SETTLE_MS = 5_000L
     }
 }
 

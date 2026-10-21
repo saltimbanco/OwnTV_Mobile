@@ -7,12 +7,14 @@ import tv.own.owntv.core.database.entity.ChannelEntity
  * Cross-server failover for interrupted live streams.
  *
  * The engine ladder inside core (ExoPlayer ⇄ mpv, reconnects, watchdogs) already retries the
- * *same* stream; this is the layer above it. Once the same channel has errored more times than
- * [FailoverPrefs.getRetries] (default [FailoverPrefs.DEFAULT_RETRIES], configurable in
- * Video player settings), the watcher in [LiveTuner] looks for the same channel name on the
- * *other* configured live sources — Xtream, Stalker or M3U alike, anything whose catalog holds a
- * fuzzy match — and tunes the best match. Hopping continues across failures until every live
- * source has been tried for the current channel, then it stops and leaves the error on screen.
+ * *same* stream; this is the layer above it. A hop is triggered either once the same channel has
+ * errored more times than [FailoverPrefs.getRetries] (default [FailoverPrefs.DEFAULT_RETRIES],
+ * configurable in Video player settings), or once a channel that never started playing at all has
+ * sat on screen for five seconds with neither a stream nor an error. Either way the watcher in
+ * [LiveTuner] walks the *other* configured live sources in their own order — Xtream, Stalker or M3U
+ * alike — looking for a fuzzy name match, and tunes the first one that carries the channel,
+ * announcing every hop with a toast. Hopping continues across failures until every live source has
+ * been tried for the current channel, then it stops and leaves the error on screen.
  *
  * App-local [android.content.SharedPreferences] backs the two settings on purpose: the shared
  * settings store lives in the external core artifact, which this fork does not change, so
@@ -57,25 +59,50 @@ fun channelTokens(name: String): Set<String> =
     name.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim().split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
 
+/** Words that mark picture quality or region, not which channel it is. */
+private val NAME_DECORATIONS =
+    setOf("hd", "fhd", "uhd", "sd", "4k", "8k", "hevc", "h264", "h265",
+        "gr", "uk", "us", "de", "fr", "it", "es", "pt", "nl", "tr")
+
+private val RESOLUTION_TOKEN = Regex("\\d{3,4}[pi]")
+
+/** [channelTokens] with the quality/region decorations removed. */
+private fun significantTokens(name: String): Set<String> =
+    channelTokens(name).filterNot { it in NAME_DECORATIONS || RESOLUTION_TOKEN.matches(it) }.toSet()
+
+/** The same word: equal, or a plural/abbreviation pair — `sport` ≈ `sports`, `spor` ≈ `sport`. */
+private fun tokensMatch(a: String, b: String): Boolean {
+    if (a == b) return true
+    val shorter = if (a.length < b.length) a else b
+    val longer = if (a.length < b.length) b else a
+    return shorter.length >= 4 && longer.length - shorter.length <= 3 && longer.startsWith(shorter)
+}
+
 /**
- * How likely [candidateName] is the same channel as [targetName]: 1.0 for an exact (modulo
- * punctuation/case) match, 0.9 for containment, else token Jaccard overlap. Deliberately
- * forgiving about provider suffixes (`" HD"`, `"GR"`, `" 1080p"`); the threshold in
- * [bestChannelMatch] keeps near-misses like `"Nova Sports News"` for `"Nova Sports Prime"`
- * (0.5) eligible — a same-name channel that plays beats a perfect-name one that does not.
+ * How likely [candidateName] is the same channel as [targetName]. The asymmetry that matters:
+ * a provider may shorten or decorate a name (`"nova sport prime"`, `"ERT 1 HD"` for `"ERT1"`)
+ * but may not invent words the target never had (`"ERT 1"` is not `"ERT Sports 1"`,
+ * `"ASports 1"` is not `"Sports 1"` — a shared fragment is not a shared name). So the candidate
+ * is scored on how much of the target it covers, and anything it adds disqualifies it.
+ * Quality/region decorations (`" HD"`, `"GR"`, `" 1080p"`) are stripped from both sides first,
+ * and plurals/abbreviations count as the same word.
  */
 fun matchScore(targetName: String, candidateName: String): Double {
     val target = normalizeChannelKey(targetName)
     val candidate = normalizeChannelKey(candidateName)
     if (target.isEmpty() || candidate.isEmpty()) return 0.0
     if (target == candidate) return 1.0
-    if (target.contains(candidate) || candidate.contains(target)) return 0.9
-    val targetTokens = channelTokens(targetName)
-    val candidateTokens = channelTokens(candidateName)
+    val targetTokens = significantTokens(targetName)
+    val candidateTokens = significantTokens(candidateName)
+    // Same name once the decorations (`" HD"`, `"GR"`, `" 1080p"`) are also removed:
+    // `"ERT1"` ≡ `"ERT 1 HD"`, `"Nova Sports Prime HD"` ≡ `"Nova Sports Prime"`.
+    val targetBare = targetTokens.joinToString("")
+    if (targetBare.isNotEmpty() && targetBare == candidateTokens.joinToString("")) return 0.9
     if (targetTokens.isEmpty() || candidateTokens.isEmpty()) return 0.0
-    val intersection = targetTokens.intersect(candidateTokens).size
-    val union = targetTokens.union(candidateTokens).size
-    return if (union == 0) 0.0 else intersection.toDouble() / union
+    val extra = candidateTokens.filter { cTok -> targetTokens.none { tokensMatch(it, cTok) } }
+    if (extra.isNotEmpty()) return 0.0
+    val covered = targetTokens.count { tTok -> candidateTokens.any { tokensMatch(tTok, it) } }
+    return if (covered == 0) 0.0 else covered.toDouble() / targetTokens.size * 0.9
 }
 
 /** Highest-scoring candidate at or above [FAILOVER_MIN_SCORE], or null when nothing is close. */

@@ -4,9 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,6 +32,7 @@ import tv.own.owntv.core.timeshift.TimeshiftRules
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.mobile.ui.screens.recordings.RecordingsViewModel
+import tv.own.owntv.mobile.ui.screens.live.FailoverPrefs
 import tv.own.owntv.mobile.ui.stage.StagePlaylistMark
 import tv.own.owntv.player.LiveLadder
 import tv.own.owntv.player.ZoomMode
@@ -57,6 +60,11 @@ internal fun playerSections(vm: SettingsViewModel): List<SettingSection> {
     val mobileQuality = s.mobileDataMaxVideoHeight.pref(0)
     val externalOn = s.externalPlayerLive.pref(false) || s.externalPlayerMovies.pref(false) || s.externalPlayerSeries.pref(false)
     val engines = EnginePreference.entries.map { SettingsChoice(it, engineLabel(it)) }
+    // Failover tuning is app-local (FailoverPrefs), so its two values are read and written here
+    // rather than through the settings store the rest of these rows use.
+    val failoverContext = LocalContext.current
+    var hopEnabled by remember { mutableStateOf(FailoverPrefs.isEnabled(failoverContext)) }
+    var hopRetries by remember { mutableIntStateOf(FailoverPrefs.getRetries(failoverContext)) }
     return listOf(
         SettingSection(
             stringResource(R.string.settings_vp_cat_player),
@@ -108,7 +116,7 @@ internal fun playerSections(vm: SettingsViewModel): List<SettingSection> {
         ),
         SettingSection(
             stringResource(R.string.settings_vp_cat_streaming),
-            listOf(
+            listOfNotNull(
                 choiceItem(
                     "vp_vod_buffer", MobileIcons.Download, g, stringResource(R.string.settings_vod_buffer),
                     stringResource(R.string.settings_line_vod_buffer_mobile), stringResource(R.string.settings_vod_buffer_description),
@@ -125,6 +133,27 @@ internal fun playerSections(vm: SettingsViewModel): List<SettingSection> {
                     s.vodReconnectChoices.map { SettingsChoice(it, stringResource(R.string.settings_vod_reconnects_value, it)) },
                     reconnects, 1, { v -> vm.edit { setVodReconnects(v) } },
                 ),
+                // Cross-server failover: the engine ladder above retries the same stream, this is the
+                // layer above it. Its two values live in app-local SharedPreferences (FailoverPrefs),
+                // not in core's settings store, so this page owns them itself.
+                switchItem(
+                    "vp_server_hop", MobileIcons.SwapHoriz, stringResource(R.string.settings_server_hop),
+                    stringResource(R.string.settings_server_hop_description),
+                    hopEnabled,
+                ) { on ->
+                    FailoverPrefs.setEnabled(failoverContext, on)
+                    hopEnabled = on
+                },
+                if (hopEnabled) choiceItem(
+                    "vp_server_hop_retries", MobileIcons.Refresh, g, stringResource(R.string.settings_server_hop_retries),
+                    stringResource(R.string.settings_server_hop_retries_description), null,
+                    FailoverPrefs.RETRY_CHOICES.map { SettingsChoice(it, it.toString()) },
+                    hopRetries, FailoverPrefs.DEFAULT_RETRIES,
+                    { count ->
+                        FailoverPrefs.setRetries(failoverContext, count)
+                        hopRetries = count
+                    },
+                ) else null,
                 choiceItem(
                     "mobile_quality", MobileIcons.Translate, g, stringResource(R.string.settings_mobile_data_quality),
                     stringResource(R.string.settings_mobile_data_quality_description), null,
