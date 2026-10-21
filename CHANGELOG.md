@@ -7,6 +7,22 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.1.1 — 2026-10-21
+
+**This fork's release on top of upstream v1.1.0.** Everything upstream 1.1.0 ships is in here; the items below are this fork's own work on top of it, and nothing else differs.
+
+### New features
+- **📥 Import many servers from one plain-text file, live channels only or channels plus VOD**
+- **📦 One APK per device architecture: arm64-v8a and armeabi-v7a**
+
+### Fixes
+- **🔀 Failing live channels switch to your other servers; a channel that will not play — errors or a picture that never arrives — tries the next playlist after five seconds, each hop announced with a toast; the name match forgives shortened or alternate spellings ("nova sport prime" for "nova sports prime hd") but never invents a word ("ert 1" never becomes "ert sports 1")**
+- **🧠 The channel search behind that hop finds the same channel on a crowded playlist instead of missing it**
+- **🧹 Server-list import dedups on the login or MAC: one account under many hostnames imports once**
+- **🔐 A restored Xtream playlist without its password fails with a login error instead of staying empty**
+- **📜 The playlist picker scrolls to every playlist**
+- **📥 Server-list import says which lines it skipped**
+
 ## v1.1.0 — 2026-10-17
 
 ### New features
