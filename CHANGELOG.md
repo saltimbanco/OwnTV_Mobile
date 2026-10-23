@@ -9,7 +9,7 @@
 
 ## v1.1.2 — 2026-10-23
 
-**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.1 carries over; the one thing on top of it is core 1.0.70's new league:
+**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.1 carries over; core is upstream's own 1.0.69 release, which adds one league:
 
 ### New features
 - **🏆 Sports Hub: Super League Greece — its live scores land in the hub, with standings and team pages, and the channels showing its matches turn up in the guide**
