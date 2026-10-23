@@ -254,7 +254,7 @@ private val QUICK_WORDS: Map<String, Pair<Int, Int>> = mapOf(
     "quick_live_preview" to (R.string.settings_quick_live_preview to R.string.settings_line_live_preview_mobile),
     "quick_preview_sound" to (R.string.settings_quick_preview_sound to R.string.settings_line_preview_sound),
     "quick_channel_numbers" to (R.string.settings_quick_channel_numbers to R.string.settings_line_quick_channel_numbers_mobile),
-    "quick_hdr" to (R.string.settings_quick_hdr to R.string.settings_line_hdr),
+    "quick_hdr" to (R.string.settings_quick_prefer_sdr to R.string.settings_line_prefer_sdr),
     "quick_autoplay" to (R.string.settings_quick_autoplay to R.string.settings_line_quick_autoplay),
     "quick_check_update" to (R.string.settings_quick_check_update to R.string.settings_line_when_app_opens),
 )
