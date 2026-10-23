@@ -39,15 +39,16 @@ dependencyResolutionManagement {
         }
         // The fork's own core (https://github.com/saltimbanco/OwnTV_Core), published to that
         // repository's gh-pages branch the same way upstream's is. Scoped to the two artifacts and
-        // the one version the fork published — it is upstream's core plus this fork's restored-
-        // Xtream-auth fix, nothing else. libmpv and every other tv.own.owntv artifact stay with
-        // upstream, so this adds a fallback rather than taking the upstream repository over.
+        // the one version the fork pins — it is upstream's core plus this fork's own work (the
+        // restored-Xtream-auth fix, the Super League Greece catalog entry). libmpv and every other
+        // tv.own.owntv artifact stay with upstream, so this adds a fallback rather than taking the
+        // upstream repository over.
         maven {
             name = "OwnTVCoreFork"
             url = uri("https://saltimbanco.github.io/OwnTV_Core/maven")
             content {
-                includeVersion("tv.own.owntv", "core", "1.0.69")
-                includeVersion("tv.own.owntv", "player-core", "1.0.69")
+                includeVersion("tv.own.owntv", "core", "1.0.70")
+                includeVersion("tv.own.owntv", "player-core", "1.0.70")
             }
         }
     }
