@@ -647,7 +647,7 @@ private fun OutcomeSheet(outcome: BackupViewModel.Outcome, onDismiss: () -> Unit
                     }
 if (outcome.summary.invalidLocale) Text(stringResource(R.string.settings_backup_invalid_locale), style = body, color = palette.muted)
                     Text(stringResource(R.string.settings_backup_restore_resync), style = body, color = palette.muted)
-                    if (outcome.passwordsOmitted || outcome.summary.missingCredentials > 0) {
+                    if (outcome.passwordsOmitted) {
                         Text(stringResource(R.string.settings_backup_restore_password_note), style = body, color = palette.muted)
                     }
                 }

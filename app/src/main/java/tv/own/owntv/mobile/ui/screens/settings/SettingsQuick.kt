@@ -28,7 +28,6 @@ val QUICK_TOGGLES: List<QuickToggle> = listOf(
         R.string.settings_quick_prefer_sdr,
         { it.preferSdr },
         { setPreferSdr(it) },
-        default = true,
     ),
     QuickToggle(
         "quick_autoplay",
@@ -57,7 +56,6 @@ val QUICK_TOGGLES: List<QuickToggle> = listOf(
         R.string.settings_quick_prefer_sdr,
         { it.preferSdr },
         { setPreferSdr(it) },
-        default = true,
     ),
     QuickToggle(
         "vp_channel_numbers",
