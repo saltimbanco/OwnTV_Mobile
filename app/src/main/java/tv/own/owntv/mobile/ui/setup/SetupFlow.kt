@@ -513,7 +513,7 @@ private fun RestoreBackup(
             title = stringResource(R.string.setup_all_set),
             sub = listOfNotNull(
                 state.restoredItems?.let { pluralStringResource(R.plurals.setup_restored_items, it, it) },
-                if (state.passwordsOmitted || state.missingCredentials > 0) stringResource(R.string.setup_passwords_omitted) else null,
+                if (state.passwordsOmitted) stringResource(R.string.setup_passwords_omitted) else null,
                 state.skippedSources.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.setup_skipped_sources, it, it) },
                 if (state.invalidLocale) stringResource(R.string.setup_invalid_locale) else null,
             ).joinToString("\n"),

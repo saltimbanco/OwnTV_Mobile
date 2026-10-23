@@ -97,17 +97,6 @@ internal fun playerSections(vm: SettingsViewModel): List<SettingSection> {
                     "vp_reset_pins", R.string.settings_title_saved_choices, R.string.settings_line_saved_choices, vodPins,
                     R.string.settings_reset_player_choices_confirm, R.string.settings_reset_player_choices_confirm_description,
                 ) { vm.clearVodEnginePins() },
-                SettingItem(
-                    "vp_forget_fixes", MobileIcons.AutoAwesome, stringResource(R.string.settings_title_learned_fixes),
-                    stringResource(R.string.settings_line_learned_fixes), SettingValue.Action(stringResource(R.string.settings_forget)),
-                    sheet = { dismiss ->
-                        StageConfirmSheet(
-                            stringResource(R.string.settings_forget_stream_fixes_confirm),
-                            stringResource(R.string.settings_forget_stream_fixes_confirm_description),
-                            stringResource(R.string.settings_forget), { vm.forgetStreamFixes() }, dismiss,
-                        )
-                    },
-                ),
                 pageItem(
                     "vp_external", MobileIcons.OpenInNew, stringResource(R.string.settings_external_player), stringResource(R.string.settings_line_external),
                     stringResource(if (externalOn) R.string.common_on else R.string.common_off), SettingsLeaf.EXTERNAL_PLAYER.route,
@@ -211,7 +200,7 @@ internal fun pictureSections(vm: SettingsViewModel): List<SettingSection> {
             listOfNotNull(
                 quickSwitch(vm, "vp_hw", MobileIcons.AutoAwesome, R.string.settings_hardware_decoding, R.string.settings_line_hw_mobile),
                 quickSwitch(vm, "vp_sw_above_1080p", MobileIcons.AutoAwesome, R.string.settings_software_decode_above_1080p, R.string.settings_line_sw_decode_mobile),
-                quickSwitch(vm, "vp_hdr", MobileIcons.WbSunny, R.string.settings_quick_hdr, R.string.settings_line_hdr),
+                quickSwitch(vm, "vp_hdr", MobileIcons.WbSunny, R.string.settings_quick_prefer_sdr, R.string.settings_line_prefer_sdr),
                 choiceItem(
                     "vp_max_quality", MobileIcons.OpenInFull, g, stringResource(R.string.settings_max_video_quality),
                     stringResource(R.string.settings_line_max_quality), stringResource(R.string.settings_max_video_quality_description),

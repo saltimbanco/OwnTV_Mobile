@@ -668,7 +668,6 @@
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_autoplay
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_channel_numbers
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_external
-1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_forget_fixes
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_hdr
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_hw
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_latency_sources

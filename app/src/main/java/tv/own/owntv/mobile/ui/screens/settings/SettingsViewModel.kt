@@ -94,7 +94,6 @@ class SettingsViewModel(
     private val okHttpClient: OkHttpClient,
     private val vodEngineStore: VodEngineStore,
     private val forceMpvStore: tv.own.owntv.core.player.ForceMpvStore,
-    private val archiveDecodeStore: tv.own.owntv.core.player.ArchiveDecodeStore,
     private val playbackPrefs: PlaybackPrefsStore,
     private val metadataProvider: MetadataProvider,
     private val metadataBudget: MetadataBudget,
@@ -623,9 +622,6 @@ class SettingsViewModel(
 
     /** Every channel follows the Live TV player setting again; films' pins are kept. */
     fun clearLivePins() { viewModelScope.launch { forceMpvStore.clearAll() } }
-
-    /** Forget the stream lessons of this session and the stored catch-up decode list. */
-    fun forgetStreamFixes() { viewModelScope.launch { tv.own.owntv.player.LiveStreamQuirks.forgetLearned(archiveDecodeStore) } }
 
     fun clearSavedZoom() { viewModelScope.launch { playbackPrefs.clearZoom() } }
 
