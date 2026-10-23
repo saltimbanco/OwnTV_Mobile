@@ -7,6 +7,13 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.1.2 — 2026-10-23
+
+**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.1 carries over; the one thing on top of it is core 1.0.70's new league:
+
+### New features
+- **🏆 Sports Hub: Super League Greece — its live scores land in the hub, with standings and team pages, and the channels showing its matches turn up in the guide**
+
 ## v1.1.1 — 2026-10-21
 
 **This fork's release on top of upstream v1.1.0.** Everything upstream 1.1.0 ships is in here; the items below are this fork's own work on top of it, and nothing else differs.
