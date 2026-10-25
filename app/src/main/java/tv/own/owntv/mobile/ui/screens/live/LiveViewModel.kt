@@ -108,8 +108,21 @@ class LiveViewModel(
     epgDao: EpgDao,
     /** The app-wide reader the Guide uses too — one now/next cache, not two. */
     private val epgReader: LiveEpgReader,
+    /** The session tuner. A successful cross-playlist hop registers its context adoption here. */
+    private val tuner: LiveTuner,
 ) : ViewModel() {
 
+    init {
+        // A hop that stuck moves this screen's category strip to the working playlist's category —
+        // see [adoptHoppedPlaylist]. Registered here rather than wired in Koin: the tuner outlives
+        // this view model, so the registration is dropped when this screen dies.
+        tuner.onHopEstablished = ::adoptHoppedPlaylist
+    }
+
+    override fun onCleared() {
+        tuner.onHopEstablished = null
+        super.onCleared()
+    }
 
     /** The same candidate set the Guide's picker uses — filtered by no source. */
     private val guideCandidates = tv.own.owntv.core.epg.GuideCandidates(epgDao)
@@ -446,6 +459,28 @@ class LiveViewModel(
         _selected.value = key
         _query.value = ""
         viewModelScope.launch { settings.setLastLiveCategory(key.serialize()) }
+    }
+
+    /**
+     * A cross-playlist hop just landed on [channel] and is playing: the browse section moves with
+     * it. The channel's own category folder belongs to the playlist that actually plays, so
+     * selecting it puts the user on the working playlist, inside the working category, and they
+     * keep navigating from there instead of back on the dead one. A folder that never reaches the
+     * strip (hidden, or the playlist was re-synced) falls back to All channels — the same rule the
+     * Guide's reveal applies.
+     */
+    fun adoptHoppedPlaylist(channel: ChannelEntity) {
+        val folder = channel.categoryId?.let { LiveKey.Folder(it) }
+        if (folder == null) {
+            select(LiveKey.All)
+            return
+        }
+        viewModelScope.launch {
+            val inStrip = kotlinx.coroutines.withTimeoutOrNull(2_000) {
+                categories.first { list -> list.any { it.key == folder } }
+            } != null
+            select(if (inStrip) folder else LiveKey.All)
+        }
     }
 
     /**

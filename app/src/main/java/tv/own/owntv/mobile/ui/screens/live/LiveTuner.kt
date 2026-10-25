@@ -111,6 +111,14 @@ class LiveTuner(
     private val downloadWatchGuard: tv.own.owntv.core.download.DownloadWatchGuard,
 ) : CastHandoff {
 
+    /**
+     * The browse context adopter a successful hop calls: the browse section follows the hop to the
+     * playlist and category that actually plays. LiveViewModel registers itself here in its own
+     * init — the tuner is a session single, the view model is scoped to a screen — and a hop that
+     * lands before any screen registered one simply skips the adoption.
+     */
+    var onHopEstablished: ((ChannelEntity) -> Unit)? = null
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 
@@ -387,6 +395,9 @@ class LiveTuner(
     private var failoverHopJob: Job? = null
     private var failoverWatchdogJob: Job? = null
 
+    /** The "hop worked" confirmation: once the hopped channel plays, the browse context follows it. */
+    private var failoverSettleJob: Job? = null
+
     init {
         scope.launch {
             combine(player.error, exo.error, live.liveOnExo, _channel) { mpvError, exoError, onExo, channel ->
@@ -479,8 +490,34 @@ class LiveTuner(
                 ).show()
                 switchTo(target, fromFailover = true)
             }
+            // A hop that STUCK moves the browse context with it: once the hopped channel is actually
+            // playing, the Live list follows to the playlist and category the working channel lives
+            // in, and the Channels tab steps through the new folder. Runs as its own job — the hop
+            // job must stay free to fire the next hop if this target errors (attemptServerHop
+            // refuses a second hop while its job is alive).
+            failoverSettleJob?.cancel()
+            failoverSettleJob = scope.launch {
+                if (!awaitHopPlayability(target)) return@launch
+                onHopEstablished?.invoke(target)
+                loadSiblings(target)
+            }
         }
     }
+
+    /**
+     * Whether the hopped-to channel has established playability: the same test the tuner's own
+     * watchdog applies, polled until it holds or the wait is up. False when the screen moved on —
+     * the user tuned elsewhere, or a further hop replaced this channel — so there is nothing to adopt.
+     */
+    private suspend fun awaitHopPlayability(target: ChannelEntity): Boolean =
+        kotlinx.coroutines.withTimeoutOrNull(HOP_ADOPT_TIMEOUT_MS) {
+            repeat(Int.MAX_VALUE) {
+                if (_channel.value?.id != target.id) return@withTimeoutOrNull false
+                if (liveIsPlayable()) return@withTimeoutOrNull true
+                kotlinx.coroutines.delay(500)
+            }
+            false
+        } ?: false
 
     /**
      * Start the [FAILOVER_SETTLE_MS] window for the channel just opened — the "will it play at all"
@@ -1374,7 +1411,11 @@ class LiveTuner(
 
         /** How long a channel may sit on screen without a stream and without an error before the
          *  failover watchdog gives up on it and hops to the next playlist carrying it. */
-        const val FAILOVER_SETTLE_MS = 5_000L
+        const val FAILOVER_SETTLE_MS = 10_000L
+
+        /** How long a hopped-to channel has to establish playability before the hop's context
+         *  adoption gives up (the tuner's own watchdog keeps hopping past a dead target anyway). */
+        const val HOP_ADOPT_TIMEOUT_MS = 30_000L
     }
 }
 
