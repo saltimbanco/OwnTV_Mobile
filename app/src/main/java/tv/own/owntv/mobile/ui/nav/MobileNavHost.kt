@@ -19,6 +19,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.compose.animation.AnimatedContentScope
 import org.koin.compose.koinInject
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.ui.screens.live.LiveTuner
@@ -263,12 +264,24 @@ fun MobileNavHost(
         page(PLAYER_ROUTE) {
             // `onExit` is only ever the mini-player button, the swipe down and Sound only — the three
             // ways of saying "keep it playing". Back has its own path and stops the stream, so it
-            // never reaches here and never raises the flag.
+            // never raises the flag.
             val miniRequested = LocalMiniRequested.current
+            // Except a channel over Live TV or Home (a channel row, the startup channel): Back keeps it
+            // playing and lands on Live TV's list with the channel in the preview. No mini player is
+            // asked for, because the preview is already showing the picture.
+            val under = remember(it) { navController.previousBackStackEntry?.destination?.route }
             PlayerScreen(
                 onExit = {
                     miniRequested.value = true
                     navController.popBackStack()
+                },
+                onBackToPreview = when (under) {
+                    MobileDestination.LIVE.route -> ({ navController.popBackStack() })
+                    MobileDestination.HOME.route -> ({
+                        navController.popBackStack()
+                        navController.navigateToTab(MobileDestination.LIVE)
+                    })
+                    else -> null
                 },
             )
         }

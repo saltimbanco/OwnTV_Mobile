@@ -106,13 +106,17 @@ private const val NOTCHES = 20
  * has running — going full screen and coming back out is a change of view, never a restart. Back and
  * the swipe down both leave it playing, which is what puts it into the mini player.
  *
- * The screen asks for landscape when it opens and then lets go of the orientation again, so a video
- * lands the right way up without a user who prefers portrait being trapped in landscape.
+ * The screen is landscape for as long as it is open, whichever way the phone is held or locked
+ * (either side, by the sensor); leaving it hands the orientation back.
+ *
+ * [onBackToPreview], when given, is what Back does to a live channel: leave full screen with the
+ * channel still playing, because the screen underneath (Live TV) shows it in its preview.
  */
 @Composable
 fun PlayerScreen(
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
+    onBackToPreview: (() -> Unit)? = null,
     tuner: LiveTuner = koinInject(),
     vodTuner: VodTuner = koinInject(),
     pip: PipController = koinInject(),
@@ -464,11 +468,6 @@ fun PlayerScreen(
             }
         }
     }
-    // Once the rotation has actually happened, hand the orientation back: the request above was to
-    // arrive in landscape, not to stay there.
-    LaunchedEffect(landscape) {
-        if (landscape) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-    }
 
     fun setBrightness(value: Float) {
         brightness = value.coerceIn(0.01f, 1f)
@@ -507,7 +506,10 @@ fun PlayerScreen(
         vodTuner.stop()
         onExit()
     }
-    BackHandler(onBack = stopAndExit)
+    // Except over Live TV: there Back on a channel returns to the list with the channel still playing
+    // in its preview, the view it was opened from — the preview's own Back is what stops it.
+    val back = onBackToPreview?.takeIf { channel != null } ?: stopAndExit
+    BackHandler(onBack = back)
 
     // Casting replaces the screen rather than decorating it. Everything below this point drives the
     // engine on this phone — the surface, the gestures, the track pickers — and while the television
@@ -717,7 +719,7 @@ fun PlayerScreen(
             onToggleLiveEngine = tuner::toggleLiveEngine.takeIf {
                 isLive && (atLiveEdge || hasLocalCopy) && channel?.drmConfig == null
             },
-            onBack = stopAndExit,
+            onBack = back,
             onGoLive = tuner::goToLive,
             onScrubLive = tuner::scrubLive,
             onSkipLive = tuner::skipLive.takeIf { archiveWindowSec > 0 },

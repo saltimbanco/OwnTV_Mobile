@@ -132,8 +132,12 @@ fun LiveScreen(
     var catchupFor by remember { mutableStateOf<ChannelEntity?>(null) }
     var jumpBackOpen by remember { mutableStateOf(false) }
     // Wide: the list on the left, the preview and its programme on the right — the same preview
-    // the phone draws on top, so a tap plays and a second tap is full screen there too.
-    val twoPane = isExpandedWidth()
+    // the phone draws on top, so a tap plays and a second tap is full screen there too. A phone held
+    // sideways is wide but short: half its width makes a small picture over empty room, so it keeps
+    // the preview on top of the list, laid out sideways (see [LivePreview]'s `sideways`).
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val twoPane = isExpandedWidth() && configuration.screenHeightDp >= 600
+    val sideways = !twoPane && configuration.screenWidthDp > configuration.screenHeightDp
 
     // While the pane is showing the channel, the picture is already on screen, so the shell must not
     // also put a floating window over it. Cleared on the way out, or leaving Live TV with a channel
@@ -209,7 +213,8 @@ fun LiveScreen(
                 nowNext = playingNowNext,
                 nowMs = nowMs,
                 onFullscreen = openFullscreen,
-                modifier = Modifier.padding(top = PREVIEW_TOP),
+                sideways = sideways,
+                modifier = Modifier.padding(top = if (sideways) 0.dp else PREVIEW_TOP, bottom = if (sideways) 10.dp else 0.dp),
             )
         } else if (guideView) {
             LiveGuideTools(
@@ -338,7 +343,7 @@ fun LiveScreen(
                         nowMs = nowMs,
                         onFullscreen = openFullscreen,
                         wide = true,
-                        tablet = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp >= 600,
+                        tablet = configuration.screenHeightDp >= 600,
                         modifier = Modifier.verticalScroll(rememberScrollState()).padding(top = TOOLS_TOP),
                     )
                 }
