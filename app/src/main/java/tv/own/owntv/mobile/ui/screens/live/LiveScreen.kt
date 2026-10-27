@@ -514,8 +514,9 @@ internal fun LiveChannelRow(
                 style = stageText(if (compact) 11.6f else 14.5f, 700),
                 color = palette.text,
                 maxLines = 1,
-                overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis,
                 // Moves only when the name is wider than its room, and only rows on screen are composed.
+                // The marquee measures the name at full width, so the ellipsis never cuts a scrolling one.
                 modifier = if (marquee) Modifier.basicMarquee(iterations = Int.MAX_VALUE, velocity = 20.dp) else Modifier,
             )
             if (now != null) {
