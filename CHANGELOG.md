@@ -7,6 +7,15 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.1.4 — 2026-10-27
+
+**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.3 carries over; the items below are new in this release:
+
+### Fixes
+- **📱 Live TV on a phone held sideways: the preview sits above the channel list**
+- **🔄 Full screen always plays in landscape, whichever way the phone is held**
+- **↩️ Back from full screen returns to Live TV with the channel still playing in the preview**
+
 ## v1.1.2 — 2026-10-23
 
 **This fork's release on top of upstream v1.1.0.** The fork work of v1.1.1 carries over; core is upstream's own 1.0.69 release, which adds one league:
