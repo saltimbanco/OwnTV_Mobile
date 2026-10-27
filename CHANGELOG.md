@@ -12,7 +12,7 @@
 **This fork's release on top of upstream v1.1.0.** The fork work of v1.1.3 carries over; the items below are new in this release:
 
 ### Fixes
-- **📱 Live TV on a phone held sideways: the preview sits above the channel list**
+- **📱 Live TV on a phone held sideways: a smaller preview, smaller channel names, and long names scroll to show the rest**
 - **🔄 Full screen always plays in landscape, whichever way the phone is held**
 - **↩️ Back from full screen returns to Live TV with the channel still playing in the preview**
 

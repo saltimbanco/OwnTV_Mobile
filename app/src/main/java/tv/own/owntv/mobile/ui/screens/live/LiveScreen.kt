@@ -1,6 +1,10 @@
 package tv.own.owntv.mobile.ui.screens.live
 
 import androidx.compose.foundation.layout.widthIn
+import android.animation.ValueAnimator
+import androidx.compose.foundation.basicMarquee
+import tv.own.owntv.core.theme.AnimationLevel
+import tv.own.owntv.mobile.ui.theme.LocalAnimations
 import tv.own.owntv.mobile.ui.screens.home.formatYear
 import tv.own.owntv.mobile.ui.player.CatchupOptions
 import tv.own.owntv.mobile.ui.player.CatchupSheet as JumpBackSheet
@@ -132,12 +136,11 @@ fun LiveScreen(
     var catchupFor by remember { mutableStateOf<ChannelEntity?>(null) }
     var jumpBackOpen by remember { mutableStateOf(false) }
     // Wide: the list on the left, the preview and its programme on the right — the same preview
-    // the phone draws on top, so a tap plays and a second tap is full screen there too. A phone held
-    // sideways is wide but short: half its width makes a small picture over empty room, so it keeps
-    // the preview on top of the list, laid out sideways (see [LivePreview]'s `sideways`).
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-    val twoPane = isExpandedWidth() && configuration.screenHeightDp >= 600
-    val sideways = !twoPane && configuration.screenWidthDp > configuration.screenHeightDp
+    // the phone draws on top, so a tap plays and a second tap is full screen there too.
+    val twoPane = isExpandedWidth()
+    // A phone held sideways: the preview gives the list a little more of the width, and the rows
+    // draw their names smaller, scrolling the ones that still do not fit (see [LiveChannelRow]).
+    val sidewaysPhone = twoPane && androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 600
 
     // While the pane is showing the channel, the picture is already on screen, so the shell must not
     // also put a floating window over it. Cleared on the way out, or leaving Live TV with a channel
@@ -213,8 +216,7 @@ fun LiveScreen(
                 nowNext = playingNowNext,
                 nowMs = nowMs,
                 onFullscreen = openFullscreen,
-                sideways = sideways,
-                modifier = Modifier.padding(top = if (sideways) 0.dp else PREVIEW_TOP, bottom = if (sideways) 10.dp else 0.dp),
+                modifier = Modifier.padding(top = PREVIEW_TOP),
             )
         } else if (guideView) {
             LiveGuideTools(
@@ -290,6 +292,7 @@ fun LiveScreen(
                             LiveChannelRow(
                                 channel = channel,
                                 showNumber = showNumbers,
+                                compact = sidewaysPhone,
                                 now = nowPlaying[channel.id]?.takeIf { it.stopMs > nowMs },
                                 nowMs = nowMs,
                                 mark = marks[channel.sourceId],
@@ -343,13 +346,13 @@ fun LiveScreen(
                         nowMs = nowMs,
                         onFullscreen = openFullscreen,
                         wide = true,
-                        tablet = configuration.screenHeightDp >= 600,
+                        tablet = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp >= 600,
                         modifier = Modifier.verticalScroll(rememberScrollState()).padding(top = TOOLS_TOP),
                     )
                 }
             },
-            // Half and half (list 390 of 791 dp).
-            listShare = 0.5f,
+            // Half and half (list 390 of 791 dp); a phone held sideways takes 10% off the preview.
+            listShare = if (sidewaysPhone) 0.55f else 0.5f,
             modifier = modifier,
         )
     } else {
@@ -457,6 +460,9 @@ private fun EmptyChannels(query: String) {
  * would vanish), the provider's name without its marks (14.5 / 700), "programme · time left" (12 muted)
  * and a 3 dp progress line at 70%; then the provider tags, ↺ for catch-up, ♥ when a favourite and the
  * playlist mark. [current] is the playing channel (`.fx` + `.selbar`).
+ *
+ * [compact] is a phone held sideways, beside the preview: the name is 20% smaller, and a name that
+ * still does not fit scrolls slowly to show the rest — only while animations are on.
  */
 @Composable
 internal fun LiveChannelRow(
@@ -469,8 +475,11 @@ internal fun LiveChannelRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     current: Boolean = false,
+    compact: Boolean = false,
 ) {
     val palette = LocalStagePalette.current
+    // Off in the app's Animations setting or in the system's (Remove animations): the name ellipsises.
+    val marquee = compact && LocalAnimations.current != AnimationLevel.OFF && ValueAnimator.areAnimatorsEnabled()
     val accent = stageAccent.accent
     val name = remember(channel.name) { ProviderTags.parse(channel.name) }
     StageRow(
@@ -500,7 +509,15 @@ internal fun LiveChannelRow(
             )
         }
         Column(Modifier.weight(1f)) {
-            Text(name.name, style = stageText(14.5f, 700), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                name.name,
+                style = stageText(if (compact) 11.6f else 14.5f, 700),
+                color = palette.text,
+                maxLines = 1,
+                overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                // Moves only when the name is wider than its room, and only rows on screen are composed.
+                modifier = if (marquee) Modifier.basicMarquee(iterations = Int.MAX_VALUE, velocity = 20.dp) else Modifier,
+            )
             if (now != null) {
                 val left = timeLeftText(((now.stopMs - nowMs).coerceAtLeast(0) + 59_999) / 60_000)
                 Text(

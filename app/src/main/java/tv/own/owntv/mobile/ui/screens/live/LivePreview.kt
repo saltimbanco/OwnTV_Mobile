@@ -79,34 +79,62 @@ internal fun LivePreview(
     wide: Boolean = false,
     /** A tablet's pane: the bigger title and the programme's plot. */
     tablet: Boolean = false,
-    /** A phone held sideways: the video by height, and the programme with its plot beside it rather than under it. */
-    sideways: Boolean = false,
 ) {
     val engine by tuner.activeEngine.collectAsStateWithLifecycle()
     val previewing by tuner.previewing.collectAsStateWithLifecycle()
     val chips by (if (previewing) tuner.exoEngine else engine).streamChips.collectAsStateWithLifecycle()
-    val now = nowNext?.now
-    if (sideways) {
-        // A phone held sideways: the video by height so the list keeps the rest, the programme beside it.
-        Row(modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            PreviewVideo(tuner, channel, chips, onFullscreen, Modifier.height(SIDEWAYS_VIDEO_HEIGHT).aspectRatio(16f / 9f))
-            if (now != null) {
-                ProgrammeBlock(
-                    now, nowNext.nowDetails, nowNext.next, nowNext.upcoming.firstOrNull(), nowMs,
-                    titleSize = 20f,
-                    plot = now.description?.takeIf { it.isNotBlank() },
-                    plotMaxLines = 3,
-                    modifier = Modifier.weight(1f).padding(top = 4.dp),
+    val name = remember(channel.name) { ProviderTags.parse(channel.name).name }
+    val fullscreen = stringResource(R.string.multiview_tile_fullscreen)
+    val shape = RoundedCornerShape(StageRadii.Video)
+    val dark = !LocalStagePalette.current.isLight
+    Column(modifier.fillMaxWidth().padding(start = if (wide) 0.dp else 14.dp, end = 14.dp)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .then(if (wide) Modifier.aspectRatio(16f / 9f) else Modifier.height(212.dp))
+                // `.video`: 0 20 50 black 55% (light: 0 14 32 rgb(20,40,32) 22%).
+                .then(
+                    if (dark) Modifier.stageShadow(Color.Black.copy(alpha = 0.55f), 50.dp, 20.dp, shape)
+                    else Modifier.stageShadow(Color(20, 40, 32).copy(alpha = 0.22f), 32.dp, 14.dp, shape),
                 )
+                .clip(shape)
+                .background(Color.Black)
+                .clickable(onClickLabel = fullscreen, onClick = onFullscreen),
+        ) {
+            // The surface is punched through the window, so a sheet's glass showed it sharp. Under a sheet it
+            // is covered with black rather than taken away: a new surface waits 2–5 s for the next keyframe.
+            VideoStage(player = tuner.player, modifier = Modifier.fillMaxSize())
+            if (sheetOpen()) Box(Modifier.fillMaxSize().background(Color.Black))
+            // `.shade`: black 72% at the bottom, clear by 45% up.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.72f))))
+            if (dark) Box(Modifier.fillMaxSize().drawBehind { drawInnerRing(Color.White.copy(alpha = 0.08f), 1.dp.toPx(), StageRadii.Video.toPx()) })
+            StageLiveBadge(stringResource(R.string.player_live), Modifier.align(Alignment.TopStart).padding(10.dp))
+            // Three facts; the aspect ratio and the declared bitrate are left out, as on the TV.
+            val facts = chips.filterNot { it.contains(':') || it.endsWith("Mbps") }
+            if (facts.isNotEmpty()) StageSpecChips(facts, Modifier.align(Alignment.TopEnd).padding(10.dp))
+            Row(
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(38.dp, 28.dp).clip(RoundedCornerShape(StageRadii.Plate)), contentAlignment = Alignment.Center) {
+                    ChannelLogoImage(
+                        url = channel.displayLogoUrl,
+                        modifier = Modifier.fillMaxSize(),
+                        plateOn = Color.Black,
+                        fallback = { StageIcon(MobileIcons.LiveTv, 16.dp, Color(0xFFA7B3AE)) },
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    channel.number?.takeIf { it > 0 }?.let {
+                        Text(formatYear(it), style = stageText(10.5f, 500), color = Color(0xFFCFD8D4), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(name, style = stageText(13.5f, 700), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                StageIcon(MobileIcons.OpenInFull, 18.dp, Color.White, Modifier.semantics { contentDescription = fullscreen })
             }
         }
-        return
-    }
-    Column(modifier.fillMaxWidth().padding(start = if (wide) 0.dp else 14.dp, end = 14.dp)) {
-        PreviewVideo(
-            tuner, channel, chips, onFullscreen,
-            Modifier.fillMaxWidth().then(if (wide) Modifier.aspectRatio(16f / 9f) else Modifier.height(212.dp)),
-        )
+        val now = nowNext?.now
         if (now != null) {
             // Beside the list the block is title, line and progress — 18, or 26 with the plot on a
             // tablet; what comes next is the phone's, where the list is under it.
@@ -114,67 +142,7 @@ internal fun LivePreview(
                 now, nowNext.nowDetails, nowNext.next.takeIf { !wide }, nowNext.upcoming.firstOrNull(), nowMs,
                 titleSize = if (tablet) 26f else if (wide) 18f else 20f,
                 plot = now.description?.takeIf { tablet && it.isNotBlank() },
-                modifier = Modifier.padding(top = 12.dp),
             )
-        }
-    }
-}
-
-/** The video itself (radius 20): LIVE, the stream's facts, the channel in the lower corner and ⤢; a tap is full screen. */
-@Composable
-private fun PreviewVideo(
-    tuner: LiveTuner,
-    channel: ChannelEntity,
-    chips: List<String>,
-    onFullscreen: () -> Unit,
-    modifier: Modifier,
-) {
-    val name = remember(channel.name) { ProviderTags.parse(channel.name).name }
-    val fullscreen = stringResource(R.string.multiview_tile_fullscreen)
-    val shape = RoundedCornerShape(StageRadii.Video)
-    val dark = !LocalStagePalette.current.isLight
-    Box(
-        modifier
-            // `.video`: 0 20 50 black 55% (light: 0 14 32 rgb(20,40,32) 22%).
-            .then(
-                if (dark) Modifier.stageShadow(Color.Black.copy(alpha = 0.55f), 50.dp, 20.dp, shape)
-                else Modifier.stageShadow(Color(20, 40, 32).copy(alpha = 0.22f), 32.dp, 14.dp, shape),
-            )
-            .clip(shape)
-            .background(Color.Black)
-            .clickable(onClickLabel = fullscreen, onClick = onFullscreen),
-    ) {
-        // The surface is punched through the window, so a sheet's glass showed it sharp. Under a sheet it
-        // is covered with black rather than taken away: a new surface waits 2–5 s for the next keyframe.
-        VideoStage(player = tuner.player, modifier = Modifier.fillMaxSize())
-        if (sheetOpen()) Box(Modifier.fillMaxSize().background(Color.Black))
-        // `.shade`: black 72% at the bottom, clear by 45% up.
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.72f))))
-        if (dark) Box(Modifier.fillMaxSize().drawBehind { drawInnerRing(Color.White.copy(alpha = 0.08f), 1.dp.toPx(), StageRadii.Video.toPx()) })
-        StageLiveBadge(stringResource(R.string.player_live), Modifier.align(Alignment.TopStart).padding(10.dp))
-        // Three facts; the aspect ratio and the declared bitrate are left out, as on the TV.
-        val facts = chips.filterNot { it.contains(':') || it.endsWith("Mbps") }
-        if (facts.isNotEmpty()) StageSpecChips(facts, Modifier.align(Alignment.TopEnd).padding(10.dp))
-        Row(
-            Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(38.dp, 28.dp).clip(RoundedCornerShape(StageRadii.Plate)), contentAlignment = Alignment.Center) {
-                ChannelLogoImage(
-                    url = channel.displayLogoUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    plateOn = Color.Black,
-                    fallback = { StageIcon(MobileIcons.LiveTv, 16.dp, Color(0xFFA7B3AE)) },
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                channel.number?.takeIf { it > 0 }?.let {
-                    Text(formatYear(it), style = stageText(10.5f, 500), color = Color(0xFFCFD8D4), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Text(name, style = stageText(13.5f, 700), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            StageIcon(MobileIcons.OpenInFull, 18.dp, Color.White, Modifier.semantics { contentDescription = fullscreen })
         }
     }
 }
@@ -189,8 +157,6 @@ private fun ProgrammeBlock(
     nowMs: Long,
     titleSize: Float,
     plot: String?,
-    modifier: Modifier = Modifier,
-    plotMaxLines: Int = Int.MAX_VALUE,
 ) {
     val palette = LocalStagePalette.current
     val accent = stageAccent.accent
@@ -203,7 +169,7 @@ private fun ProgrammeBlock(
             details?.categoryList.orEmpty() +
             listOfNotNull(details?.year?.toString(), details?.rating, length)
         ).joinToString(sep)
-    Column(modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, bottom = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 12.dp, bottom = 4.dp)) {
         Text(now.title, style = stageText(titleSize, 800), color = palette.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(line, style = stageText(12f, 400), color = palette.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -211,12 +177,7 @@ private fun ProgrammeBlock(
         }
         val span = (now.stopMs - now.startMs).coerceAtLeast(1)
         StageProgress((nowMs - now.startMs).toFloat() / span, Modifier.padding(top = 8.dp))
-        plot?.let {
-            Text(
-                it, style = stageText(13f, 500, lineHeight = 1.5f), color = palette.body,
-                maxLines = plotMaxLines, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp),
-            )
-        }
+        plot?.let { Text(it, style = stageText(13f, 500, lineHeight = 1.5f), color = palette.body, modifier = Modifier.padding(top = 10.dp)) }
         if (next != null) {
             Text(
                 buildAnnotatedString {
@@ -234,6 +195,3 @@ private fun ProgrammeBlock(
         }
     }
 }
-
-/** The sideways video's height (16:9, so 299 dp wide): room for the programme beside it and rows under it. */
-private val SIDEWAYS_VIDEO_HEIGHT = 168.dp
