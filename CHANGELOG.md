@@ -7,9 +7,16 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## v1.1.5 — 2026-10-30
+
+**This fork's release on top of upstream v1.1.1.** The fork work of v1.1.4 carries over; the items below are new in this release, followed by what upstream v1.1.1 adds:
+
+### Fixes
+- **🔎 Tapping a channel in Search opens it in Live TV**
+
 ## Upstream v1.1.1 — 2026-10-21
 
-**Merged into this fork on top of v1.1.4; not in a fork release yet.**
+**Merged into this fork in v1.1.5.**
 
 ### New features
 - **🎧 Audio delay for each output: Bluetooth, speakers, headphones, HDMI**
