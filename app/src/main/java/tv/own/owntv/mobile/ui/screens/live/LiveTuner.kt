@@ -121,6 +121,28 @@ class LiveTuner(
      */
     var onHopEstablished: ((ChannelEntity) -> Unit)? = null
 
+    /**
+     * The channel a screen outside this one just opened — Search's channel result.
+     *
+     * Live TV opens on that channel's own category, so Back from the player lands on the folder the
+     * channel lives in rather than on whichever folder was open before the search. Held here, and
+     * not passed along the nav route, because the Live tab may already exist (Search pushed over it)
+     * or may be created by the switch, and this tuner is the only thing alive in both cases.
+     * [LiveViewModel] collects it and clears it as it applies it.
+     */
+    private val _revealCategoryFor = MutableStateFlow<Long?>(null)
+    val revealCategoryFor: StateFlow<Long?> = _revealCategoryFor
+
+    /** Ask Live TV to open on [channelId]'s category — see [revealCategoryFor]. */
+    fun revealCategoryOf(channelId: Long) {
+        _revealCategoryFor.value = channelId
+    }
+
+    /** The request was applied: forgotten, so a later visit to Live TV keeps the user's own category. */
+    fun clearRevealCategory(channelId: Long) {
+        if (_revealCategoryFor.value == channelId) _revealCategoryFor.value = null
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 
