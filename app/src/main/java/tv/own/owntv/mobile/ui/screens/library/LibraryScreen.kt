@@ -178,7 +178,15 @@ fun LibraryScreen(
 
     // A new selection's scroll position has nothing to do with the old one's, and neither does the
     // title that was open in the pane — it is not in this category any more.
+    // Only on a real change: coming back from a title page re-enters this screen with the same selection,
+    // and the saved scroll position must survive that.
+    var shownSelection by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(tab, selected) {
+        val selection = "$tab|$selected"
+        if (shownSelection == selection) return@LaunchedEffect
+        val first = shownSelection == null
+        shownSelection = selection
+        if (first) return@LaunchedEffect
         gridState.scrollToItem(0)
         listState.scrollToItem(0)
         tappedItem = null

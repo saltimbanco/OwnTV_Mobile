@@ -94,6 +94,7 @@ private const val HUD_TIMEOUT_MS = 900L
 
 /** How long a confirmation line stays over the picture. */
 private const val TOAST_MS = 1_800L
+private const val HINT_MS = 6_000L
 private const val SPEED_HOLD = 2.0
 
 /** How many notches the brightness slide is divided into for its haptic tick. */
@@ -256,7 +257,12 @@ fun PlayerScreen(
 
     // A line over the picture: the engine swap, the report, a subtitle file that would not load.
     var toast by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(toast) { if (toast != null) { delay(TOAST_MS); toast = null } }
+    // A channel juddering on ExoPlayer: said once that the other engine may play it smoothly. It stays
+    // longer than the other lines — this one has to be read.
+    val smoothnessHint by activeEngine.smoothnessHint.collectAsStateWithLifecycle()
+    val smoothnessHintText = stringResource(R.string.player_smoothness_hint)
+    LaunchedEffect(smoothnessHint) { if (smoothnessHint) toast = smoothnessHintText }
+    LaunchedEffect(toast) { if (toast != null) { delay(if (toast == smoothnessHintText) HINT_MS else TOAST_MS); toast = null } }
     val reportSaved = stringResource(R.string.player_report_saved)
     val subtitleFailed = stringResource(R.string.content_subtitle_load_failed)
 

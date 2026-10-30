@@ -743,9 +743,11 @@ private fun ShellLayout(
         val contentH = (constraints.maxHeight - contentTop - shown).coerceAtLeast(0)
         val contentP = contentM.first().measure(Constraints.fixed(width, contentH))
         layout(constraints.maxWidth, constraints.maxHeight) {
-            contentP.place(inset, contentTop)
-            headerP.place(inset, top)
-            bottomP.place(inset, constraints.maxHeight - shown)
+            // Relative: in a right-to-left language the rail is on the right, and the page must clear it
+            // there — placed from the left it lay over the rail and took its taps.
+            contentP.placeRelative(inset, contentTop)
+            headerP.placeRelative(inset, top)
+            bottomP.placeRelative(inset, constraints.maxHeight - shown)
         }
     }
 }

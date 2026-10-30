@@ -226,7 +226,7 @@ class LiveViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** Settings › Layout › Show counts. */
+    /** Settings › Layout › Navigation › Show counts. */
     val sheetCounts: StateFlow<Boolean> = settings.sheetCounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 

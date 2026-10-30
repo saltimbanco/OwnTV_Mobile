@@ -126,7 +126,7 @@ Under **User-Agent** there is an optional **Referer** — leave it empty unless 
 for one; it is then sent with every stream of that playlist.
 
 ### 📱 Setting up the television too?
-**Where:** on the **TV** — Settings → Manage sources → Add source → **Remote**
+**Where:** on the **TV** — Settings → Sources & guide → Playlists → Add Source → **Remote**
 Typing an Xtream password with a TV remote is miserable, so the television can hand the job to this
 phone. It shows a QR code and a 6-digit PIN; scan it, fill the form in your browser, and press
 **Send to TV** — then press **Start Import** on the television. It is a web page served by the TV, so
@@ -187,7 +187,7 @@ a **per playlist** override below it.
 
 > **A channel that won't play is worked through every combination** — each engine on each stream
 > format, up to four, each tried once. Then it stops and tells you.
-> **Give up after** (Settings → Live TV) bounds how long that may take, and
+> **Give up on a channel after** (Settings → Live TV) bounds how long that may take, and
 > **Give up after, per playlist** gives one provider its own time.
 
 ---
@@ -217,7 +217,7 @@ carries, set a User-Agent, pick a refresh interval — which can be **every N da
 whether to use that feed's channel logos. The refresh runs when the app opens or comes back, and
 waits while something is playing.
 
-**Guide days to keep** is under Settings → Sources & guide → EPG, beside EPG time offset: how many days of upcoming guide to store, 1–14, seven
+**Guide days to keep** is under Settings → Sources & guide → Guide & catch-up, beside EPG time offset: how many days of upcoming guide to store, 1–14, seven
 by default. The same number decides how much is downloaded, how much is kept, and how many days the
 strip above the guide offers. Old programmes are kept only on channels with catch-up, since those are
 the only ones that can play them back.
@@ -257,7 +257,8 @@ dropped; playback jumps over it. If your internet drops, saving waits and carrie
     **Continue where you left off?** — **Resume** plays on from where you left, **Go live** jumps to now.
     **Resume a saved channel**, just below, turns the question into **Always resume** or **Never resume**.
   - Watch another channel for **2 minutes** and the copy you left is deleted at once — you have moved on.
-  - After 5 minutes it is deleted anyway, and every copy is deleted when OwnTV starts.
+  - After 5 minutes it is deleted anyway, and every copy is deleted when OwnTV starts. The 5 minutes
+    are real time, the screen off included: come back later and the channel opens live.
 - Catch-up channels still rewind into the provider's archive. Protected (DRM) and encrypted channels
   play as before, without a copy.
 
@@ -371,7 +372,7 @@ permission withdrawn — downloads go to OwnTV's own folder until it is back, an
 says so.
 
 ### 📶 Wi-Fi only
-**Where:** Settings → App → **Downloads on Wi-Fi only**, and Settings → Player → **Data saver**, which
+**Where:** Settings → App → **Download over Wi-Fi only**, and Settings → Player → **Data saver**, which
 refuses to start a stream on mobile data.
 
 ---
@@ -414,7 +415,7 @@ Sound-only and casting always use the docked bar: there is no picture for a wind
 ### 📱 Picture-in-Picture
 Press **Home** while watching full screen and the picture follows you into the system's own floating
 window, over other apps, with skip and play/pause buttons. Turn it off in
-**Settings → Watching & recording → Picture-in-picture**.
+**Settings → Watching & recording → Picture-in-Picture**.
 
 ### 🎧 Sound only
 **Where:** the headphones button in the player, or the floating window's menu
@@ -512,7 +513,7 @@ finds any setting by its name, and **Quick** holds the rows you pin yourself by 
 | Setting | Where | Why |
 |---|---|---|
 | **Live TV player** (+ per playlist) | Player | Which engine opens a channel |
-| **Give up after** (+ per playlist) | Live TV | Bounds how long a dead channel can spin |
+| **Give up on a channel after** (+ per playlist) | Live TV | Bounds how long a dead channel can spin |
 | **Movies & Series player** (+ per playlist) | Player | Which engine opens films and episodes |
 | **Catch-up time zone** | Sources & guide | **Automatic** (default) uses the Xtream panel's own zone; Device or a fixed offset otherwise |
 | **Catch-up time zone per playlist** | Sources & guide | One provider's archive on a different clock (quarter-hour zones included) |
@@ -522,7 +523,10 @@ finds any setting by its name, and **Quick** holds the rows you pin yourself by 
 | **Record what I'm watching** | Watching & recording | Adds the Record button to the player |
 | **Auto frame rate** | Picture | Off by default; full screen, seamless switches only; warns where the display can't be asked |
 | **Film buffer** · **Network timeout** · **Reconnect attempts** | Player | Films, episodes and catch-up on a bad line. Auto / 1 = as before |
-| **Reset saved live TV player choices** · **Forget learned stream fixes** | Player | Undo per-channel player choices; forget what the player learned about a provider |
+| **Reset saved live TV player choices** | Player | Undo per-channel player choices |
+| **Delay for this output** | Sound & subtitles | An audio delay for the output playing now — Bluetooth, the phone's speakers, headphones, HDMI — each kept on its own |
+| **FFmpeg audio for ExoPlayer** | Sound & subtitles | Decode sound the phone has no decoder for. Off by default; applies after a restart |
+| **Prefer SDR** | Picture | When a stream offers both SDR and HDR, play the SDR one. Off by default |
 | **Dolby and DTS passthrough** · **Night mode** · **Volume leveling** | Sound & subtitles | Send Dolby/DTS undecoded (on) or decode in the app; turn loud scenes down; even out loudness between channels. Night mode and leveling work on both engines |
 | **Maximum video quality** · **Maximum quality on mobile data** | Picture | The highest picture played when a stream offers several; the mobile-data limit follows a Wi-Fi ⇄ mobile switch while playing |
 | **Software decoding above 1080p** | Picture | Off. Lets 4K play in software when hardware decoding is off or fails; only for a fast phone |
@@ -553,7 +557,7 @@ encrypted with your own password**. Choose which profiles travel. Restores a tel
 | Stalker portal refuses the login | Re-check the MAC and your phone's **date & time** |
 | Guide is blank | Settings → Sources & guide → **EPG sources** — add a feed, sync it, then **Auto-match** |
 | A series says "Could not load the episodes" | The provider refused the episode list; the code in brackets (e.g. HTTP 407) says why. Stop any other stream on the account and open the series again |
-| Downloads won't start | Settings → App — **Downloads on Wi-Fi only** may be on |
+| Downloads won't start | Settings → App — **Download over Wi-Fi only** may be on |
 | Nothing casts | The receiver has to decode it; raw MPEG-TS channels cannot be cast |
 | Update won't install | Android asks you to allow installs from OwnTV the first time |
 

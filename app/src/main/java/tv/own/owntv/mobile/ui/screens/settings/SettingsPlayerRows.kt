@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
+import tv.own.owntv.core.brand.AppIconSwitcher
 import tv.own.owntv.core.database.entity.FOLLOW_GLOBAL_LATENCY_SECS
 import tv.own.owntv.core.database.entity.FOLLOW_GLOBAL_PREROLL
 import tv.own.owntv.core.database.entity.SourceEntity
@@ -21,6 +22,7 @@ import tv.own.owntv.core.live.DEFAULT_MULTIVIEW_TILES
 import tv.own.owntv.core.live.MAX_MULTIVIEW_TILES
 import tv.own.owntv.core.live.MIN_MULTIVIEW_TILES
 import tv.own.owntv.core.player.EnginePreference
+import tv.own.owntv.core.player.FfmpegAudioSetting
 import tv.own.owntv.core.player.SurroundMode
 import tv.own.owntv.core.player.TrackLanguages
 import tv.own.owntv.core.recording.RecordingSchedule
@@ -29,6 +31,7 @@ import tv.own.owntv.core.settings.LiveLatency
 import tv.own.owntv.core.settings.SeekSteps
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.timeshift.TimeshiftRules
+import tv.own.owntv.core.ui.findActivity
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.mobile.ui.screens.recordings.RecordingsViewModel
@@ -155,6 +158,28 @@ internal fun playerSections(vm: SettingsViewModel): List<SettingSection> {
     )
 }
 
+/**
+ * FFmpeg audio for ExoPlayer. The switch shows what this process runs with; a tap asks to restart, and the
+ * choice is saved only together with that restart, because it applies at app start.
+ */
+@Composable
+private fun ffmpegAudioItem(): SettingItem {
+    val activity = LocalContext.current.findActivity()
+    val on = FfmpegAudioSetting.active
+    val title = stringResource(R.string.app_icon_restart_title)
+    val text = stringResource(R.string.settings_ffmpeg_audio_restart_message)
+    val restart = stringResource(R.string.app_icon_restart_now)
+    return SettingItem(
+        "vp_ffmpeg_audio", MobileIcons.VolumeUp, stringResource(R.string.settings_ffmpeg_audio),
+        stringResource(R.string.settings_line_ffmpeg_audio), SettingValue.Switch(on),
+        sheet = { dismiss ->
+            StageConfirmSheet(title, text, restart, {
+                if (activity != null && FfmpegAudioSetting.save(activity, !on)) AppIconSwitcher.restart(activity)
+            }, dismiss)
+        },
+    )
+}
+
 /** "19 saved · Reset": what the player remembered per title or channel; a tap asks before forgetting it. */
 @Composable
 private fun savedItem(key: String, titleRes: Int, lineRes: Int, count: Int, confirmRes: Int, confirmTextRes: Int, onReset: () -> Unit): SettingItem {
@@ -241,6 +266,14 @@ internal fun pictureSections(vm: SettingsViewModel): List<SettingSection> {
     )
 }
 
+private fun audioOutputName(output: tv.own.owntv.core.player.AudioOutputKind): Int = when (output) {
+    tv.own.owntv.core.player.AudioOutputKind.HDMI -> R.string.settings_audio_output_hdmi
+    tv.own.owntv.core.player.AudioOutputKind.ARC -> R.string.settings_audio_output_arc
+    tv.own.owntv.core.player.AudioOutputKind.BLUETOOTH -> R.string.settings_audio_output_bluetooth
+    tv.own.owntv.core.player.AudioOutputKind.SPEAKER -> R.string.settings_audio_output_speaker
+    tv.own.owntv.core.player.AudioOutputKind.OTHER -> R.string.settings_audio_output_other
+}
+
 private val AFR_SAFE = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
 // ------------------------------------------------------------------------------------------------ Sound
@@ -254,6 +287,8 @@ internal fun soundSections(vm: SettingsViewModel): List<SettingSection> {
     val volume = s.defaultVolume.pref(100)
     val surround = s.surroundMode.pref(SurroundMode.AUTO)
     val delay = s.audioDelayMs.pref(0)
+    val output by tv.own.owntv.core.player.AudioOutputWatch.current(androidx.compose.ui.platform.LocalContext.current).collectAsStateWithLifecycle()
+    val outputDelay = s.outputAudioDelays.pref(tv.own.owntv.core.player.OutputAudioDelays.NONE).offsetFor(output)
     val audioLang = s.preferredAudioLang.pref("")
     val subLang = s.preferredSubLang.pref("")
     val subStyle = s.subtitleStyleEnabled.pref(false)
@@ -286,6 +321,7 @@ internal fun soundSections(vm: SettingsViewModel): List<SettingSection> {
                     "vp_passthrough", MobileIcons.VolumeUp, stringResource(R.string.settings_audio_passthrough),
                     stringResource(R.string.settings_line_passthrough_mobile), s.audioPassthrough.pref(true),
                 ) { vm.edit { setAudioPassthrough(it) } },
+                ffmpegAudioItem(),
                 switchItem(
                     "vp_night_mode", MobileIcons.Bedtime, stringResource(R.string.settings_night_mode),
                     stringResource(R.string.settings_line_night_mode), s.nightMode.pref(false),
@@ -302,6 +338,20 @@ internal fun soundSections(vm: SettingsViewModel): List<SettingSection> {
                         { vm.edit { setAudioDelayMs((delay - 25).coerceAtLeast(-5000)) } },
                         { vm.edit { setAudioDelayMs((delay + 25).coerceAtMost(5000)) } },
                         delay > -5000, delay < 5000,
+                    ),
+                ),
+                // Same steps and range, stored for whichever output is playing now.
+                SettingItem(
+                    "vp_output_audio_delay", MobileIcons.Schedule, stringResource(R.string.settings_output_audio_delay),
+                    stringResource(R.string.settings_line_output_audio_delay),
+                    SettingValue.Stepper(
+                        stringResource(
+                            R.string.settings_output_audio_delay_value, stringResource(audioOutputName(output)),
+                            stringResource(R.string.settings_audio_delay_value, outputDelay),
+                        ),
+                        { vm.edit { setOutputAudioDelay(output, (outputDelay - 25).coerceAtLeast(-5000)) } },
+                        { vm.edit { setOutputAudioDelay(output, (outputDelay + 25).coerceAtMost(5000)) } },
+                        outputDelay > -5000, outputDelay < 5000,
                     ),
                 ),
                 savedItem(

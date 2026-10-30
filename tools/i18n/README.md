@@ -61,7 +61,5 @@ when no user can ever read it; categories and their reasons are listed at the to
 base. Never file real UI copy as technical to make CI green; put it in core's `strings_*.xml`
 instead.
 
-**The whole of today's baseline is the Plan 3 Phase 3 dev harness** (`app/.../mobile/dev/`), which
-Plan 4 deletes once real screens exist. It is declared debt on purpose rather than classified
-technical: the text is genuinely readable, it is simply throwaway. When the harness goes, the
-baseline goes to zero and the ratchet becomes absolute.
+**The baseline is empty**, so the ratchet is absolute: any readable literal added to the app fails
+the check until it is moved into core's strings.

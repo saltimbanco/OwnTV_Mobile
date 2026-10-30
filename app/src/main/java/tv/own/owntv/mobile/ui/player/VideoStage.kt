@@ -154,6 +154,19 @@ fun VideoStage(
             return@BoxWithConstraints
         }
         val surfaceResetToken by player.surfaceResetToken.collectAsStateWithLifecycle()
+        // The new SurfaceView gets its surface only once the window lays it out, and with nothing on screen
+        // changing no frame may come: the waiting load would not start until the next touch. Ask for
+        // layout until the surface arrives.
+        val hostView = androidx.compose.ui.platform.LocalView.current
+        androidx.compose.runtime.LaunchedEffect(surfaceResetToken) {
+            if (surfaceResetToken == 0) return@LaunchedEffect
+            repeat(30) {
+                hostView.requestLayout()
+                hostView.invalidate()
+                kotlinx.coroutines.delay(100)
+                if (player.hasAttachedSurface) return@LaunchedEffect
+            }
+        }
         // mpv's measured frame rate (it only measures while the setting is on).
         val fps by player.videoFps.collectAsStateWithLifecycle()
         key(surfaceResetToken) {
