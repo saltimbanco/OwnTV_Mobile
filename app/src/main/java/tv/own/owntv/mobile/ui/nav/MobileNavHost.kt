@@ -225,15 +225,31 @@ fun MobileNavHost(
             route = SEARCH_ROUTE_PATTERN,
             arguments = listOf(navArgument(ARG_QUERY) { type = NavType.StringType; defaultValue = "" }),
         ) { entry ->
+            // Live TV is the tab a channel from Search opens under. Not a plain navigateToTab: that
+            // saves the Live tab's stack and restores it, so a Search opened from Live TV (or saved
+            // there earlier) came straight back on top and the tap seemed to do nothing. Opened from
+            // Live TV, close Search; otherwise drop Live TV's saved pages before switching to it.
+            val openLiveTab: () -> Unit = {
+                if (!navController.popBackStack(MobileDestination.LIVE.route, inclusive = false)) {
+                    navController.clearBackStack(MobileDestination.LIVE.route)
+                    navController.navigateToTab(MobileDestination.LIVE)
+                }
+            }
             SearchScreen(
                 initialQuery = entry.arguments?.getString(ARG_QUERY).orEmpty(),
                 // Search goes to the channel (TV): Live TV, with it in the preview on top — or full
-                // screen when Live preview is off, as a tap in Live TV does then.
+                // screen when Live preview is off, as a tap in Live TV does then. Either way Live TV
+                // opens on that channel's own category, so Back from the player lands on the folder
+                // the channel lives in, not on the one that was open before the search.
                 onOpenChannel = { channelId ->
+                    tuner.revealCategoryOf(channelId)
                     if (previewOn) {
                         tuner.preview(channelId)
-                        navController.navigateToTab(MobileDestination.LIVE)
+                        openLiveTab()
                     } else {
+                        // Full screen over Live TV rather than over the results: Back then returns to
+                        // the channel's category, as it does for a channel picked in the list.
+                        openLiveTab()
                         playChannel(channelId)
                     }
                 },
