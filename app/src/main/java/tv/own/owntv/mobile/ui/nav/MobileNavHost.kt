@@ -214,7 +214,14 @@ fun MobileNavHost(
                 onOpenChannel = { channelId ->
                     if (previewOn) {
                         tuner.preview(channelId)
-                        navController.navigateToTab(MobileDestination.LIVE)
+                        // Not a plain navigateToTab: that saves the Live tab's stack and restores it,
+                        // so a Search opened from Live TV (or saved there earlier) came straight back
+                        // on top and the tap seemed to do nothing. Opened from Live TV, close Search;
+                        // otherwise drop Live TV's saved pages before switching to it.
+                        if (!navController.popBackStack(MobileDestination.LIVE.route, inclusive = false)) {
+                            navController.clearBackStack(MobileDestination.LIVE.route)
+                            navController.navigateToTab(MobileDestination.LIVE)
+                            }
                     } else {
                         playChannel(channelId)
                     }
