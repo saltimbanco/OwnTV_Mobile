@@ -451,9 +451,27 @@ class LiveViewModel(
         }.map { ch -> cust.itemNames[CustomizeKeys.channel(ch)]?.let { ch.copy(name = it) } ?: ch }
     }
 
+    /**
+     * Whether this visit to Live TV began with a channel opened elsewhere — Search's channel result.
+     *
+     * Read once, at construction, because it only decides what this visit opens on: while it is
+     * true the remembered folder and the launch's "Start on" channel both stand aside, since the
+     * user has already said which channel they want and its category is where Back should land.
+     */
+    private val openedOnChannel: Boolean = tuner.revealCategoryFor.value != null
+
     init {
+        // A channel picked in Search: the browse section moves to the channel's own category, so
+        // Back from the player lands on that folder. The search field's filter goes with it.
         viewModelScope.launch {
-            if (settings.rememberCategoryLive.first()) {
+            tuner.revealCategoryFor.filterNotNull().collect { channelId ->
+                tuner.clearRevealCategory(channelId)
+                val channel = channelDao.getById(channelId) ?: return@collect
+                select(categoryKeyOf(channel))
+            }
+        }
+        viewModelScope.launch {
+            if (!openedOnChannel && settings.rememberCategoryLive.first()) {
                 parseLiveKey(settings.lastLiveCategory.first())?.let {
                     val ids = ctx.first { c -> c.profileId >= 0L }.liveSourceIds
                     if (!startupApplied && !folderGone(it, ids)) _selected.value = it
@@ -482,6 +500,9 @@ class LiveViewModel(
      * to preview, already on its category.
      */
     suspend fun applyStartupSelection(): ChannelEntity? {
+        // Opened on a channel from Search: previewing the start-on channel here would replace the
+        // one the user picked, and its category is already the right one.
+        if (openedOnChannel) return null
         if (startupSelection.consumeFavorites()) {
             startupApplied = true
             _selected.value = LiveKey.Favorites
