@@ -303,7 +303,7 @@ eye and to nothing else, so selection is announced.
 | Area | Choice |
 |---|---|
 | Language | Kotlin 2.4.20 |
-| Build | AGP 9.4.0 / Gradle 9.7.1 |
+| Build | AGP 9.4.0 / Gradle 9.8.2, JDK 25 |
 | UI | Jetpack Compose, Material 3, Compose BOM 2026.09.00, adaptive layouts |
 | Engine | `tv.own.owntv:core` + `:player-core` — Room, sync, EPG, backup, libmpv and Media3 |
 | Media | Media3 1.11.1 (the subtitle view only; the player itself is core's) |
