@@ -19,8 +19,14 @@ permissions:
 
 # Core (tv.own.owntv:core, :player-core) and the mpv engine (tv.own.owntv:libmpv) resolve from OwnTV's
 # public Maven repository, https://ahxn00.github.io/OwnTV_Core/maven — no token, so fork pull requests
-# build exactly like the maintainer's. There is no owntv.corePath here: CI deliberately builds against
-# the PINNED artifact, which is what a release actually ships. Local builds use the composite.
+# build exactly like the maintainer's.
+#
+# TEMPORARY EXCEPTION — core is built from source here, not from the pin. The newest published
+# artifact (1.0.69) predates the `tv.own.owntv.core.categorylock` package that the merged app code
+# already uses, so resolving the pin cannot compile. Until core publishes a release that contains it,
+# every job clones core and passes owntv.corePath, exactly as a local build does. Delete the
+# "Check out core (source build)" steps and the -Powntv.corePath flags once the pin is bumped to a
+# version that builds on its own — the pin is what a release should ship.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -104,6 +110,10 @@ jobs:
           # action still asks for it by default, which fails the whole setup step.
           packages: 'platform-tools'
 
+      # TEMPORARY — see the note at the top of this file: the pin cannot satisfy the app code yet.
+      - name: Check out core (source build)
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git "$RUNNER_TEMP/OwnTV_Core"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
@@ -111,12 +121,12 @@ jobs:
       - name: Unit tests
         run: |
           chmod +x ./gradlew
-          ./gradlew testDebugUnitTest --stacktrace
+          ./gradlew testDebugUnitTest -Powntv.corePath="$RUNNER_TEMP/OwnTV_Core" --stacktrace
 
       # abortOnError = true in app/build.gradle.kts, so this fails the job on a lint error.
       - name: Lint
         if: always()   # report both verdicts in one run instead of one failure at a time
-        run: ./gradlew lintDebug --stacktrace
+        run: ./gradlew lintDebug -Powntv.corePath="$RUNNER_TEMP/OwnTV_Core" --stacktrace
 
       - name: Upload test and lint reports
         if: always()   # the reports matter most when the step above failed
@@ -155,6 +165,10 @@ jobs:
           # 'tools' is obsolete and Google removed it from the SDK repository; the
           # action still asks for it by default, which fails the whole setup step.
           packages: 'platform-tools'
+
+      # TEMPORARY — see the note at the top of this file: the pin cannot satisfy the app code yet.
+      - name: Check out core (source build)
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git "$RUNNER_TEMP/OwnTV_Core"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -233,11 +247,11 @@ jobs:
           chmod +x ./gradlew
           if [ -n "$KEYSTORE_FILE" ]; then
             echo "Building signed release APKs (arm64-v8a + armeabi-v7a)"
-            ./gradlew assembleRelease --stacktrace
+            ./gradlew assembleRelease -Powntv.corePath="$RUNNER_TEMP/OwnTV_Core" --stacktrace
             OUT_DIR=app/build/outputs/apk/release
           else
             echo "Building debug APKs (arm64-v8a + armeabi-v7a)"
-            ./gradlew assembleDebug
+            ./gradlew assembleDebug -Powntv.corePath="$RUNNER_TEMP/OwnTV_Core"
             OUT_DIR=app/build/outputs/apk/debug
           fi
           echo "Built:"
