@@ -24,6 +24,7 @@
 - **🚀 Start on the last channel in the TV Guide or Live TV**
 - **🔒 Lock a category with the Customize PIN**
 - **🔐 Ask for the PIN to open Settings**
+- **🔑 Stalker portals: an optional username and password**
 
 ### Fixes
 - **Deleting a download or recording asks first**
@@ -37,6 +38,9 @@
 - **A new playlist with a name already in use is numbered: "My IPTV 2"**
 - **Renamed channels, films and series keep their name on Home and in Continue**
 - **Stalker portals behind a redirect stay signed in; their posters load**
+- **Stalker sync slows down on portals that refuse parallel requests and loses no page; fast portals keep full speed**
+- **Stalker series listed among the films go to Series when the portal has no series section**
+- **Playlist rows show the full catalogue once the background download finishes**
 
 ## Upstream v1.1.1 — 2026-10-21
 

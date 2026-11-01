@@ -121,7 +121,8 @@ moves per centimetre of finger, without changing how far you must travel to star
 ### ➕ Add a playlist
 **Where:** Settings → Sources & guide → **Playlists** → Add, or the first-run wizard
 **Xtream** (server, user, password), **M3U** (a URL, or a file picked with your phone's file picker),
-or **Stalker/Ministra** (portal URL + MAC, with optional Serial Number, Device IDs and Signature).
+or **Stalker/Ministra** (portal URL + MAC, with an optional username and password, and optional Serial
+Number, Device IDs and Signature).
 An M3U link of the form `…/get.php?username=…&password=…` is really an Xtream account: when the
 provider's server confirms it, it is added as **Xtream**, with movies and series in their own tabs.
 A name another playlist already has gets a number, so two unnamed playlists are **My IPTV** and
@@ -162,7 +163,8 @@ Show them all merged, or narrow the whole app to one. Rows carry the provider's 
 one is loaded.
 
 ### 📡 Stalker portals
-Behave like any other playlist once added. If the portal refuses the login, re-check the MAC **and
+Behave like any other playlist once added. A portal that asks for a login on top of the MAC takes it
+in **Username** and **Password** under the MAC. If the portal refuses the login, re-check the MAC **and
 your phone's date & time** — Stalker validates timestamps.
 
 ---
