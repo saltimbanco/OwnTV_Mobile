@@ -347,7 +347,7 @@ fun SportsLeaguesPage(vm: SportsSettingsViewModel = koinViewModel()) {
             title = m.title,
             openAt = m.start.toLong(),
             load = { m.names.mapIndexed { i, n -> ReorderItem(i.toLong(), n) } },
-            onSave = { ids -> reorderPending = true; m.commit(ids.map { it.toInt() }); moving = null },
+            onSave = { ids, _ -> reorderPending = true; m.commit(ids.map { it.toInt() }); moving = null },
             onDismiss = { moving = null },
         )
     }

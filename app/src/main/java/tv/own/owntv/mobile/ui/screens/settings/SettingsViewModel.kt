@@ -49,6 +49,7 @@ import tv.own.owntv.core.model.SourceType
 import tv.own.owntv.core.parser.XtreamClient
 import tv.own.owntv.core.player.PlaybackPrefsStore
 import tv.own.owntv.core.player.VodEngineStore
+import tv.own.owntv.core.repository.SourceEditor
 import tv.own.owntv.core.repository.SourceRepository
 import tv.own.owntv.core.repository.SourceTestResult
 import tv.own.owntv.core.repository.SourceTester
@@ -64,7 +65,6 @@ import tv.own.owntv.core.stalker.stalkerCredentials
 import tv.own.owntv.core.stalker.stalkerExpiryOf
 import tv.own.owntv.core.sync.SyncScopeChoice
 import tv.own.owntv.core.sync.ImportFinalizer
-import tv.own.owntv.core.sync.SyncContentTypes
 import tv.own.owntv.core.sync.SyncCounts
 import tv.own.owntv.core.sync.TrendingActivityTracker
 import tv.own.owntv.core.sync.work.CatalogSyncScheduler
@@ -111,6 +111,7 @@ class SettingsViewModel(
     private val player: tv.own.owntv.player.OwnTVPlayer,
     private val livePreview: tv.own.owntv.player.LivePreviewEngine,
     private val enginePool: tv.own.owntv.player.LiveEnginePool,
+    private val sourceEditor: SourceEditor,
 ) : ViewModel() {
 
     /** Run a setter on a scope that survives the row being scrolled off the screen. */
@@ -226,16 +227,29 @@ class SettingsViewModel(
         catalogSync.enqueueSync(source.id, reason = "manual", forcePrune = removeMissing)
     }
 
+    /**
+     * Stores a playlist's "Clean channel names" option and its own words ([customText], `;`-separated;
+     * blank = none). Names are cleaned at sync time, so the playlist re-syncs whenever the shown names
+     * would change: the option was switched, or its words changed while it is on.
+     */
+    fun saveChannelNameCleanup(source: SourceEntity, enabled: Boolean, customText: String) {
+        val strip = customText.trim().ifEmpty { null }
+        if (enabled == source.cleanChannelNames && strip == source.channelNameStrip) return
+        val namesChange = enabled || source.cleanChannelNames
+        viewModelScope.launch {
+            sourceDao.updateChannelNameCleanup(source.id, enabled, strip)
+            if (namesChange) resync(source)
+        }
+    }
+
     fun cancelResync(source: SourceEntity) {
         catalogSync.cancelSync(source.id)
     }
 
     /**
-     * Save an edited playlist and, when a section was switched on or it has never synced, fetch it.
-     *
-     * Blank fields keep what is stored, so a password field left empty on an edit does not wipe the
-     * password. A Stalker edit drops the cached portal session: the next call has to handshake again
-     * or it would keep using a token issued for the old MAC.
+     * Save an edited playlist. Blank fields keep what is stored, so a password field left empty on an
+     * edit does not wipe the password. Saving, the Stalker session drop and the decision to fetch the
+     * playlist again are core's [SourceEditor].
      */
     fun updateSource(
         id: Long,
@@ -258,13 +272,6 @@ class SettingsViewModel(
     ) {
         viewModelScope.launch {
             val existing = sourceDao.getById(id) ?: return@launch
-            if (existing.type == SourceType.STALKER) stalkerAuth.invalidate(id)
-            val scopeChanged = existing.syncLive != syncLive ||
-                existing.syncMovies != syncMovies ||
-                existing.syncSeries != syncSeries
-            val scopeTurnedOn = (!existing.syncLive && syncLive) ||
-                (!existing.syncMovies && syncMovies) ||
-                (!existing.syncSeries && syncSeries)
             val updated = existing.copy(
                 name = name.trim().ifBlank { existing.name },
                 url = urlOrServer.trim().ifBlank { existing.url },
@@ -282,19 +289,9 @@ class SettingsViewModel(
                 syncSeries = syncSeries,
                 preferHls = preferHls,
             )
-            sourceRepository.updateSource(updated)
+            sourceEditor.save(existing, updated)
             settings.setPlaylistAutoRefresh(id, autoRefresh)
             expiryCache.remove(id)
-            if (scopeChanged) catalogSync.cancelSync(id)
-            if (scopeTurnedOn || updated.lastSyncAt == null) {
-                val counts = importFinalizer.contentCounts(id)
-                catalogSync.enqueueSync(
-                    id,
-                    reason = "scope_edit",
-                    contentTypes = SyncContentTypes.enabledFor(updated),
-                    baseItemCount = counts.channels + counts.movies + counts.series,
-                )
-            }
         }
     }
 

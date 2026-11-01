@@ -18,6 +18,8 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
 import kotlin.math.roundToInt
+import tv.own.owntv.core.categorylock.firstUnsealed
+import tv.own.owntv.core.categorylock.sealedCategoryIds
 import tv.own.owntv.core.ui.stage.PlaylistMark
 import tv.own.owntv.mobile.ui.stage.stageBackground
 import tv.own.owntv.mobile.cast.CastController
@@ -294,6 +296,10 @@ fun MobileShell(
             is StartupTarget.Channel -> {
                 tuner.tune(target.id)
                 navController.navigate(PLAYER_ROUTE)
+            }
+            is StartupTarget.ChannelIn -> {
+                startupLive.requestChannel(target)
+                navController.navigateToTab(if (target.guide) MobileDestination.GUIDE else MobileDestination.LIVE)
             }
             StartupTarget.ChannelUnavailable ->
                 Toast.makeText(context, startupUnavailable, Toast.LENGTH_LONG).show()
@@ -659,9 +665,16 @@ fun MobileShell(
     // Programme reminders: when one comes up, ask to switch, or switch — over whatever is on screen,
     // the player included. Notify only is a notification (ReminderNotifier), so nothing is drawn here.
     val reminders: tv.own.owntv.core.reminder.ReminderManager = koinInject()
-    val dueReminders by reminders.due.collectAsStateWithLifecycle()
     val reminderMode by settings.reminderMode.collectAsStateWithLifecycle(SettingsRepository.ReminderMode.ASK)
-    val dueReminder = dueReminders.firstOrNull { it.profileId == activeId }
+    // One on a channel filed under a locked category waits: it neither asks nor switches until the PIN
+    // opens the category, so a reminder cannot show or tune what the lock keeps out of sight.
+    val lockStore: tv.own.owntv.core.customize.CustomizationStore = koinInject()
+    val reminderChannels: tv.own.owntv.core.database.dao.ChannelDao = koinInject()
+    val dueReminder = remember(activeId, reminders, lockStore, reminderChannels) {
+        reminders.due.firstUnsealed(activeId, lockStore.sealedCategoryIds(activeId, tv.own.owntv.core.model.MediaType.LIVE)) {
+            reminderChannels.getById(it)?.categoryId
+        }
+    }.collectAsStateWithLifecycle(null).value
     val reminderScope = androidx.compose.runtime.rememberCoroutineScope()
     fun answer(r: tv.own.owntv.core.database.entity.ReminderEntity, watch: Boolean) {
         reminderScope.launch {

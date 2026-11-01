@@ -66,7 +66,7 @@ class SettingsSearchCoverageTest {
             "player_subtitles_downloads", "player_subtitles_resets", "player_subtitles_sign_in", "player_subtitles_sign_out",
             "player_subtitles_stay_signed_in", "settings_sources_delete_title", "settings_sources_probe_title",
             "setup_auto_refresh_title", "setup_default_playlist", "profiles_delete_title", "settings_subtitle_color",
-            "settings_subtitle_reset_all",
+            "settings_subtitle_reset_all", "settings_sources_clean_names_title",
             // Bulk import: the entry button and its scope sheet's transient options, plus the
             // progress and error sheet headers — none of them a setting row to find by name.
             "settings_sources_import_file",

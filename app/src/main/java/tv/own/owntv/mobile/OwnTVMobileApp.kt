@@ -196,6 +196,8 @@ class OwnTVMobileApp : Application(), androidx.work.Configuration.Provider {
             scope = appScope,
             reminders = org.koin.core.context.GlobalContext.get().get(),
             settings = org.koin.core.context.GlobalContext.get().get(),
+            customize = org.koin.core.context.GlobalContext.get().get(),
+            channels = org.koin.core.context.GlobalContext.get().get(),
         )
         // A new user starts on Stage with glass on; an existing install keeps its look.
         appScope.launch {

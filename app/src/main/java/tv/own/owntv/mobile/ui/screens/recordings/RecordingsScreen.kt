@@ -45,6 +45,7 @@ import tv.own.owntv.core.recording.RecordingRules
 import tv.own.owntv.mobile.R
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileIcons
+import tv.own.owntv.mobile.ui.screens.settings.StageConfirmSheet
 
 /**
  * Live TV recorded onto this phone: the list, grouped under its status headings — what is happening
@@ -67,6 +68,8 @@ fun RecordingsScreen(
 
     var menuFor by remember { mutableStateOf<RecordingEntity?>(null) }
     var savingCopyOf by remember { mutableStateOf<RecordingEntity?>(null) }
+    // Delete takes the file off the device for good, so it asks first.
+    var confirmDelete by remember { mutableStateOf<RecordingEntity?>(null) }
 
     // The system's own "where do you want it?" — the only way an app may write outside its folder
     // on Android 11 without asking for a permission Play scrutinises.
@@ -131,7 +134,20 @@ fun RecordingsScreen(
                 savingCopyOf = recording
                 saveCopy.launch(recording.filePath?.substringAfterLast('/') ?: recording.title)
             },
+            onDelete = { confirmDelete = recording },
             onDismiss = { menuFor = null },
+        )
+    }
+
+    confirmDelete?.let { recording ->
+        StageConfirmSheet(
+            title = stringResource(R.string.content_downloads_delete_title, recording.title),
+            text = stringResource(R.string.recording_delete_message),
+            confirm = stringResource(R.string.common_delete),
+            confirmIcon = MobileIcons.Delete,
+            danger = true,
+            onConfirm = { vm.delete(recording) },
+            onDismiss = { confirmDelete = null },
         )
     }
 }
@@ -229,6 +245,7 @@ private fun RecordingMenu(
     gone: Boolean,
     vm: RecordingsViewModel,
     onSaveCopy: () -> Unit,
+    onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     MobileBottomSheet(onDismissRequest = onDismiss, title = recording.title) {
@@ -261,7 +278,7 @@ private fun RecordingMenu(
         // Nothing to delete while it is only scheduled: there is no file yet, and Cancel is what "do not do
         // this" means.
         if (recording.status != RecordingStatus.SCHEDULED) {
-            StageMenuItem(stringResource(R.string.common_delete), act { vm.delete(recording) }, icon = MobileIcons.Delete, danger = true)
+            StageMenuItem(stringResource(R.string.common_delete), act(onDelete), icon = MobileIcons.Delete, danger = true)
         }
     }
 }

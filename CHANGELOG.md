@@ -14,6 +14,30 @@
 ### Fixes
 - **🔎 Tapping a channel in Search opens it in Live TV**
 
+## Upstream Unreleased
+
+**Merged upstream work past v1.1.1 into this fork on 2026-11-01.**
+
+### New features
+- **✨ Clean channel names: a Names option on each playlist**
+- **📋 EPG sources: Move up / Move down set the guide priority**
+- **🚀 Start on the last channel in the TV Guide or Live TV**
+- **🔒 Lock a category with the Customize PIN**
+- **🔐 Ask for the PIN to open Settings**
+
+### Fixes
+- **Deleting a download or recording asks first**
+- **Moved categories, channels, films and series keep their place in A–Z and Provider; the rest follow the sort**
+- **"Mark as watched" no longer shows "0 min"**
+- **Clean channel names can be found in Settings search**
+- **Live TV no longer keeps showing a category from the playlist you just switched away from**
+- **An Xtream playlist with a refused password says so instead of loading empty**
+- **A changed password, server, username or MAC re-syncs the playlist on save**
+- **Restoring a backup without passwords names the playlists that need one**
+- **A new playlist with a name already in use is numbered: "My IPTV 2"**
+- **Renamed channels, films and series keep their name on Home and in Continue**
+- **Stalker portals behind a redirect stay signed in; their posters load**
+
 ## Upstream v1.1.1 — 2026-10-21
 
 **Merged into this fork in v1.1.5.**

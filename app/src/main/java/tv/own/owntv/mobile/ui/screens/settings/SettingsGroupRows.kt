@@ -753,6 +753,8 @@ private fun localeLabel(tag: String): String =
 private fun StartupMode.startupLabel() = when (this) {
     StartupMode.HOME -> R.string.settings_startup_home
     StartupMode.LAST_CHANNEL -> R.string.settings_startup_last_channel
+    StartupMode.LAST_CHANNEL_GUIDE -> R.string.settings_startup_last_channel_guide
+    StartupMode.LAST_CHANNEL_LIVE -> R.string.settings_startup_last_channel_live
     StartupMode.FAVORITES -> R.string.settings_startup_favorites
     StartupMode.SPECIFIC_CHANNEL -> R.string.settings_startup_specific_channel
 }

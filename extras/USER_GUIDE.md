@@ -44,7 +44,9 @@ before it changes. A phone being set up only ever *receives* — nothing on the 
 A backup made on the TV also restores here, encrypted ones included — and **Restore a backup** asks
 what to bring back before it applies anything, so you can take the playlists and leave the old
 device's settings behind. The app opens once the restore is complete and starts downloading the
-restored playlists straight away. Later on, the full two-way version lives at
+restored playlists straight away. An Xtream playlist whose password was not in the backup waits
+instead: the last screen names it, and typing the password in that playlist's **Edit** form loads it.
+Later on, the full two-way version lives at
 More → [Local sync](#-local-sync-with-your-tv).
 
 ---
@@ -122,6 +124,8 @@ moves per centimetre of finger, without changing how far you must travel to star
 or **Stalker/Ministra** (portal URL + MAC, with optional Serial Number, Device IDs and Signature).
 An M3U link of the form `…/get.php?username=…&password=…` is really an Xtream account: when the
 provider's server confirms it, it is added as **Xtream**, with movies and series in their own tabs.
+A name another playlist already has gets a number, so two unnamed playlists are **My IPTV** and
+**My IPTV 2**.
 Under **User-Agent** there is an optional **Referer** — leave it empty unless your provider asks
 for one; it is then sent with every stream of that playlist.
 
@@ -142,6 +146,15 @@ anything playing and takes a few minutes.
 **Where:** while adding, and Settings → Sources & guide → Playlists → Edit
 Choose per section whether Live, Movies and Series are fetched. A big import offers **Run in
 background** so you can start using the app immediately; a status pill shows progress.
+
+### ✨ Clean channel names
+**Where:** Settings → Sources & guide → Playlists → tap a playlist → **Names**
+Turn on **Clean channel names** and that playlist's channels lose a country prefix (`UK|`, `[US]`,
+`DE:`) and a quality tag at the end (`HD`, `FHD`, `4K`, `HEVC`) everywhere they appear: "UK| News
+One HD" shows as "News One". **Also remove** takes your own words, separated by `;`, removed from
+the start or end of every name. Saving refreshes the playlist. Guide matching still uses the
+provider's names, channels you renamed in Customize keep your name, and favourites and history stay
+put. Switch it off and the next refresh brings the original names back.
 
 ### 🗂️ Several playlists
 **Where:** the playlist button at the top right
@@ -168,6 +181,8 @@ in **Search** opens Live TV with it in the preview.
 **Where:** long-press any channel
 Favourite · Rename · Hide · Match EPG · EPG offset · Move · Move to category · **Record** ·
 **Add to Multiview** · Catch-up · Play in another app. Inside a custom category: **Remove from this category**.
+What you **Move** keeps its place in **A–Z** and **Provider** alike; everything you never moved follows the
+sort around it. Deleting a download or a recording asks first.
 
 ### 🏷️ Categories
 **Tap the line under the title** for the categories sheet: Favourites, Recently watched, Catch-up,
@@ -216,6 +231,10 @@ this is why. Add XMLTV feeds here, **Fill from playlist** to take the URL your p
 carries, set a User-Agent, pick a refresh interval — which can be **every N days** — and choose
 whether to use that feed's channel logos. The refresh runs when the app opens or comes back, and
 waits while something is playing.
+
+When two feeds list the same channel, the one higher on the list is used. Tap a feed and choose
+**Move up** or **Move down** to set the order; a lower feed still fills any hours the higher one
+leaves empty.
 
 **Guide days to keep** is under Settings → Sources & guide → Guide & catch-up, beside EPG time offset: how many days of upcoming guide to store, 1–14, seven
 by default. The same number decides how much is downloaded, how much is kept, and how many days the
@@ -463,8 +482,9 @@ Each has its own favourites, history, resume points and layout. Add a **PIN**, o
 profile** to hide adult content everywhere. Pick one of ten drawn avatars — or **a photo of your
 own**, already while creating the profile.
 
-**Where a profile opens:** Settings → App → **App startup** — Home, the last channel, Favourites, or one
-chosen channel.
+**Where a profile opens:** Settings → App → **App startup** — Home, the last channel (full screen),
+**Last channel · TV Guide** or **Last channel · Live TV** (that tab opens on the channel's category with
+the channel in the preview), Favourites, or one chosen channel.
 
 ---
 
@@ -495,7 +515,16 @@ Six font families for the interface and for popups, and interface zoom.
 Hide, rename, reorder and regroup categories and items, with **bulk rename** (rules, automatic
 cleanup, a review step and restore-originals — for category names too, from the categories page),
 **custom categories**, span selection, and an optional
-**PIN lock**.
+**PIN lock**. With a PIN set, **⋯ → Ask for PIN to open Settings** makes Settings, Backup & Restore and
+Local sync ask for the same PIN, on this profile. Removing the PIN turns it off.
+
+**Lock a category with a PIN** — in the categories sheet of Live TV, the TV Guide, Movies or Series,
+hold a playlist category → **Lock with PIN**. It uses the Customize PIN (the first lock asks you to set
+one). The category stays in the list with a lock; its channels, films and shows stay out of everything
+else (search, Guide, Home, favourites, history, Downloads, recordings) until you open it with
+**Enter PIN**. It stays open until you leave the app or switch profile — leaving also stops anything
+playing from it, the floating window included. **Remove lock** in the same menu asks the PIN, and
+removing the Customize PIN unlocks every category. 5 wrong PINs → a 30 s wait.
 
 ### 🏠 Home & layout
 **Where:** Settings → Layout → **Home screen**

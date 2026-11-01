@@ -216,8 +216,13 @@ internal fun SeriesPage(
         episodeProgress[ep.id]?.takeIf { it.positionMs > 0 && it.durationMs > 0 && ep.id !in completedIds }
             ?.let { ((it.durationMs - it.positionMs) / 1000).coerceAtLeast(60) }
     }
+    // Without the provider's length, the one playback learned. "Mark as watched" replaces that progress with a
+    // 1 ms marker, which read as "0 min", so the marker is skipped and the learned length kept while open.
+    val learnedSecs = remember(series.id) { HashMap<Long, Long>() }
     val durationSecs: (EpisodeEntity) -> Long? = { ep ->
-        ep.durationSecs?.takeIf { it > 0 }?.toLong() ?: episodeProgress[ep.id]?.durationMs?.takeIf { it > 0 }?.let { it / 1000 }
+        ep.durationSecs?.takeIf { it > 0 }?.toLong()
+            ?: episodeProgress[ep.id]?.durationMs?.takeIf { it >= 60_000 }?.let { it / 1000 }?.also { learnedSecs[ep.id] = it }
+            ?: learnedSecs[ep.id]
     }
     val progressOf: (EpisodeEntity) -> Float? = { ep ->
         episodeProgress[ep.id]?.takeIf { it.positionMs > 0 && it.durationMs > 1 && ep.id !in completedIds }

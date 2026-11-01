@@ -8,6 +8,9 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import tv.own.owntv.core.categorylock.CategoryRelock
+import tv.own.owntv.mobile.ui.categorylock.CategoryLockViewModel
+import tv.own.owntv.mobile.ui.categorylock.SettingsPinViewModel
 import tv.own.owntv.mobile.ui.profiles.ProfileGateSession
 import tv.own.owntv.mobile.ui.profiles.ProfilesViewModel
 import tv.own.owntv.mobile.ui.screens.ContentActions
@@ -23,6 +26,14 @@ val shellModule = module {
     // Set by the shell on launch, taken by Live TV when it opens — neither owns the other.
     singleOf(::StartupLiveSelection)
     viewModelOf(::ShellViewModel)
+    // Category locks: each browse screen's PIN prompts, and the app-wide relock on leaving the app or
+    // changing profile. On the main thread, because what it seals it stops in the players.
+    viewModelOf(::CategoryLockViewModel)
+    viewModelOf(::SettingsPinViewModel)
+    // One Settings PIN visit for the whole app: the guarded pages are routes of their own.
+    single { tv.own.owntv.mobile.ui.categorylock.SettingsPinSession() }
+    single { CategoryRelock(CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), get(), get(), get()) }
+    single { tv.own.owntv.mobile.ui.categorylock.SealedPlaybackHost() }
     viewModel { ProfilesViewModel(get(), get(), get(), androidContext()) }
     viewModelOf(::ProfileGateSession)
     // The counts the More rows and the Favourites / History chips carry.

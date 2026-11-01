@@ -54,6 +54,7 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/reminder/ReminderNotifier.kt	owntv_reminders
 1	empty	app/src/main/java/tv/own/owntv/mobile/reminder/ReminderPrompt.kt	\0
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/LocalizedContent.kt	\0
+1	empty	app/src/main/java/tv/own/owntv/mobile/ui/categorylock/CategoryLockPrompts.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/components/AirDateLabel.kt	yMMMd
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/components/CategoryPickerSheet.kt	\0
 2	technical	app/src/main/java/tv/own/owntv/mobile/ui/components/ColorPickerSheet.kt	#
@@ -83,6 +84,7 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	$SPORTS_MATCH/${Uri.encode(key)}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	$SPORTS_MATCH/{$ARG_KEY}
 1	uri	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	$parentRoute/${tab.name}/$itemId
+1	technical	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	${MobileDestination.SETTINGS.route}/
 1	uri	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	${parent.route}/{$ARG_TAB}/{$ARG_ITEM_ID}
 1	uri	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	/{$ARG_TAB}/{$ARG_ITEM_ID}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/nav/MobileNavHost.kt	entry
@@ -764,7 +766,6 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsSubtitleAppearancePage.kt	sub-style
 5	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsViewModel.kt	\0
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsViewModel.kt	manual
-1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsViewModel.kt	scope_edit
 4	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/UpdateSheet.kt	\0
 2	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/UpdateSheet.kt	##
 2	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/UpdateSheet.kt	###
@@ -787,7 +788,7 @@
 1	json	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsPane.kt	span
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsViewModel.kt	EPISODE not applicable
 2	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsViewModel.kt	EPISODE not applicable to category items
-2	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeSpanUi.kt	\0
+3	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeSpanUi.kt	\0
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeViewModel.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/sports/SportsCards.kt	${scoreText(m.sport, home.score)} – ${scoreText(m.sport, away.score)}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/sports/SportsCards.kt	–

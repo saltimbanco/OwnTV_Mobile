@@ -18,10 +18,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import tv.own.owntv.core.categorylock.sealedCategoryKeys
 import tv.own.owntv.core.content.AdultCategoryClassifier
+import tv.own.owntv.core.customize.CustomizationStore
+import tv.own.owntv.core.customize.SectionCustomizations
 import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
 import tv.own.owntv.core.database.dao.HistoryDao
@@ -72,6 +76,7 @@ class HomeViewModel(
     private val progressDao: ProgressDao,
     private val channelDao: ChannelDao,
     private val categoryDao: CategoryDao,
+    private val customize: CustomizationStore,
 ) : ViewModel() {
 
     private val profileId: StateFlow<Long> = settings.activeProfileId
@@ -107,6 +112,11 @@ class HomeViewModel(
                 _feed.value = feed
                 resolveHeroBackdrops(feed.heroItems)
             }
+        }
+        // A lock closing or opening (the relock on leaving the app, a PIN entry) changes which titles
+        // the rows may show. drop(1): the first load is asked for above.
+        viewModelScope.launch {
+            customize.sealedCategoryKeys(settings.activeProfileId).drop(1).collect { reloads.tryEmit(Unit) }
         }
     }
 
@@ -168,27 +178,38 @@ class HomeViewModel(
 
     val resume: StateFlow<ResumeTarget?> = profileId
         .flatMapLatest { pid ->
-            if (pid < 0) flowOf(null) else historyDao.observeMostRecent(pid).map { h -> h?.let { resolveResume(pid, it) } }
+            if (pid < 0) flowOf(null)
+            // The section's customizations ride along so a rename in Customize retitles the pill at once.
+            else combine(historyDao.observeMostRecent(pid), customize.sealedCategoryKeys(flowOf(pid))) { h, _ -> h }
+                .flatMapLatest { h ->
+                    if (h == null) return@flatMapLatest flowOf(null)
+                    val section = if (h.mediaType == MediaType.EPISODE) MediaType.SERIES else h.mediaType
+                    customize.observe(pid, section).map { cust -> resolveResume(pid, h, cust) }
+                }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** The TV's `resolveContinue`: the item behind the history row, unless the profile may not see it. */
-    private suspend fun resolveResume(pid: Long, h: WatchHistoryEntity): ResumeTarget? = withContext(Dispatchers.IO) {
+    private suspend fun resolveResume(pid: Long, h: WatchHistoryEntity, cust: SectionCustomizations): ResumeTarget? = withContext(Dispatchers.IO) {
         when (h.mediaType) {
             MediaType.MOVIE -> movieDao.getById(h.itemId)
-                ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
-                ?.let { m -> ResumeTarget(m.name, MediaType.MOVIE, m.id, progressDao.get(pid, MediaType.MOVIE, m.id)?.positionMs ?: 0L) }
+                ?.takeIf { allows(pid, it.categoryId) }
+                ?.let { m -> ResumeTarget(cust.displayName(m), MediaType.MOVIE, m.id, progressDao.get(pid, MediaType.MOVIE, m.id)?.positionMs ?: 0L) }
             MediaType.EPISODE -> seriesDao.getEpisodeById(h.itemId)?.let { ep ->
                 seriesDao.getSeriesById(ep.seriesId)
-                    ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
-                    ?.let { s -> ResumeTarget(s.name, MediaType.EPISODE, ep.id, progressDao.get(pid, MediaType.EPISODE, ep.id)?.positionMs ?: 0L) }
+                    ?.takeIf { allows(pid, it.categoryId) }
+                    ?.let { s -> ResumeTarget(cust.displayName(s), MediaType.EPISODE, ep.id, progressDao.get(pid, MediaType.EPISODE, ep.id)?.positionMs ?: 0L) }
             }
             MediaType.LIVE -> channelDao.getById(h.itemId)
-                ?.takeIf { AdultCategoryClassifier.allows(pid, it.categoryId, profileDao, categoryDao) }
-                ?.let { c -> ResumeTarget(c.name, MediaType.LIVE, c.id, 0L) }
+                ?.takeIf { allows(pid, it.categoryId) }
+                ?.let { c -> ResumeTarget(cust.displayName(c), MediaType.LIVE, c.id, 0L) }
             else -> null
         }
     }
+
+    /** Not an adult category on a kids profile, nor a locked one the PIN has not opened. */
+    private suspend fun allows(pid: Long, categoryId: Long?): Boolean =
+        AdultCategoryClassifier.allows(pid, categoryId, profileDao, categoryDao) && !customize.sealsCategory(pid, categoryId)
 
     /** Switch a live row between logo cards and what-is-on-now. Stored where the TV app reads it. */
     fun toggleLiveMode(row: HomeRow) {

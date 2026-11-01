@@ -318,7 +318,7 @@ fun VodMenu(
             title = item.name,
             openAt = item.id,
             load = { vm.moveList(selected) },
-            onSave = { ids -> vm.contextKeyOf(selected)?.let { vm.commitMove(it, ids) } },
+            onSave = { ids, moved -> vm.contextKeyOf(selected)?.let { vm.commitMove(it, ids, moved) } },
             onDismiss = { dialog = null },
         )
         VodDialog.MOVE_TO_CATEGORY -> MoveToCategorySheet(
