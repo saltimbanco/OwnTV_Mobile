@@ -7,13 +7,6 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
-## v1.1.5 — 2026-10-30
-
-**This fork's release on top of upstream v1.1.1.** The fork work of v1.1.4 carries over; the items below are new in this release, followed by what upstream v1.1.1 adds:
-
-### Fixes
-- **🔎 Tapping a channel in Search opens it in Live TV**
-
 ## Upstream Unreleased
 
 **Merged upstream work past v1.1.1 into this fork on 2026-11-01.**
@@ -40,7 +33,7 @@
 
 ## Upstream v1.1.1 — 2026-10-21
 
-**Merged into this fork in v1.1.5.**
+**Merged into this fork in v1.1.2.**
 
 ### New features
 - **🎧 Audio delay for each output: Bluetooth, speakers, headphones, HDMI**
@@ -60,21 +53,19 @@
 - **"Learned stream fixes" removed: catch-up no longer stays on software decoding for two weeks**
 - **No sound or picture left playing under a live error screen**
 
-## v1.1.4 — 2026-10-27
+## v1.1.2 — 2026-11-01
 
-**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.3 carries over; the items below are new in this release:
+**This fork's release on top of upstream v1.1.1.** Everything in this APK beyond upstream v1.1.1 is listed here — this fork's own work since v1.1.1, then the upstream work merged on 2026-11-01 (under Upstream Unreleased below). Core is upstream's own 1.0.69 release.
+
+### New features
+- **⏱️ A channel that stops for ten seconds hops to the same channel on your next playlist, and Live TV follows it there**
 
 ### Fixes
+- **🔎 Tapping a channel in Search opens it in Live TV**
+- **🔎 A channel picked in Search opens on its own category, so Back from it lands there**
 - **📱 Live TV on a phone held sideways: a smaller preview, smaller channel names, and long names scroll to show the rest**
 - **🔄 Full screen always plays in landscape, whichever way the phone is held**
 - **↩️ Back from full screen returns to Live TV with the channel still playing in the preview**
-
-## v1.1.2 — 2026-10-23
-
-**This fork's release on top of upstream v1.1.0.** The fork work of v1.1.1 carries over; core is upstream's own 1.0.69 release, which adds one league:
-
-### New features
-- **🏆 Sports Hub: Super League Greece — its live scores land in the hub, with standings and team pages, and the channels showing its matches turn up in the guide**
 
 ## v1.1.1 — 2026-10-21
 
