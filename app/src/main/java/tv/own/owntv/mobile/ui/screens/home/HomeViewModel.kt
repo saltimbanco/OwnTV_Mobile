@@ -22,9 +22,13 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import tv.own.owntv.core.categorylock.anyLockSealed
+import tv.own.owntv.core.categorylock.sealedCategoryIds
 import tv.own.owntv.core.categorylock.sealedCategoryKeys
+import tv.own.owntv.core.categorylock.withoutSealed
 import tv.own.owntv.core.content.AdultCategoryClassifier
 import tv.own.owntv.core.customize.CustomizationStore
+import tv.own.owntv.core.customize.ItemCategory
 import tv.own.owntv.core.customize.SectionCustomizations
 import tv.own.owntv.core.database.dao.CategoryDao
 import tv.own.owntv.core.database.dao.ChannelDao
@@ -36,6 +40,7 @@ import tv.own.owntv.core.database.dao.SeriesDao
 import tv.own.owntv.core.database.dao.SourceDao
 import tv.own.owntv.core.database.dao.resolveExistingProfileId
 import tv.own.owntv.core.database.entity.MetadataCacheEntity
+import tv.own.owntv.core.database.entity.RecordingEntity
 import tv.own.owntv.core.database.entity.WatchHistoryEntity
 import tv.own.owntv.core.home.HeroItem
 import tv.own.owntv.core.home.TrendingHomeItem
@@ -47,6 +52,8 @@ import tv.own.owntv.core.home.HomeFeedReader
 import tv.own.owntv.core.model.HomeLiveRowMode
 import tv.own.owntv.core.model.HomeRow
 import tv.own.owntv.core.model.MediaType
+import tv.own.owntv.core.model.RecordingStatus
+import tv.own.owntv.core.recording.RecordingManager
 import tv.own.owntv.core.repository.activeSourceIds
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.ui.components.jsonList
@@ -77,6 +84,7 @@ class HomeViewModel(
     private val channelDao: ChannelDao,
     private val categoryDao: CategoryDao,
     private val customize: CustomizationStore,
+    private val recordings: RecordingManager,
 ) : ViewModel() {
 
     private val profileId: StateFlow<Long> = settings.activeProfileId
@@ -170,6 +178,44 @@ class HomeViewModel(
         .flatMapLatest { pid -> if (pid < 0) flowOf(emptyList()) else progressDao.observeLatestEpisodeProgressPerSeries(pid) }
         .map { rows -> rows.filter { it.durationMs > 0 }.associate { it.seriesId to it.positionMs.toFloat() / it.durationMs } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // --- What has been recorded on this phone -------------------------------------------------------
+
+    /**
+     * Finished recordings this profile may see, newest first — the Home row under Keep watching.
+     *
+     * The same rule as the Recordings list: a recording of a locked channel's category stays out of
+     * the row until the PIN opens it, and a file that is gone is dropped by the status/`filePath`
+     * test rather than offered as a card that cannot play.
+     */
+    val recordingsToWatch: StateFlow<List<RecordingEntity>> = profileId
+        .flatMapLatest { pid ->
+            if (pid < 0) flowOf(emptyList())
+            else recordings.observe(pid).withoutSealed(
+                customize.sealedCategoryIds(pid, MediaType.LIVE),
+                customize.anyLockSealed(pid),
+                ::channelCategory,
+            )
+        }
+        .map { rows -> rows.filter { it.status == RecordingStatus.COMPLETED && it.filePath != null } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The category of a recording's channel; unresolved once a re-sync gave the channel a new id. */
+    private suspend fun channelCategory(channelId: Long): ItemCategory =
+        channelDao.getById(channelId)?.let { ItemCategory.Found(it.categoryId) } ?: ItemCategory.Unresolved
+
+    /**
+     * Play a recording from Home's row. [onStarted] runs only if the picture opens here rather than in
+     * another app — the rule every other Home tap plays by.
+     */
+    fun playRecording(recording: RecordingEntity, onStarted: () -> Unit) {
+        val path = recording.filePath ?: return
+        viewModelScope.launch {
+            val category = channelCategory(recording.channelId)
+            if (customize.sealsItem(settings.activeProfileId.first(), category)) return@launch
+            if (tuner.playRecording(path, recording.title, recording.channelIconUrl, (category as? ItemCategory.Found)?.id)) onStarted()
+        }
+    }
 
     // --- The Resume pill ------------------------------------------------------------------------------
 

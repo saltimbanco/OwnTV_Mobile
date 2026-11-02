@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import org.koin.androidx.compose.koinViewModel
 import tv.own.owntv.core.database.dao.TrendingDao
 import tv.own.owntv.core.database.entity.ChannelEntity
+import tv.own.owntv.core.database.entity.RecordingEntity
 import tv.own.owntv.core.epg.displayLogoUrl
 import tv.own.owntv.core.home.GuideSliceState
 import tv.own.owntv.core.home.HeroItem
@@ -117,6 +118,7 @@ fun HomeScreen(
     val movieProgress by vm.movieProgress.collectAsStateWithLifecycle()
     val seriesProgress by vm.seriesProgress.collectAsStateWithLifecycle()
     val resume by vm.resume.collectAsStateWithLifecycle()
+    val recordingItems by vm.recordingsToWatch.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val density = LocalDensity.current
     val homeChrome = LocalHomeChrome.current
@@ -244,6 +246,8 @@ fun HomeScreen(
         is TrendingHomeItem.Series -> MediaType.SERIES to series.id
     }
     val now by rememberClockTick()
+    // Where the recordings row goes: straight under Keep watching, or last when that row is off.
+    val recordingsAfter = rows.lastOrNull { it == HomeRow.HERO } ?: rows.lastOrNull()
 
     LazyColumn(
         state = listState,
@@ -369,6 +373,17 @@ fun HomeScreen(
                             }
                         }
                     }
+                }
+            }
+            // What this profile has recorded on this phone, in the Keep watching shape. A tap plays
+            // one; stopping, exporting or deleting still belongs to the Recordings list.
+            if (recordingItems.isNotEmpty() && row == recordingsAfter) {
+                item(RECORDINGS_ITEM_KEY) {
+                    RecordingsRow(
+                        title = stringResource(R.string.mob_home_row_recordings),
+                        items = recordingItems,
+                        onPlay = { recording -> vm.playRecording(recording, onPlayerOpened) },
+                    )
                 }
             }
         }
@@ -518,6 +533,60 @@ private fun KeepWatchingRow(
             }
         }
     }
+}
+
+/**
+ * What this profile has recorded on this phone: the Keep watching shape, with the channel's logo in
+ * the place of artwork there is none of, the programme's name, and `channel · 42 min`. A tap plays it.
+ */
+@Composable
+private fun RecordingsRow(title: String, items: List<RecordingEntity>, onPlay: (RecordingEntity) -> Unit) {
+    val palette = LocalStagePalette.current
+    Column {
+        RowHeading(title, count = items.size)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
+            items(items, key = { it.id }) { recording ->
+                val interaction = remember { MutableInteractionSource() }
+                val line = listOfNotNull(
+                    recording.channelName.takeIf { it.isNotBlank() },
+                    durationText(recordedMinutes(recording)),
+                ).joinToString(stringResource(R.string.content_epg_bits_separator))
+                Column(Modifier.width(190.dp).stageClickable(interaction, { onPlay(recording) }, null)) {
+                    StageStill(imageUrl = null) {
+                        ChannelLogoImage(
+                            url = recording.channelIconUrl,
+                            fallback = { StageIcon(MobileIcons.LiveTv, 28.dp, palette.dim) },
+                            modifier = Modifier.align(Alignment.Center).fillMaxHeight(0.52f).fillMaxWidth(0.6f),
+                        )
+                    }
+                    Text(
+                        recording.title,
+                        style = stageText(12.5f, 700),
+                        color = palette.text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    Text(line, style = stageText(11f, 500), color = palette.dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Minutes actually captured, from the clock where there is one and the programme's length otherwise —
+ * the Recordings list's own reading.
+ */
+private fun recordedMinutes(recording: RecordingEntity): Long {
+    val started = recording.startedAt
+    val ended = recording.endedAt
+    val span = if (started != null && ended != null && ended > started) {
+        ended - started
+    } else {
+        recording.programmeStopMs - recording.programmeStartMs
+    }
+    return (span / 60_000L).coerceAtLeast(1L)
 }
 
 /** A poster on a Home row: what it is, its picture and rating, and how far in (0..1) it has been watched. */
@@ -712,6 +781,9 @@ private fun HomeSkeleton(modifier: Modifier = Modifier) {
 
 /** The route this screen answers a "scroll back to the top" tap for. */
 private const val MobileHomeRoute = "home"
+
+/** The recordings row's lazy-list key — not a [HomeRow]: it is not part of the user's row order. */
+private const val RECORDINGS_ITEM_KEY = "recent_recordings"
 
 /** Where the hero's eyebrow sits from the top of the screen, and the posters layout's. */
 private val HeroTop = 262.dp

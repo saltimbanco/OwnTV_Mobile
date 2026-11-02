@@ -1,5 +1,9 @@
 package tv.own.owntv.mobile.ui.screens.settings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
@@ -24,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -43,6 +48,8 @@ import tv.own.owntv.core.reminder.ReminderSchedule
 import tv.own.owntv.core.settings.GuideRetention
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.settings.StartupMode
+import tv.own.owntv.core.storage.MediaTarget
+import tv.own.owntv.core.storage.StorageAccess
 import tv.own.owntv.core.theme.AccentColor
 import tv.own.owntv.core.theme.AnimationLevel
 import tv.own.owntv.core.theme.AppFontFamily
@@ -60,15 +67,20 @@ import tv.own.owntv.mobile.ui.components.ColorPickerSheet
 import tv.own.owntv.mobile.ui.components.MobileBottomSheet
 import tv.own.owntv.mobile.ui.components.MobileIcons
 import tv.own.owntv.core.theme.parseAccentHex
+import tv.own.owntv.mobile.playback.RecordingFolder
 import tv.own.owntv.mobile.ui.nav.MobileDestination
 import tv.own.owntv.mobile.ui.screens.downloads.volumeName
+import tv.own.owntv.mobile.ui.stage.LocalStagePalette
 import tv.own.owntv.mobile.ui.stage.StageChevron
 import tv.own.owntv.mobile.ui.stage.StageGroupLabel
+import tv.own.owntv.mobile.ui.stage.StageIcon
 import tv.own.owntv.mobile.ui.stage.StageMenuItem
 import tv.own.owntv.mobile.ui.stage.StageRowValue
 import tv.own.owntv.mobile.ui.stage.StageSearchField
+import tv.own.owntv.mobile.ui.stage.StageSettingRow
 import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 import tv.own.owntv.mobile.ui.stage.stageAccent
+import tv.own.owntv.mobile.ui.stage.stageText
 import tv.own.owntv.mobile.ui.theme.labelRes
 
 /** Where a row that opens a page goes: navigation on a phone. Provided by the nav host around every settings route. */
@@ -584,6 +596,16 @@ private fun appSections(vm: SettingsViewModel): List<SettingSection> {
     val off = stringResource(R.string.common_off)
     val dnsHost = dns.dohUrl.ifBlank { dns.host }.removePrefix("https://").substringBefore('/')
     val volume = remember(root) { volumeName(context, root.ifBlank { null }) }
+    // The recordings folder is the app's own setting (see RecordingFolder) — blank means the
+    // downloads folder, which is what every recording has used so far.
+    var recordingRoot by remember { mutableStateOf(RecordingFolder.get(context)) }
+    val recordingVolume = remember(recordingRoot, root) {
+        if (recordingRoot.isBlank()) volumeName(context, root.ifBlank { null })
+        else volumeName(context, recordingRoot) ?: StorageAccess.folderLabel(recordingRoot)
+    }
+    val chooseRecordingFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { tree -> if (tree != null && RecordingFolder.adoptTree(context, tree)) recordingRoot = tree.toString() }
 
     var channelSheet by remember { mutableStateOf(false) }
     if (channelSheet) {
@@ -652,6 +674,39 @@ private fun appSections(vm: SettingsViewModel): List<SettingSection> {
                     stringResource(R.string.settings_line_download_folder_mobile), SettingValue.Opens(volume),
                     onClick = { nav(MobileDestination.DOWNLOADS.route) },
                 ),
+                // Where the recordings made while watching go. Its own folder, beside the downloads
+                // one: films and recordings are different piles.
+                SettingItem(
+                    "recording_folder", MobileIcons.Record, stringResource(R.string.mob_settings_recording_folder),
+                    stringResource(R.string.mob_settings_recording_folder_description),
+                    SettingValue.Opens(recordingVolume),
+                    sheet = { dismiss ->
+                        RecordingFolderSheet(
+                            volumes = StorageAccess.appRoots(context),
+                            current = recordingRoot,
+                            downloadLabel = volume,
+                            onSameAsDownloads = {
+                                RecordingFolder.release(context, recordingRoot)
+                                RecordingFolder.set(context, "")
+                                recordingRoot = ""
+                                dismiss()
+                            },
+                            onPick = { path ->
+                                RecordingFolder.release(context, recordingRoot)
+                                RecordingFolder.set(context, path)
+                                recordingRoot = path
+                                dismiss()
+                            },
+                            onChooseFolder = {
+                                dismiss()
+                                chooseRecordingFolder.launch(
+                                    recordingRoot.takeIf { MediaTarget.isDocument(it) }?.let(Uri::parse),
+                                )
+                            },
+                            onDismiss = dismiss,
+                        )
+                    },
+                ),
                 switchItem(
                     "downloads_wifi_only", MobileIcons.Download, stringResource(R.string.settings_downloads_wifi_only),
                     stringResource(R.string.settings_downloads_wifi_only_description), wifiOnly,
@@ -689,6 +744,76 @@ private fun StartupChannelSheet(vm: SettingsViewModel, onPick: (ChannelEntity) -
         StageSheetHeader(stringResource(R.string.settings_startup_specific_channel), eyebrow = stringResource(R.string.settings_app_startup))
         StageSearchField(query, { query = it }, stringResource(R.string.common_search), Modifier.padding(horizontal = 6.dp))
         results.forEach { channel -> StageMenuItem(channel.name, onClick = { onPick(channel) }, icon = MobileIcons.LiveTv) }
+    }
+}
+
+/**
+ * Where this phone's recordings go: the downloads folder (the default, and what every recording has
+ * used until now), one of the volumes it can write to with no permission, or a folder picked in the
+ * system picker.
+ */
+@Composable
+private fun RecordingFolderSheet(
+    volumes: List<StorageAccess.StorageRoot>,
+    current: String,
+    downloadLabel: String?,
+    onSameAsDownloads: () -> Unit,
+    onPick: (String) -> Unit,
+    onChooseFolder: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val palette = LocalStagePalette.current
+    val accent = stageAccent.accent
+    val title = stringResource(R.string.mob_settings_recording_folder)
+    MobileBottomSheet(onDismissRequest = onDismiss, title = title) {
+        StageSheetHeader(title = title, subtitle = stringResource(R.string.mob_settings_recording_folder_description))
+        // A chosen folder whose grant was withdrawn or whose volume came out: said out loud rather
+        // than left to the first recording that quietly lands somewhere else.
+        if (MediaTarget.isDocument(current) && !StorageAccess.hasTree(LocalContext.current, current)) {
+            Text(
+                stringResource(R.string.mob_settings_recording_folder_lost),
+                style = stageText(12f, 500), color = palette.danger,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+            )
+        }
+        StageSettingRow(
+            title = stringResource(R.string.mob_settings_recording_folder_same),
+            subtitle = downloadLabel,
+            icon = MobileIcons.Download,
+            onClick = onSameAsDownloads,
+            current = current.isBlank(),
+            role = Role.RadioButton,
+        ) { if (current.isBlank()) StageIcon(MobileIcons.Check, 18.dp, accent) }
+        volumes.forEach { volume ->
+            val chosen = current == volume.file.absolutePath
+            StageSettingRow(
+                title = stringResource(
+                    if (volume.kind == StorageAccess.RootKind.REMOVABLE) R.string.content_storage_removable else R.string.content_storage_internal,
+                ),
+                subtitle = volume.file.absolutePath,
+                icon = if (volume.kind == StorageAccess.RootKind.REMOVABLE) MobileIcons.SdStorage else MobileIcons.Folder,
+                onClick = { onPick(volume.file.absolutePath) },
+                current = chosen,
+                role = Role.RadioButton,
+            ) { if (chosen) StageIcon(MobileIcons.Check, 18.dp, accent) }
+        }
+        // Anywhere else on the device: once picked, that folder is a row of its own, ticked like the volumes.
+        if (MediaTarget.isDocument(current)) {
+            StageSettingRow(
+                title = stringResource(R.string.content_storage_chosen_folder),
+                subtitle = StorageAccess.folderLabel(current),
+                icon = MobileIcons.Folder,
+                onClick = onChooseFolder,
+                current = true,
+                role = Role.RadioButton,
+            ) { StageIcon(MobileIcons.Check, 18.dp, accent) }
+        }
+        StageMenuItem(stringResource(R.string.content_storage_choose_folder), onChooseFolder, icon = MobileIcons.Add)
+        Text(
+            stringResource(R.string.mob_settings_recording_folder_note),
+            style = stageText(11.5f, 500), color = palette.dim,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+        )
     }
 }
 
