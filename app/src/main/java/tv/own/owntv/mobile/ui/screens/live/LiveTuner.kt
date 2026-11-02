@@ -98,6 +98,8 @@ class LiveTuner(
     private val audioOnlyStore: AudioOnlyStore,
     private val cast: CastController,
     private val recordings: tv.own.owntv.core.recording.RecordingManager,
+    /** Tapes the live saved copy — see [tv.own.owntv.mobile.playback.BufferRecorder]. */
+    private val bufferRecorder: tv.own.owntv.mobile.playback.BufferRecorder,
     /**
      * The second live engine. Live played on mpv and nothing else here, which is why the HUD's
      * engine button was hidden for live: there was no engine to swap to. This is the same
@@ -146,33 +148,43 @@ class LiveTuner(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 
-    // --- "Record what I'm watching" --------------------------------------------------------------
-
+    // --- Recording what I'm watching ----------------------------------------------------------------
 
     /**
-     * Start or stop recording the channel on screen, from its start time of *now*.
+     * Start or stop recording the channel on screen, from *now*.
      *
-     * **This fetches the channel itself rather than copying the open stream, and that is deliberate.**
-     * The original design tapped mpv's `stream-record`, which costs no second connection — but that
-     * copies bytes as they pass through mpv's stream layer, and an HLS channel never puts them there:
-     * FFmpeg's `hls` demuxer opens each segment on its own. mpv accepted the instruction and wrote
-     * nothing, every time, on every HLS channel — which on a normal IPTV playlist is all of them.
+     * **The normal path taps the saved copy instead of opening a connection.** A live channel that
+     * Settings › Live TV keeps a copy of is already being downloaded once, and the picture is one
+     * reader of that copy; recording makes a second reader of it ([BufferRecorder]) and writes what
+     * arrives. Nothing asks the provider for anything, so a one-connection account — where the old
+     * button could never record while watching — records normally, and no second connection is ever
+     * spent however long the recording runs.
      *
-     * So it goes through the same engine as a scheduled recording, and inherits its behaviour: it
-     * costs one of the playlist's connections, it **keeps running** when the channel is changed or
-     * the player is left, and Downloads → Live TV can stop it. The connection is why
-     * `canRecordOn` is asked first — a refusal is a sentence, not a failed recording.
+     * The recorder below is the fallback, and only for what cannot be tapped: with the saved copy
+     * switched off there is no buffer to read, and a protected channel never had a copy at all. That
+     * path fetches the channel itself, which does cost one of the playlist's connections — which is
+     * why `canRecordOn` is asked first there: a refusal is a sentence, not a failed recording.
+     *
+     * Either way the recording **keeps running** when the channel is changed or the player is left,
+     * and Downloads → Live TV can stop it.
      */
     fun togglePlayerRecording() {
         scope.launch {
-            val open = playerRecording.value
-            if (open != null) {
-                recordings.stop(open)
+            if (bufferRecorder.running.value != null) {
+                bufferRecorder.stop()
                 return@launch
             }
             val ch = channel.value ?: return@launch
             val pid = settings.activeProfileId.first().takeIf { it >= 0 } ?: return@launch
-            startRecordingNow(ch, pid, _nowNext.value?.now)
+            // The picture's own bytes, from the copy already on disk: no provider connection.
+            val session = live.localTimeshift.value?.session
+            if (session != null && ch.drmConfig == null &&
+                bufferRecorder.start(session, ch, pid, _nowNext.value?.now)
+            ) {
+                return@launch
+            }
+            val open = playerRecording.value
+            if (open != null) recordings.stop(open) else startRecordingNow(ch, pid, _nowNext.value?.now)
         }
     }
 
@@ -195,6 +207,10 @@ class LiveTuner(
 
     /** Stop the running recording(s) of this channel, keeping what was captured. */
     fun stopRecordingOn(ch: tv.own.owntv.core.database.entity.ChannelEntity) {
+        if (bufferRecorder.running.value?.channelId == ch.id) {
+            bufferRecorder.stop()
+            return
+        }
         scope.launch {
             recordings.observeRunning().first().filter { it.channelId == ch.id }.forEach { recordings.stop(it) }
         }
@@ -634,6 +650,10 @@ class LiveTuner(
                 }
             }
             .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** The saved-copy recording taping right now, if any — the player's badge reads this. */
+    val bufferRecording: StateFlow<tv.own.owntv.mobile.playback.BufferRecorder.Running?> =
+        bufferRecorder.running
 
     private val _nowNext = MutableStateFlow<EpgNowNext?>(null)
     val nowNext: StateFlow<EpgNowNext?> = _nowNext

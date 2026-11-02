@@ -397,7 +397,6 @@ fun PlayerScreen(
     var otherChannels by remember { mutableStateOf(false) }
     // Closing the sheet forgets which category was open, so the next press starts at the categories.
     LaunchedEffect(sheet) { if (sheet != PlayerSheet.CHANNELS) playerCategory = null }
-    val recordWatchingEnabled by settings.recordWhatImWatching.collectAsStateWithLifecycle(initialValue = false)
     val playerRecording by tuner.playerRecording.collectAsStateWithLifecycle()
     var brightness by remember { mutableFloatStateOf(0.5f) }
     var hud by remember { mutableStateOf<GestureFeedback?>(null) }
@@ -820,8 +819,9 @@ fun PlayerScreen(
             gestureScrubMs = scrubFraction?.takeIf { duration > 0 }?.let { (it * duration).toLong() },
             // Report is offered only while Info is open, the television's rule on both apps.
             infoOpen = sheet == PlayerSheet.INFO,
-            // Live channels only, and only once the setting is on. Null hides the button.
-            onRecordThis = if (recordWatchingEnabled && isLive && channel != null) {
+            // Live channels only, and never a protected one: the bytes are the picture's own, from
+            // the copy already on disk, so this costs no connection at all.
+            onRecordThis = if (isLive && channel != null && channel?.drmConfig == null) {
                 { tuner.togglePlayerRecording() }
             } else {
                 null
@@ -866,6 +866,20 @@ fun PlayerScreen(
             ) {
                 Text(message, style = MaterialTheme.typography.labelLarge, color = Color.White)
             }
+        }
+
+        // The recording, over the picture and independent of the controls: the bar fades out a few
+        // seconds into watching, and a recording is the one state that must outlast it. Tapping the
+        // badge is the way to stop it without bringing the bar back.
+        playerRecording?.let { recording ->
+            RecordingBadge(
+                startedAtMs = recording.startedAt ?: recording.startMs,
+                onStop = { tuner.togglePlayerRecording() },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .systemBarsPadding()
+                    .padding(end = 12.dp, bottom = 104.dp),
+            )
         }
 
         GestureHud(hud.takeIf { !inPip })

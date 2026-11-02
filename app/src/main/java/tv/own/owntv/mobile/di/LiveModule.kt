@@ -19,6 +19,8 @@ import tv.own.owntv.mobile.ui.screens.live.LiveViewModel
 val liveModule = module {
     single { LiveEpgReader(get(), get(), get(), get(), get()) }
     single { LiveArchiveUrls(get(), get(), get(), get()) }
+    // Tapes the channel out of the saved copy it is playing from — no second provider connection.
+    single { tv.own.owntv.mobile.playback.BufferRecorder(androidContext(), get(), get()) }
     single {
         LiveTuner(
             context = androidContext(),
@@ -40,6 +42,7 @@ val liveModule = module {
             userDataWriter = get(),
             cast = get(),
             recordings = get(),
+            bufferRecorder = get(),
             // Live's second engine, its own instance for the whole session. See PlayerModule
             // for why it is not one of Multiview's pooled tiles.
             exo = get(),

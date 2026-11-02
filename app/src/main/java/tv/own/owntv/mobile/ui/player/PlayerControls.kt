@@ -149,7 +149,7 @@ fun PlayerControls(
     gestureScrubMs: Long?,
     /** Whether the Info sheet is open — Report is offered only while it is. */
     infoOpen: Boolean = false,
-    // Live only, and only once "Record what I'm watching" is switched on. Null hides it.
+    // Live only, and never on a protected channel. Null hides it.
     onRecordThis: (() -> Unit)? = null,
     recordingThis: Boolean = false,
     /** Sports Hub: the match's score under the channel name, only for a channel started from a match. */
@@ -511,8 +511,7 @@ private fun ToolBar(
      * what Info is showing, and there is nothing to report without it.
      */
     infoOpen: Boolean = false,
-    // Live only, and only once "Record what I'm watching" is switched on in Settings. Null
-    // hides the button, exactly as on the television.
+    // Live only. Null hides the button — see [onRecordThis] on the dock.
     onRecordThis: (() -> Unit)? = null,
     recordingThis: Boolean = false,
     liveOnExo: Boolean = false,
@@ -676,16 +675,15 @@ private fun ToolBar(
             PlayerControl.MULTIVIEW -> if (onMultiview != null) {
                 CtrlButton(MobileIcons.GridView, stringResource(R.string.multiview_button), onMultiview)
             }
-            // Record the channel already playing. Null until the setting is on, exactly as
-            // on the television.
+            // Record the channel already playing: a circle to start, a square to stop, the shape
+            // every recorder uses. Null on a stream that cannot be recorded at all.
             PlayerControl.RECORD -> if (onRecordThis != null) {
-                CtrlButton(
-                    icon = MobileIcons.LiveTv,
+                RecordButton(
+                    recording = recordingThis,
                     label = stringResource(
                         if (recordingThis) R.string.recording_stop else R.string.recording_record,
                     ),
                     onClick = onRecordThis,
-                    active = recordingThis,
                 )
             }
             // The full-screen way to the sleep timer; the sound-only screen and the
