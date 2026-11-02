@@ -186,7 +186,7 @@ internal fun TransportCapsule(modifier: Modifier = Modifier, content: @Composabl
  * tool bar its button role and its activation for free; this has to declare both.
  */
 @Composable
-private fun Modifier.holdToReveal(
+internal fun Modifier.holdToReveal(
     label: String,
     onExpanded: (Boolean) -> Unit,
     onClick: () -> Unit,
