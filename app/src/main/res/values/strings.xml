@@ -41,4 +41,11 @@
     <string name="settings_bulk_import_with_vod">Channels + VOD</string>
     <string name="settings_bulk_import_choose_file">Choose file</string>
     <string name="settings_bulk_import_format_hint">Expected one server per line, e.g. “xtream;Name;http://host:port;user;pass”, “stalker;Name;http://portal;00:1A:79:AA:BB:CC”, or an Xtream URL like “http://host:port/get.php?username=user&amp;password=pass”. Importing replaces the existing playlists.</string>
+    <!-- Recordings on Home and where they are written (HomeScreen + SettingsGroupRows). -->
+    <string name="mob_home_row_recordings">Recordings</string>
+    <string name="mob_settings_recording_folder">Recording folder</string>
+    <string name="mob_settings_recording_folder_description">Where the recordings you make while watching are saved.</string>
+    <string name="mob_settings_recording_folder_same">Same as downloads</string>
+    <string name="mob_settings_recording_folder_lost">This folder can no longer be written to — its permission was withdrawn, or the storage was removed.</string>
+    <string name="mob_settings_recording_folder_note">Recordings you start from the player are saved here. A recording scheduled from the guide is fetched by the recorder and still lands in the downloads folder.</string>
 </resources>

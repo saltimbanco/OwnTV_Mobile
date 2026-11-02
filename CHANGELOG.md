@@ -61,6 +61,8 @@
 - **⏺️ Record what you are watching out of the copy the picture already comes from, with no second connection to the provider**
 - **⏺️ A Record button in the player's bottom row: a red circle to start, a red square to stop**
 - **⏺️ A blinking red REC badge over the picture with the elapsed time; tap it to stop**
+- **🏠 A Recordings row on Home, under Keep watching, to play what you recorded**
+- **📁 A Recording folder of its own in Settings, beside the downloads folder**
 
 ### Fixes
 - **⏺️ The REC badge's timer counts up from the start of the recording instead of restarting at 0:00**

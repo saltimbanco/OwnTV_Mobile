@@ -25,7 +25,6 @@ import tv.own.owntv.core.recording.RecordingRules
 import tv.own.owntv.core.recording.RecordingSchedule
 import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.core.storage.MediaFolders
-import tv.own.owntv.core.storage.MediaRoot
 import tv.own.owntv.core.storage.MediaTarget
 import tv.own.owntv.core.timeshift.TimeshiftSession
 import java.io.InputStream
@@ -95,7 +94,8 @@ class BufferRecorder(
         // knows nothing about runs for the recorder's no-guide runtime.
         val stopMs = programme?.stopMs?.takeIf { it > startMs }
             ?: (startMs + RecordingSchedule.NO_GUIDE_RUNTIME_MINUTES * 60_000L)
-        val root = MediaRoot.of(context, settings.downloadRoot.first()).also { it.ensureFolders() }
+        // The folder the user picked for recordings, else the downloads folder it has always shared.
+        val root = RecordingFolder.root(context, settings.downloadRoot.first()).also { it.ensureFolders() }
         val title = programme?.title ?: channel.name
         val file = root.child(MediaFolders.TV, RecordingRules.fileName(channel.name, title, startMs))
             ?: return@withContext false
