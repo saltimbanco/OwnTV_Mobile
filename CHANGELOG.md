@@ -53,6 +53,15 @@
 - **"Learned stream fixes" removed: catch-up no longer stays on software decoding for two weeks**
 - **No sound or picture left playing under a live error screen**
 
+## v1.1.3 — 2026-11-02
+
+**This fork's release on top of v1.1.2.** Everything in v1.1.2 is in here; the items below are this fork's own work since it.
+
+### New features
+- **⏺️ Record what you are watching out of the copy the picture already comes from, with no second connection to the provider**
+- **⏺️ A Record button in the player's bottom row: a red circle to start, a red square to stop**
+- **⏺️ A blinking red REC badge over the picture with the elapsed time; tap it to stop**
+
 ## v1.1.2 — 2026-11-01
 
 **This fork's release on top of upstream v1.1.1.** Everything in this APK beyond upstream v1.1.1 is listed here — this fork's own work since v1.1.1, then the upstream work merged on 2026-11-01 (under Upstream Unreleased below). Core is upstream's own 1.0.69 release.
