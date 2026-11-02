@@ -873,7 +873,12 @@ fun PlayerScreen(
         // badge is the way to stop it without bringing the bar back.
         playerRecording?.let { recording ->
             RecordingBadge(
-                startedAtMs = recording.startedAt ?: recording.startMs,
+                // The start of the recorded window, not `startedAt`. Both are the same instant for a
+                // "record this now" — the window opens when the user presses Record — but only this
+                // one is written once: `startedAt` is the moment the recorder opened the stream, and
+                // the engine stamps it again on every progress write when the row was created
+                // without one, which is a badge reading 0:00 again every few seconds.
+                startedAtMs = recording.startMs,
                 onStop = { tuner.togglePlayerRecording() },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)

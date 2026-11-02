@@ -62,6 +62,9 @@
 - **⏺️ A Record button in the player's bottom row: a red circle to start, a red square to stop**
 - **⏺️ A blinking red REC badge over the picture with the elapsed time; tap it to stop**
 
+### Fixes
+- **⏺️ The REC badge's timer counts up from the start of the recording instead of restarting at 0:00**
+
 ## v1.1.2 — 2026-11-01
 
 **This fork's release on top of upstream v1.1.1.** Everything in this APK beyond upstream v1.1.1 is listed here — this fork's own work since v1.1.1, then the upstream work merged on 2026-11-01 (under Upstream Unreleased below). Core is upstream's own 1.0.69 release.
