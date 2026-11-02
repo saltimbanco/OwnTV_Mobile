@@ -41,6 +41,10 @@
 - **Stalker sync slows down on portals that refuse parallel requests and loses no page; fast portals keep full speed**
 - **Stalker series listed among the films go to Series when the portal has no series section**
 - **Playlist rows show the full catalogue once the background download finishes**
+- **A notification sound only turns the sound down; calls, WhatsApp included, pause and resume**
+- **A live channel whose decoder fails to start is retried a few more times before giving up**
+- **Dolby Vision profile 5 films and series play with the right colours on mpv**
+- **Apple FairPlay channels say why they cannot play; FairPlay-labelled ClearKey channels play**
 
 ## Upstream v1.1.1 — 2026-10-21
 
