@@ -182,7 +182,8 @@ top. Predictive back is on.
   **muted preview** on top (beside the list when wide), not watched until a second tap opens it full
   screen — the television's preview. A channel on Home, in Favourites or History plays full screen;
   one from Search opens in Live TV's preview.
-- **Sports** — the television's Sports section as built: ESPN scores for followed leagues, match
+- **Sports** — the television's Sports section as built: Scores · Calendar · Leagues tabs sharing one set
+  of sport and league buttons, team pages, ESPN scores for followed leagues, match
   pages with Find channels (searched only on request), a filter sheet, Broadcasts, a Home row, the
   score and Other channels in the player, and — phone only — goal alerts and a live score card that
   work with the app closed (core's `MatchAlertHost.backgroundAllowed`).

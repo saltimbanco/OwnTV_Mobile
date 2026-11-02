@@ -94,11 +94,30 @@ moves per centimetre of finger, without changing how far you must travel to star
 **Settings → App → Sports → Sports and leagues**), tap a sport and switch on its leagues.
 **Sport buttons → All sports** fetches every league instead, which takes longer.
 
-- **The Sports page** — two rows of buttons filter it: sports (and ★ My teams), then that sport's
-  leagues; **⟳** at the end rebuilds the sports data (the status pill says **Rebuilding sports…**).
-  Rows: **Live now**, **Sport on your channels** (from your guide) and **Starting soon**.
-  Tap a match to open it; **long-press** to follow a side or set a reminder.
-- **A match** — score, venue, and the tabs **Watch live · Timeline · Stats · Line-ups · Table · Form ·
+- **The Sports page** — three tabs under the title: **Scores · Calendar · Leagues**. Two rows of
+  buttons filter all three: sports (and ★ My teams), then that sport's leagues; the choice stays when
+  you switch tab. **⟳** at the end rebuilds the sports data (the status pill says **Rebuilding
+  sports…**). Opening Sports from the bottom bar starts on Scores.
+- **Scores** — **Live now**, **Sport on your channels** (from your guide) and **Starting soon**.
+  Tap a match to open it; **long-press** for the sheet: tap a team's name for its team page, **Follow**
+  on the right, and **Remind me**.
+- **Calendar** — the month on top, the chosen day's matches below, grouped by league. Each day shows
+  up to three sport icons, ★ when one of your teams plays and a red dot while something is live; with
+  one league chosen, how many of its matches are on. Tap a day; **swipe** the month or tap **‹ ›**;
+  **Today** jumps back (the arrows stop at the season's start). Scroll the day's list and the month
+  folds into its week — swipe it for another week, tap the month name to open it again. Tap a league
+  heading to open it in Leagues; the bell sets a reminder. Past days show results; with
+  **Spoiler-free** on, a score shows as **• – •** until you tap it. Offline, what was saved is shown
+  with the time it was saved.
+- **Leagues** — a card per league you follow: who leads, what is next (long-press to follow or
+  unfollow). Tap a card, or choose one league, and it opens here: **Table · Fixtures · Results**
+  (fixtures and results by round, beyond today). Formula 1 has **Drivers · Constructors · Races**
+  with the next race weekend and every session in your time; other racing **Drivers · Races**;
+  ATP / WTA **Rankings · Matches**.
+- **Team pages** — tap a team on a match page, in a table, in the long-press sheet or in **Settings →
+  Sports → My teams**: the next match (Match page, Remind me), the last five, the table place (tap it
+  for the table), then **Fixtures · Results** by month, cups included, with W / D / L.
+- **A match** — the league name at the top opens that league in Leagues; score, venue, and the tabs **Watch live · Timeline · Stats · Line-ups · Table · Form ·
   Broadcasts**. In **Watch live**, **Find channels** lists the channels in your guide that show it, from
   30 minutes before kick-off. **Filter channels** narrows them by language, country, picture and
   playlist; **Strict filtering** hides the rest, and **Remember for every match** keeps the choice.
@@ -109,7 +128,9 @@ moves per centimetre of finger, without changing how far you must travel to star
   **Other channels** switches to another channel showing the same match.
 - **Your own order** — in Sports and leagues, **long-press** a sport or a switched-on league →
   **Move**, then the arrows and **Save**. The Sports page and the Home row follow it.
-- **Settings → App → Sports** — auto rebuild, live refresh, filters, My teams, **Goal alerts** (also
+- **Settings → App → Sports** — auto rebuild, **Calendar refresh** (how often saved months of this
+  season and later are fetched again: every 1–30 days, 7 at first; past months never are), live
+  refresh, **Refresh sports data now** (also marks the saved months out of date), filters, My teams, **Goal alerts** (also
   when OwnTV is closed: goals, kick-off and full time, half time, red cards; for My teams or every
   followed league) and match reminders. A reminder with a channel found shows OwnTV's own prompt while
   the app is open.
