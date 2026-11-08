@@ -84,7 +84,7 @@ object SetupHandoff {
 }
 
 private enum class Step {
-    WELCOME, DISPLAY_SIZE, DISCLAIMER, CHOICE, SYNC_DEVICE, CREATE_PROFILE, ADD_CONTENT, EXISTING, FORM, IMPORTING, RESTORE
+    WELCOME, DISPLAY_SIZE, DISCLAIMER, CHOICE, SYNC_DEVICE, CREATE_PROFILE, ADD_CONTENT, EXISTING, FORM, SERVER_LIST, IMPORTING, RESTORE
 }
 
 /**
@@ -133,6 +133,11 @@ fun SetupFlow(
     var backupOrigin by rememberSaveable { mutableStateOf(Step.ADD_CONTENT) }
     // Entered straight on Import: the picker opens at once, as the Import card promised.
     var openedPicker by rememberSaveable { mutableStateOf(false) }
+    // A server-list file was picked (the browser is gone and the import's own state is showing), and
+    // whether this visit already opened the picker — it opens once, as the card promised.
+    var serverListChosen by rememberSaveable { mutableStateOf(false) }
+    var openedListPicker by rememberSaveable { mutableStateOf(false) }
+    val serverListState by vm.serverList.collectAsStateWithLifecycle()
 
     // The picked file, and what the user chose to take out of it. Both `null` until each is
     // answered, which is what drives the sheet below: a file with no choice yet is the question.
@@ -149,6 +154,8 @@ fun SetupFlow(
     val defaultPortalName = stringResource(R.string.setup_default_portal)
 
     val context = LocalContext.current
+    // Resource lookups follow the chosen language, not the activity's context.
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     // Picking the file does not start the restore — it asks what to take out of it first.
     val pickBackup = rememberBackupFilePicker { uri ->
@@ -157,6 +164,25 @@ fun SetupFlow(
                 restoreSections = null
                 restoreFile = it
             }
+        }
+    }
+    // A server list is text read once: a copy in the cache keeps the URI permission question out of
+    // it, and the cache is swept by the system afterwards.
+    val pickServerList = rememberPlaylistFilePicker { uri ->
+        scope.launch {
+            val file = copyPickedFile(context, uri, context.cacheDir)
+            val text = file?.let { f ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { f.readText() }.getOrNull()
+                }
+            }
+            serverListChosen = true
+            vm.startServerList(
+                text,
+                defaultServerName = { i -> resources.getString(R.string.settings_bulk_import_default_server, i) },
+                defaultPortalName = { i -> resources.getString(R.string.settings_bulk_import_default_portal, i) },
+                fileLabel = uri.lastPathSegment.orEmpty(),
+            )
         }
     }
 
@@ -186,6 +212,10 @@ fun SetupFlow(
             Step.ADD_CONTENT -> if (firstRun) step = Step.CREATE_PROFILE else onCancel()
             Step.EXISTING -> if (entryStep == Step.EXISTING) leave() else step = Step.ADD_CONTENT
             Step.FORM -> backFromForm()
+            // A bulk run keeps going in the background scope, so a stray Back must not leave a step
+            // with no way back to its result — only Cancel (the button) stops it.
+            Step.SERVER_LIST -> if (serverListState is SetupViewModel.ServerListUi.Running) Unit
+                else { vm.cancelServerList(); step = Step.ADD_CONTENT }
             Step.RESTORE -> backFromRestore()
             Step.IMPORTING -> Unit // the buttons on that screen decide; a stray swipe must not abandon a sync
         }
@@ -194,6 +224,11 @@ fun SetupFlow(
     LaunchedEffect(Unit) {
         if (entryStep == Step.RESTORE && !openedPicker) { openedPicker = true; pickBackup() }
         if (entryStep == Step.EXISTING) existing = runCatching { vm.availableExistingSources() }.getOrDefault(emptyList())
+    }
+    // The card promised a file picker, so it opens on arrival. A pick that parses to nothing stays
+    // on the step and offers to pick again rather than looping the browser.
+    LaunchedEffect(step) {
+        if (step == Step.SERVER_LIST && !openedListPicker) { openedListPicker = true; pickServerList() }
     }
     // Read once: a later "Type it here" must not be filled from an old submission.
     LaunchedEffect(step) { if (step != Step.FORM && remotePayload != null) vm.consumeRemotePayload() }
@@ -225,6 +260,7 @@ fun SetupFlow(
                 hasExisting = existing.isNotEmpty(),
                 onRemoteReceived = { importOrigin = Step.FORM; step = Step.FORM },
                 onNew = { importOrigin = Step.FORM; step = Step.FORM },
+                onFile = { serverListChosen = false; vm.resetServerList(); step = Step.SERVER_LIST },
                 onExisting = { step = Step.EXISTING },
                 onImport = { backupOrigin = Step.ADD_CONTENT; step = Step.RESTORE; pickBackup() },
                 onSkip = { vm.finish(onDone) },
@@ -263,6 +299,14 @@ fun SetupFlow(
                     },
                 )
             }
+            Step.SERVER_LIST -> ServerListImportStep(
+                state = serverListState,
+                chosen = serverListChosen,
+                onPickAgain = { serverListChosen = false; vm.resetServerList(); pickServerList() },
+                onCancel = { vm.cancelServerList(); step = Step.ADD_CONTENT },
+                onContinue = { vm.finish(onDone) },
+                onAddGuide = { SetupHandoff.requestAddEpg(); vm.finish(onDone) },
+            )
             Step.IMPORTING -> ImportProgress(
                 state = state,
                 progress = progress,
@@ -399,6 +443,93 @@ private fun ImportRows(progress: ImportStage?) {
         ) {
             if (!active) StageRowValue(stringResource(R.string.common_done))
         }
+    }
+}
+
+/**
+ * Importing a mixed server list: progress server by server, then what arrived — with a reason for
+ * each one that did not, and the duplicate lines the list repeated. Both apps share the parser, so
+ * a list reads the same on the phone as on the television.
+ */
+@Composable
+private fun ServerListImportStep(
+    state: SetupViewModel.ServerListUi,
+    chosen: Boolean,
+    onPickAgain: () -> Unit,
+    onCancel: () -> Unit,
+    onContinue: () -> Unit,
+    onAddGuide: () -> Unit,
+) {
+    val resources = LocalContext.current.resources
+    when (state) {
+        is SetupViewModel.ServerListUi.Running -> WizardFrame(
+            step = WizardStep.PLAYLIST,
+            title = stringResource(R.string.settings_bulk_import_title, state.done + 1, state.total),
+            sub = stringResource(R.string.setup_watching_during_import),
+            next = stringResource(R.string.setup_run_in_background),
+            onNext = onContinue,
+            onBack = onCancel,
+            backLabel = stringResource(R.string.common_cancel),
+        ) {
+            WizardSweepBar()
+            StageSettingRow(title = state.currentName, icon = MobileIcons.Download, role = null)
+        }
+        is SetupViewModel.ServerListUi.Done -> {
+            val failures = state.failed.map { failure ->
+                val reason = failure.failure?.displayText(resources) ?: failure.detail.orEmpty()
+                if (reason.isBlank()) failure.name
+                else resources.getString(R.string.settings_bulk_import_failure_line, failure.name, reason)
+            }
+            WizardFrame(
+                step = WizardStep.READY,
+                title = stringResource(R.string.setup_all_set),
+                sub = listOfNotNull(
+                    resources.getQuantityString(R.plurals.settings_bulk_import_added, state.succeeded.size, state.succeeded.size),
+                    state.failed.takeIf { it.isNotEmpty() }
+                        ?.let { resources.getQuantityString(R.plurals.settings_bulk_import_failed, it.size, it.size) },
+                    state.skipped.takeIf { it.isNotEmpty() }
+                        ?.let { resources.getQuantityString(R.plurals.settings_bulk_import_skipped, it.size, it.size) },
+                    failures.takeIf { it.isNotEmpty() }?.joinToString("\n"),
+                ).joinToString("\n"),
+                next = stringResource(R.string.setup_continue),
+                onNext = onContinue,
+                onBack = null,
+            ) {
+                StageSettingRow(
+                    title = stringResource(R.string.setup_add_guide),
+                    icon = MobileIcons.Guide,
+                    subtitle = stringResource(R.string.setup_add_guide_line),
+                    onClick = onAddGuide,
+                ) { StageRowValue("", StageChevron.FORWARD) }
+            }
+        }
+        is SetupViewModel.ServerListUi.ParseError -> {
+            val message = when (state.reason) {
+                SetupViewModel.ServerListParseReason.UnreadableFile ->
+                    resources.getString(R.string.settings_bulk_import_unreadable_file, state.label)
+                SetupViewModel.ServerListParseReason.Empty -> stringResource(R.string.settings_bulk_import_empty)
+                SetupViewModel.ServerListParseReason.UnreadableLines ->
+                    resources.getQuantityString(R.plurals.settings_bulk_import_unreadable, state.lines, state.lines)
+            }
+            WizardFrame(
+                step = WizardStep.PLAYLIST,
+                title = stringResource(R.string.settings_bulk_import_parse_error),
+                sub = message + "\n\n" + stringResource(R.string.setup_server_list_format_hint),
+                next = stringResource(R.string.setup_try_again_caps),
+                onNext = onPickAgain,
+                onBack = onCancel,
+            )
+        }
+        // Nothing picked yet (or the picker was dismissed): the step waits, and says how the file
+        // should look while it does.
+        is SetupViewModel.ServerListUi.Idle -> WizardFrame(
+            step = WizardStep.PLAYLIST,
+            title = stringResource(R.string.setup_import_server_list),
+            sub = stringResource(R.string.setup_server_list_format_hint),
+            next = if (chosen) stringResource(R.string.setup_try_again_caps) else null,
+            onNext = onPickAgain,
+            onBack = onCancel,
+        )
     }
 }
 

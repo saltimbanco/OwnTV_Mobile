@@ -7,6 +7,13 @@
 > Issue numbers that are part of a title are fine; explanatory parentheticals are not. The detail —
 > what, why, files and verification — belongs in the commit message, never here.
 
+## Unreleased
+
+**This fork's own work since v1.1.3.**
+
+### New features
+- **📄 First run asks for a server list too: Xtream logins and MAC portals in one text file, mixed**
+
 ## Upstream Unreleased
 
 **Merged upstream work past v1.1.1 into this fork on 2026-11-01.**

@@ -671,6 +671,7 @@
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	rec_reserve
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	rec_watching
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_afr
+1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_afr_live
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_audio_lang
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_audio_sync
 1	preference-key	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/SettingsPlayerRows.kt	vp_autoplay
@@ -793,7 +794,7 @@
 1	json	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsPane.kt	span
 1	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsViewModel.kt	EPISODE not applicable
 2	log	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeItemsViewModel.kt	EPISODE not applicable to category items
-3	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeSpanUi.kt	\0
+2	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeSpanUi.kt	\0
 1	empty	app/src/main/java/tv/own/owntv/mobile/ui/screens/settings/customize/CustomizeViewModel.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/sports/SportsCards.kt	${scoreText(m.sport, home.score)} – ${scoreText(m.sport, away.score)}
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/screens/sports/SportsCards.kt	–
@@ -946,7 +947,8 @@
 1	technical	app/src/main/java/tv/own/owntv/mobile/ui/setup/AddSourceForm.kt	user
 1	mime	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupFiles.kt	*/*
 1	file-path	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupFiles.kt	picked
-4	empty	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupFlow.kt	\0
+8	empty	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupFlow.kt	\0
+2	empty	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupViewModel.kt	\0
 3	empty	app/src/main/java/tv/own/owntv/mobile/ui/setup/SetupWizardSteps.kt	\0
 2	technical	app/src/main/java/tv/own/owntv/mobile/ui/setup/WizardFrame.kt	sweep
 2	protocol	app/src/main/java/tv/own/owntv/mobile/ui/shell/MobileShell.kt	${it.route}/

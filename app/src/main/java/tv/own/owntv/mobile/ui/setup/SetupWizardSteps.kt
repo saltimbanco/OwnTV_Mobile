@@ -346,8 +346,8 @@ private fun AvatarSheet(chosen: Int, onPick: (Int) -> Unit, onDismiss: () -> Uni
 }
 
 /**
- * Add a playlist: Remote first (a phone keyboard is slow for addresses too), Type it here, Existing when
- * another profile has playlists, Import, then Skip for now.
+ * Add a playlist: Remote first (a phone keyboard is slow for addresses too), Type it here, Import from a
+ * server list, Existing when another profile has playlists, Import, then Skip for now.
  */
 @Composable
 fun AddContentStep(
@@ -355,6 +355,8 @@ fun AddContentStep(
     hasExisting: Boolean,
     onRemoteReceived: () -> Unit,
     onNew: () -> Unit,
+    /** A plain-text file of servers — Xtream logins and Stalker portals, mixed freely. */
+    onFile: () -> Unit,
     onExisting: () -> Unit,
     onImport: () -> Unit,
     onSkip: () -> Unit,
@@ -378,6 +380,7 @@ fun AddContentStep(
             vm.consumeRemotePayload()
             onNew()
         }
+        WizardCard(MobileIcons.FormatListBulleted, stringResource(R.string.setup_import_server_list), stringResource(R.string.setup_import_server_list_line), onFile)
         if (hasExisting) {
             WizardCard(MobileIcons.Layers, stringResource(R.string.setup_existing), stringResource(R.string.setup_use_other_profile_playlists), onExisting)
         }

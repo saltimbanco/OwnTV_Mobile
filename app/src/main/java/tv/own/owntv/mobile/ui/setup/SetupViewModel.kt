@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import tv.own.owntv.core.backup.BackupManager
@@ -15,6 +18,9 @@ import tv.own.owntv.core.database.entity.SourceEntity
 import tv.own.owntv.core.setup.SourceImporter
 import tv.own.owntv.core.sync.SyncScopeChoice
 import tv.own.owntv.mobile.R
+import tv.own.owntv.mobile.ui.screens.settings.ServerListEntry
+import tv.own.owntv.mobile.ui.screens.settings.SkippedLine
+import tv.own.owntv.mobile.ui.screens.settings.parseServerList
 import java.io.File
 
 /**
@@ -191,6 +197,113 @@ class SetupViewModel(
         importJob = null
         importer.reset()
     }
+
+    // ---- Bulk import of a mixed server list (Xtream logins and Stalker portals in one file) ----
+    //
+    // Settings' own parser ([parseServerList]), shared rather than duplicated: a line's type comes from
+    // its shape, the same login or MAC imports once however many hosts publish it, and a line that
+    // names no server is reported rather than silently dropped. On a first run the profile does not
+    // exist yet, so [attachToProfile] does what it does for a single add.
+
+    sealed interface ServerListUi {
+        data object Idle : ServerListUi
+        data class Running(val done: Int, val total: Int, val currentName: String) : ServerListUi
+        data class Done(
+            val succeeded: List<String>,
+            val failed: List<FailedServer>,
+            /** Lines that produced no server: unreadable, or duplicates of an earlier line. */
+            val skipped: List<SkippedLine>,
+        ) : ServerListUi
+        data class ParseError(val reason: ServerListParseReason, val lines: Int = 0, val label: String = "") : ServerListUi
+    }
+
+    enum class ServerListParseReason { UnreadableFile, Empty, UnreadableLines }
+
+    data class FailedServer(
+        val name: String,
+        /** Core's failure when the import ran and reported one; null when it threw before that. */
+        val failure: SourceImporter.SetupFailure?,
+        val detail: String?,
+    )
+
+    private val _serverList = MutableStateFlow<ServerListUi>(ServerListUi.Idle)
+    val serverList: StateFlow<ServerListUi> = _serverList.asStateFlow()
+    private var serverListJob: Job? = null
+
+    /**
+     * Import every server listed in [text] (null when the picked document could not be read).
+     *
+     * Scopes mirror the single-add defaults: Xtream everything now, Stalker live now with its VOD
+     * deferred (a MAC portal has no bulk VOD endpoint). One server failing does not stop the ones
+     * after it.
+     */
+    fun startServerList(
+        text: String?,
+        defaultServerName: (Int) -> String,
+        defaultPortalName: (Int) -> String,
+        /** Display name of the picked document, for the unreadable-file message. */
+        fileLabel: String = "",
+    ) {
+        serverListJob?.cancel()
+        serverListJob = appScope.launch {
+            attachToProfile()
+            if (text == null) {
+                _serverList.value = ServerListUi.ParseError(ServerListParseReason.UnreadableFile, label = fileLabel)
+                return@launch
+            }
+            val parsed = parseServerList(text, defaultServerName, defaultPortalName)
+            if (parsed.entries.isEmpty()) {
+                _serverList.value = ServerListUi.ParseError(
+                    if (parsed.skipped.isEmpty()) ServerListParseReason.Empty else ServerListParseReason.UnreadableLines,
+                    parsed.skipped.size,
+                )
+                return@launch
+            }
+            importer.reset()
+            val succeeded = mutableListOf<String>()
+            val failed = mutableListOf<FailedServer>()
+            parsed.entries.forEachIndexed { index, entry ->
+                _serverList.value = ServerListUi.Running(index, parsed.entries.size, entry.name)
+                val thrown = runCatching {
+                    when (entry) {
+                        is ServerListEntry.Xtream -> importer.xtream(
+                            name = entry.name, server = entry.server, username = entry.username,
+                            password = entry.password, live = SyncScopeChoice.Now,
+                            movies = SyncScopeChoice.Now, series = SyncScopeChoice.Now,
+                        )
+                        is ServerListEntry.Stalker -> importer.stalker(
+                            name = entry.name, portalUrl = entry.portalUrl, mac = entry.mac,
+                            serialNumber = entry.serialNumber, deviceId = entry.deviceId,
+                            deviceId2 = entry.deviceId2, signature = entry.signature,
+                            live = SyncScopeChoice.Now,
+                            movies = SyncScopeChoice.Later, series = SyncScopeChoice.Later,
+                        )
+                    }
+                }.exceptionOrNull()
+                // runCatching must not swallow cancellation: cancelling the job has to stop the loop
+                // rather than record one more failed server and carry on.
+                if (thrown is kotlinx.coroutines.CancellationException) throw thrown
+                when (val imported = importer.state.value) {
+                    is SourceImporter.ImportState.Success -> succeeded.add(entry.name)
+                    is SourceImporter.ImportState.Failed -> failed.add(FailedServer(entry.name, imported.failure, thrown?.message))
+                    else -> failed.add(FailedServer(entry.name, null, thrown?.message ?: imported.toString()))
+                }
+                importer.reset()
+            }
+            _serverList.value = ServerListUi.Done(succeeded, failed, parsed.skipped)
+        }.also { job -> job.invokeOnCompletion { if (serverListJob == job) serverListJob = null } }
+    }
+
+    /** Cancel the bulk run: core's import then cleans up the server it was on, exactly as a single add does. */
+    fun cancelServerList() {
+        serverListJob?.cancel()
+        serverListJob = null
+        importer.reset()
+        _serverList.value = ServerListUi.Idle
+    }
+
+    /** Drop the result so Back out of the step does not show it again on the next visit. */
+    fun resetServerList() { _serverList.value = ServerListUi.Idle }
 
     private fun runImport(block: suspend () -> Unit) {
         importJob?.cancel()
