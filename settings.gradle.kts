@@ -40,13 +40,16 @@ dependencyResolutionManagement {
     }
 }
 
-// Local development: build against core's own source instead of the published artifact, so a core
-// edit reaches this app with no publish step. Gradle substitutes the dependency automatically
-// because OwnTV_Core publishes under the same group and artifact ids this app asks for. CI leaves
-// owntv.corePath unset and resolves the pinned version instead. The SAME property serves the TV app
-// and this one — set it once in ~/.gradle/gradle.properties, never here:
-//   owntv.corePath=E:/MEGA/CODE/AI/OwnTV_Suite/OwnTV_Core
-providers.gradleProperty("owntv.corePath").orNull?.takeIf { it.isNotBlank() }?.let { includeBuild(it) }
+// Build against the core sources checked out next to this repo (../OwnTV_Core), so a core edit
+// reaches this app with no publish step and nothing has to be copied to a scratch folder. Gradle
+// substitutes the dependency automatically because OwnTV_Core publishes under the same group and
+// artifact ids this app asks for. -Powntv.corePath=<dir> points somewhere else; when there is no
+// sibling checkout (CI, a lone clone) this falls through to the pinned published version.
+val coreDir = providers.gradleProperty("owntv.corePath").orNull?.takeIf { it.isNotBlank() }
+    ?.let { java.io.File(it) }
+    ?: java.io.File(settingsDir.parentFile, "OwnTV_Core")
+        .takeIf { java.io.File(it, "settings.gradle.kts").isFile }
+coreDir?.let { includeBuild(it) }
 
 rootProject.name = "OwnTVMobile"
 include(":app")
