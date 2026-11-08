@@ -100,6 +100,8 @@ import tv.own.owntv.mobile.ui.screens.live.LiveTuner
 import tv.own.owntv.mobile.ui.screens.morePageTitleRes
 import tv.own.owntv.mobile.ui.screens.settings.settingsPageTitleRes
 import tv.own.owntv.mobile.ui.screens.settings.isSettingsPage
+import tv.own.owntv.mobile.ui.screens.sports.SportsPlayback
+import tv.own.owntv.mobile.ui.screens.sports.SportsTab
 
 /**
  * The frame every screen sits in (Stage): the Stage page background, the page header with the
@@ -118,6 +120,7 @@ fun MobileShell(
     navController: NavHostController = rememberNavController(),
 ) {
     val shellViewModel: ShellViewModel = koinViewModel()
+    val sportsPlayback: SportsPlayback = koinInject()
     val sections by shellViewModel.visibleSections.collectAsStateWithLifecycle()
 
     val profilesViewModel: ProfilesViewModel = koinViewModel()
@@ -487,7 +490,7 @@ fun MobileShell(
                 current = current,
                 compact = compactRail,
                 profile = loadedProfiles.firstOrNull { it.id == activeId },
-                onClick = { navController.onNavClick(it, current, shellViewModel) },
+                onClick = { navController.onNavClick(it, current, shellViewModel, sportsPlayback) },
                 onSearch = { navController.navigate(SEARCH_ROUTE) { launchSingleTop = true } },
                 onAvatar = { navController.navigate(MobileDestination.MORE.route) { launchSingleTop = true } },
                 modifier = Modifier.align(Alignment.CenterStart),
@@ -572,7 +575,7 @@ fun MobileShell(
                             destinations = destinations,
                             current = current,
                             labels = navLabels,
-                            onClick = { navController.onNavClick(it, current, shellViewModel) },
+                            onClick = { navController.onNavClick(it, current, shellViewModel, sportsPlayback) },
                             onLongClick = { shellViewModel.requestScrollToTop(it.route) },
                         )
                     }
@@ -802,6 +805,7 @@ private fun NavHostController.onNavClick(
     destination: MobileDestination,
     current: MobileDestination?,
     shell: ShellViewModel,
+    sportsPlayback: SportsPlayback,
 ) {
     when {
         // A film or a channel opened under this tab: back to the tab's own list first (only the list
@@ -813,7 +817,11 @@ private fun NavHostController.onNavClick(
         // A More or Settings page pushed on top of this tab: back down to the tab itself. Restoring the
         // tab's saved stack instead restored the very page on screen, so the tap did nothing.
         current == null && popBackStack(destination.route, inclusive = false) -> Unit
-        else -> navigateToTab(destination)
+        else -> {
+            // Sports opened from another place starts on Scores; Back from its match pages keeps the tab.
+            if (destination == MobileDestination.SPORTS) sportsPlayback.tab.value = SportsTab.SCORES
+            navigateToTab(destination)
+        }
     }
 }
 

@@ -84,7 +84,9 @@ The same two engines as the television, behind the same `PlaybackEngine` interfa
 - **Protected (DRM) channels** — Widevine and ClearKey, from a licence server or ClearKey keys written
   inline in the playlist — play on ExoPlayer, which outranks every other preference. They
   **cannot be recorded** — the CDM decrypts only into a secure decoder for immediate display, so a
-  recording is refused before it starts rather than left as a file that will not play.
+  recording is refused before it starts rather than left as a file that will not play. Apple FairPlay
+  cannot play on any Android device: such a channel says so at once, and ClearKey keys a playlist files
+  under a FairPlay label play as ClearKey.
 - **Container is decided from evidence**, not from the file extension: the playlist's declared
   `manifest_type`, then what the response actually turns out to be, then what the same provider has
   already been caught serving. HLS, MPEG-DASH and raw MPEG-TS. The response sniff is the only route
@@ -133,8 +135,9 @@ than growing.
   token, so the lock screen, the notification and the media buttons are the session's own rather than
   a second copy that can disagree with it.
 - **Audio focus for a phone** — a call **pauses** the film rather than playing it quietly under the
-  caller, and unplugging headphones stops it instead of switching to the loudspeaker. Both differ
-  from the television's defaults on purpose.
+  caller, and it plays on by itself when the call ends; WhatsApp and other internet calls too (from
+  Android 12). A notification sound only turns it down for a moment. Unplugging headphones stops it
+  instead of switching to the loudspeaker. These differ from the television's defaults on purpose.
 - **Casting (Google Cast)** — sender-side only, and absent from the television by nature: an Android
   TV box *is* a receiver. `CastPlaybackEngine` is another `PlaybackEngine`, so the lock screen and
   notification followed it for free. A stream a receiver cannot decode gets a readable, translated
@@ -179,7 +182,8 @@ top. Predictive back is on.
   **muted preview** on top (beside the list when wide), not watched until a second tap opens it full
   screen — the television's preview. A channel on Home, in Favourites or History plays full screen;
   one from Search opens in Live TV's preview.
-- **Sports** — the television's Sports section as built: ESPN scores for followed leagues, match
+- **Sports** — the television's Sports section as built: Scores · Calendar · Leagues tabs sharing one set
+  of sport and league buttons, team pages, ESPN scores for followed leagues, match
   pages with Find channels (searched only on request), a filter sheet, Broadcasts, a Home row, the
   score and Other channels in the player, and — phone only — goal alerts and a live score card that
   work with the app closed (core's `MatchAlertHost.backgroundAllowed`).
@@ -303,7 +307,7 @@ eye and to nothing else, so selection is announced.
 | Area | Choice |
 |---|---|
 | Language | Kotlin 2.4.20 |
-| Build | AGP 9.4.0 / Gradle 9.7.1 |
+| Build | AGP 9.4.0 / Gradle 9.8.2, JDK 25 |
 | UI | Jetpack Compose, Material 3, Compose BOM 2026.09.00, adaptive layouts |
 | Engine | `tv.own.owntv:core` + `:player-core` — Room, sync, EPG, backup, libmpv and Media3 |
 | Media | Media3 1.11.1 (the subtitle view only; the player itself is core's) |

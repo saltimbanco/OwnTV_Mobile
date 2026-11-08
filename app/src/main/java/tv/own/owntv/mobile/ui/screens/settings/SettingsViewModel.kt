@@ -15,13 +15,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -223,10 +221,8 @@ class SettingsViewModel(
         }
     }.getOrNull()
 
-    /** How many channels, films and shows a playlist actually holds — re-counted when a sync ends. */
-    fun contentCounts(sourceId: Long): Flow<SyncCounts> = catalogSync.observeSync(sourceId)
-        .onStart { emit(CatalogSyncState.Idle) }
-        .filter { !it.isActive }
+    /** How many channels, films and shows a playlist actually holds — re-counted when a sync or the background backfill ends. */
+    fun contentCounts(sourceId: Long): Flow<SyncCounts> = catalogSync.catalogueSettled(sourceId)
         .map { importFinalizer.contentCounts(sourceId) }
 
     /**
@@ -283,11 +279,14 @@ class SettingsViewModel(
     ) {
         viewModelScope.launch {
             val existing = sourceDao.getById(id) ?: return@launch
+            // A Stalker login is optional, so a cleared username removes it (and its password).
+            val stalker = existing.type == tv.own.owntv.core.model.SourceType.STALKER
+            val newUser = user.trim().takeIf { it.isNotBlank() } ?: existing.username.takeUnless { stalker }
             val updated = existing.copy(
                 name = name.trim().ifBlank { existing.name },
                 url = urlOrServer.trim().ifBlank { existing.url },
-                username = user.trim().takeIf { it.isNotBlank() } ?: existing.username,
-                password = pass.takeIf { it.isNotBlank() } ?: existing.password,
+                username = newUser,
+                password = if (stalker && newUser == null) null else pass.takeIf { it.isNotBlank() } ?: existing.password,
                 mac = StalkerClient.canonicalizeMac(mac) ?: existing.mac,
                 stalkerSerialNumber = stalkerSerialNumber.trim().takeIf { it.isNotBlank() },
                 stalkerDeviceId = stalkerDeviceId.trim().takeIf { it.isNotBlank() },
