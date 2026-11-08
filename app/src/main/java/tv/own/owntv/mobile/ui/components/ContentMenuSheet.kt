@@ -16,6 +16,7 @@ import tv.own.owntv.core.settings.SettingsRepository
 import tv.own.owntv.mobile.ui.stage.StageGroupLabel
 import tv.own.owntv.mobile.ui.stage.StageMenuItem
 import tv.own.owntv.mobile.ui.stage.StageSheetHeader
+import kotlinx.coroutines.flow.map
 
 /**
  * One action in a long-press content menu.
@@ -62,7 +63,9 @@ fun ContentMenuSheet(
     subtitle: String? = null,
 ) {
     val settings: SettingsRepository = koinInject()
-    val order by remember(menu) { settings.menuOrder(menu.name.lowercase()) }
+    // Core's per-menu layout: the same order the television writes, so an arrangement made on one
+    // app is the arrangement seen on the other.
+    val order by remember(menu) { settings.menuLayout(menu).map { it.order } }
         .collectAsStateWithLifecycle(emptyList())
 
     MobileBottomSheet(onDismissRequest = onDismiss, title = title, modifier = modifier) {

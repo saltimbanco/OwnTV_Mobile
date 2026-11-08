@@ -145,7 +145,7 @@ fun PlayerScreen(
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     val channel by tuner.channel.collectAsStateWithLifecycle()
-    val autoFrameRate by settings.autoFrameRate.collectAsStateWithLifecycle(initialValue = false)
+    val autoFrameRate by settings.autoFrameRateFilms.collectAsStateWithLifecycle(initialValue = false)
     val previousChannel by tuner.previousChannel.collectAsStateWithLifecycle()
     val film by vodTuner.playing.collectAsStateWithLifecycle()
     val nowNext by tuner.nowNext.collectAsStateWithLifecycle()

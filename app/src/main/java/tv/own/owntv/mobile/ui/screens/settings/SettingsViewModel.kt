@@ -71,6 +71,7 @@ import tv.own.owntv.core.sync.work.CatalogSyncScheduler
 import tv.own.owntv.core.sync.work.CatalogSyncState
 import tv.own.owntv.core.trending.TrendingAvailability
 import tv.own.owntv.core.trending.trendingAvailability
+import tv.own.owntv.core.model.ContentMenu
 
 /**
  * The one view model behind every settings page.
@@ -117,6 +118,16 @@ class SettingsViewModel(
     /** Run a setter on a scope that survives the row being scrolled off the screen. */
     fun edit(block: suspend SettingsRepository.() -> Unit) {
         viewModelScope.launch { settings.block() }
+    }
+
+    /** One long-press menu's saved arrangement: order plus what the user hid. */
+    fun menuLayout(menu: ContentMenu) = settings.menuLayout(menu)
+
+    /** Saves a new [order] for [menu], keeping whatever the user hid in it. */
+    fun setMenuOrder(menu: ContentMenu, order: List<String>) {
+        viewModelScope.launch {
+            settings.setMenuLayout(menu, settings.menuLayout(menu).first().copy(order = order))
+        }
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)

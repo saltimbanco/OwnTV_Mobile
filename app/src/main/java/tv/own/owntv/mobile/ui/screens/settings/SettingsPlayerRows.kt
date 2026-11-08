@@ -205,7 +205,8 @@ internal fun pictureSections(vm: SettingsViewModel): List<SettingSection> {
     val zoom = runCatching { ZoomMode.valueOf(zoomName) }.getOrDefault(ZoomMode.FIT)
     val tunneled = s.tunneledPlayback.pref(false)
     val tunnelingFailed = s.tunnelingFailed.pref(false)
-    val afr = s.autoFrameRate.pref(false)
+    val afrFilms = s.autoFrameRateFilms.pref(false)
+    val afrLive = s.autoFrameRateLive.pref(false)
     // Below Android 12 a display cannot be asked which refresh rates it reaches without blanking it, so turning
     // auto frame rate on asks first; off is immediate — the TV's rule.
     var afrWarning by remember { mutableStateOf(false) }
@@ -215,7 +216,7 @@ internal fun pictureSections(vm: SettingsViewModel): List<SettingSection> {
             text = stringResource(R.string.settings_auto_frame_rate_warning_description_mobile, android.os.Build.VERSION.RELEASE),
             confirm = stringResource(R.string.settings_auto_frame_rate_turn_on_anyway),
             cancel = stringResource(R.string.settings_auto_frame_rate_keep_off),
-            onConfirm = { vm.edit { setAutoFrameRate(true) } },
+            onConfirm = { vm.edit { setAutoFrameRateFilms(true) } },
             onDismiss = { afrWarning = false },
         )
     }
@@ -258,9 +259,15 @@ internal fun pictureSections(vm: SettingsViewModel): List<SettingSection> {
             stringResource(R.string.settings_vp_cat_frame_rate),
             listOf(
                 switchItem(
-                    "vp_afr", MobileIcons.Schedule, stringResource(R.string.settings_auto_frame_rate),
-                    stringResource(R.string.settings_vp_cat_frame_rate_summary), afr,
-                ) { on -> if (on && !AFR_SAFE) afrWarning = true else vm.edit { setAutoFrameRate(on) } },
+                    "vp_afr", MobileIcons.Schedule, stringResource(R.string.settings_auto_frame_rate_films),
+                    stringResource(R.string.settings_auto_frame_rate_films_description), afrFilms,
+                ) { on -> if (on && !AFR_SAFE) afrWarning = true else vm.edit { setAutoFrameRateFilms(on) } },
+                // Live has a switch of its own: a 24 Hz switch can be a nuisance on films while a
+                // 25/50 fps broadcast judders without it.
+                switchItem(
+                    "vp_afr_live", MobileIcons.Schedule, stringResource(R.string.settings_auto_frame_rate_live),
+                    stringResource(R.string.settings_auto_frame_rate_live_description), afrLive,
+                ) { on -> vm.edit { setAutoFrameRateLive(on) } },
             ),
         ),
     )

@@ -16,9 +16,4 @@ class SettingsPinViewModel(private val settings: SettingsRepository) : ViewModel
     val lock: StateFlow<SettingsPinLock> = settings.activeSettingsPinLock()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsPinLock())
 
-    fun setAskOnOpen(enabled: Boolean) {
-        val pid = lock.value.profileId
-        if (pid < 0) return
-        viewModelScope.launch { settings.setSettingsPinEnabled(pid, enabled) }
-    }
 }

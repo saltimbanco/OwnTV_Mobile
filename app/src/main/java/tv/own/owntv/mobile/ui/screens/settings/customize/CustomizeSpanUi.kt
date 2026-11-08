@@ -222,7 +222,7 @@ internal fun PinEditFlow(mode: PinEdit, onSetPin: (String?) -> Unit, onDone: () 
     when (mode) {
         PinEdit.REMOVE -> ConfirmDialog(
             title = stringResource(R.string.settings_customize_remove_pin_title),
-            message = stringResource(R.string.settings_customize_remove_pin_message) + " " + stringResource(R.string.settings_customize_remove_pin_locks),
+            message = stringResource(R.string.settings_customize_remove_pin_locks),
             confirmLabel = stringResource(R.string.settings_customize_remove),
             onConfirm = { onSetPin(null); onDone() },
             onDismiss = onDone,

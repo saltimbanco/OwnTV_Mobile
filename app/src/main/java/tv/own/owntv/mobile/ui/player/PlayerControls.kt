@@ -562,6 +562,9 @@ private fun ToolBar(
                     onClick = { onOpenSheet(PlayerSheet.SPEED) },
                 )
             }
+            // Live TV's source switcher is the channel sheet's job on a phone; the bar has no room
+            // for it and the television's row is where it belongs.
+            PlayerControl.SOURCES -> Unit
             PlayerControl.SUBTITLES -> CtrlButton(
                 icon = MobileIcons.ClosedCaption,
                 label = stringResource(R.string.player_tool_subtitles),

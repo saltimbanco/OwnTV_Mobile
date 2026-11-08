@@ -38,6 +38,7 @@ import tv.own.owntv.mobile.ui.stage.StageSheetHeader
 import tv.own.owntv.mobile.ui.stage.StageStepper
 import tv.own.owntv.mobile.ui.stage.stageAccent
 import tv.own.owntv.mobile.ui.theme.labelRes
+import kotlinx.coroutines.flow.map
 
 /**
  * Appearance › Selection highlight: the ring's thickness as a stepper, then its colour — the accent, each
@@ -163,8 +164,7 @@ fun SettingsMenusPage(modifier: Modifier = Modifier, vm: SettingsViewModel = koi
 /** One long-press menu's actions, in the order they will appear, with ↑ ↓ to rearrange them. */
 @Composable
 private fun MenuOrderSheet(vm: SettingsViewModel, menu: ContentMenu, onDismiss: () -> Unit) {
-    val key = menu.name.lowercase()
-    val saved = remember(menu) { vm.settings.menuOrder(key) }.pref(emptyList())
+    val saved = remember(menu) { vm.menuLayout(menu).map { it.order } }.pref(emptyList())
     val actions = applyMenuOrder(catalogue(menu), saved) { it.key }
     MobileBottomSheet(onDismissRequest = onDismiss) {
         StageSheetHeader(stringResource(menu.titleRes()), eyebrow = stringResource(R.string.settings_content_menus_title))
@@ -175,8 +175,8 @@ private fun MenuOrderSheet(vm: SettingsViewModel, menu: ContentMenu, onDismiss: 
                     onClick = {},
                     tags = {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            MoveKey(MobileIcons.KeyboardArrowUp, R.string.settings_row_menu_move_up, index > 0) { vm.edit { setMenuOrder(key, actions.movedKeys(index, -1)) } }
-                            MoveKey(MobileIcons.KeyboardArrowDown, R.string.settings_row_menu_move_down, index < actions.lastIndex) { vm.edit { setMenuOrder(key, actions.movedKeys(index, 1)) } }
+                            MoveKey(MobileIcons.KeyboardArrowUp, R.string.settings_row_menu_move_up, index > 0) { vm.setMenuOrder(menu, actions.movedKeys(index, -1)) }
+                            MoveKey(MobileIcons.KeyboardArrowDown, R.string.settings_row_menu_move_down, index < actions.lastIndex) { vm.setMenuOrder(menu, actions.movedKeys(index, 1)) }
                         }
                     },
                 )
