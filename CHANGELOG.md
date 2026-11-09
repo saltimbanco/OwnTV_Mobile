@@ -87,6 +87,7 @@
 
 ### Fixes
 - **⏺️ The REC badge's timer counts up from the start of the recording instead of restarting at 0:00**
+- **🔒 Category locks no longer crash Live TV, the TV Guide and Library, nor the Settings PIN sheet**
 
 ## v1.1.2 — 2026-11-01
 
