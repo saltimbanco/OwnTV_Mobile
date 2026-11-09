@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import tv.own.owntv.core.categorylock.CategoryLockClosed
 import tv.own.owntv.core.categorylock.CategoryLockFlow
 import tv.own.owntv.core.categorylock.CategoryLockUi
-import tv.own.owntv.core.categorylock.PinAttemptLimiter
+import tv.own.owntv.core.categorylock.PinAttemptLimiters
+import tv.own.owntv.core.categorylock.PinDoor
 import tv.own.owntv.core.categorylock.SealedCategoryAction
 import tv.own.owntv.core.customize.CategoryUnlockSession
 import tv.own.owntv.core.customize.CustomizationStore
@@ -24,9 +25,11 @@ class CategoryLockViewModel(
     categoryDao: CategoryDao,
     customize: CustomizationStore,
     session: CategoryUnlockSession,
-    limiter: PinAttemptLimiter,
+    limiters: PinAttemptLimiters,
 ) : ViewModel() {
-    private val flow = CategoryLockFlow(viewModelScope, settings, profileDao, categoryDao, customize, session, limiter)
+    private val flow = CategoryLockFlow(
+        viewModelScope, settings, profileDao, categoryDao, customize, session, limiters.of(PinDoor.CATEGORY),
+    )
 
     val ui: StateFlow<CategoryLockUi> = flow.ui
     val closed: SharedFlow<CategoryLockClosed> = flow.closed
